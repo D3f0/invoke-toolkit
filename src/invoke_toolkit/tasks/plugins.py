@@ -6,11 +6,11 @@ def list_(ctx: Context):
     """List plugins"""
 
 
-@task(default=True)
+@task()
 def add(ctx: Context, plugin_spec: str) -> None:
     """Add a plugin"""
 
 
-@task(default=True)
+@task()
 def remove(ctx: Context, name: str) -> None:
     """Add a plugin"""
