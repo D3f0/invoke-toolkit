@@ -16,6 +16,8 @@ This extends the Collection from Invoke so it can create automatically collectio
   - [Features](#features)
   - [Do I need this package](#do-i-need-this-package)
   - [Installation](#installation)
+    - [Into exiting pipx project](#into-exiting-pipx-project)
+    - [Bootstrapping a new CLI](#bootstrapping-a-new-cli)
   - [Development](#development)
   - [License](#license)
 
@@ -40,9 +42,20 @@ If you have...
 
 ## Installation
 
+> [!WARNING]  
+> Invoke should not be installed in the system, it this is the case we
+> recommend to uninstall it and use `pipx` instead.
+
+### Into exiting pipx project
+
 ```console
-pip install invoke-toolkit
+which invoke || pipx install invoke
+pipx inject invke invoke-toolkit
 ```
+
+### Bootstrapping a new CLI
+
+TBD...
 
 ## Development
 
