@@ -19,6 +19,10 @@ class CollectionNotImportedError(CollectionError):
     ...
 
 
+class CollectionCantFindModulePathError(CollectionError):
+    ...
+
+
 def import_submodules(package_name: str) -> Dict[str, ModuleType]:
     """
     Import all submodules of a module from an imported module
@@ -34,6 +38,9 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
         msg = f"Module {package_name} not imported"
         raise CollectionNotImportedError(msg) from import_error
     result = {}
+    path = getattr(package, "__path__", None)
+    if path is None:
+        raise CollectionCantFindModulePathError(package)
     for _loader, name, _is_pkg in pkgutil.walk_packages(package.__path__):
         try:
             result[name] = importlib.import_module(package_name + "." + name)
