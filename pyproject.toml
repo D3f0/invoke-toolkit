@@ -36,6 +36,9 @@ dependencies = [
   "appdirs",
 ]
 
+[project.scripts]
+invtk = "invoke_toolkit.main:program.run"
+
 [project.urls]
 Documentation = "https://github.com/D3f0/invoke-toolkit#readme"
 Issues = "https://github.com/D3f0/invoke-toolkit/issues"
