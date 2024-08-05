@@ -87,10 +87,15 @@ class Collection(InvokeCollection):
 
         for name, module in import_submodules(namespace).items():
             coll = Collection.from_module(module)
+            # TODO: Discover if the namespace has configuration
+            #       collection.configure(config)
             self.add_collection(coll=coll, name=name)
 
     def load_plugins(self):
-        ...
+        """
+        This will call to .add_collections_from_namespace but will ensure to
+        add the plugin folder to the sys.path
+        """
 
     def load_directory(self, directory: Union[str, Path]) -> None:
         """Loads tasks from a folder"""

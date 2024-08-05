@@ -32,7 +32,8 @@ classifiers = [
 
 dependencies = [
   "invoke",
-  "rich"
+  "rich",
+  "appdirs",
 ]
 
 [project.urls]
