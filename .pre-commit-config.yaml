@@ -10,7 +10,7 @@ repos:
     # You are encouraged to use static refs such as tags, instead of branch name
     #
     # Running "pre-commit autoupdate" automatically updates rev to latest tag
-    rev: 0.13.1+ibm.61.dss
+    rev: 0.13.1+ibm.62.dss
     hooks:
       - id: detect-secrets # pragma: whitelist secret
         # Add options for detect-secrets-hook binary. You can run `detect-secrets-hook --help` to list out all possible options.
@@ -20,10 +20,10 @@ repos:
         # add "--fail-on-unaudited" to fail pre-commit for unaudited potential secrets
         args: [--baseline, .secrets.baseline, --use-all-plugins]
         exclude: 'src/fp_helper/_vendor/.*'
-        
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.1.6
+    rev: v0.5.7
     hooks:
       # Run the linter.
       - id: ruff
@@ -35,9 +35,25 @@ repos:
 
 
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.4
+    rev: v2.3.0
     hooks:
       - id: codespell
         types_or: [python, rst, markdown, cython, c]
         additional_dependencies: [tomli]
         # exclude: 'src/.*'
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-ast
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-executables-have-shebangs
+      - id: check-json
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

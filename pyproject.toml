@@ -82,6 +82,7 @@ dependencies = [
   "pytest-virtualenv",
   "coverage",
   "pdbpp",
+  "hunter",
 ]
 [tool.hatch.envs.dev.scripts]
 run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
