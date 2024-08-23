@@ -1,7 +1,13 @@
+"""
+Invoke tasks for automation, not dependency in this package itself, so they
+should be runnable from inv[oke] script installed from pipx.
+"""
+
 import importlib
 import os
 from pathlib import Path
 import sys
+from typing import List
 from invoke import task, Context
 import subprocess
 
@@ -12,9 +18,28 @@ REPO_ROOT = (
 )
 
 
-@task()
-def test(ctx: Context, debug=False, verbose=False):
-    """Run tests
+@task(
+    aliases=[
+        "t",
+    ],
+    help={
+        "kw": "Keyword arguments",
+        "no_capture": "Don't capture stderr/stdout",
+        "debug": "Debug failures or errors",
+        "markers": "For example -m slow",
+    },
+)
+def test(
+    ctx: Context,
+    debug=False,
+    verbose=False,
+    kw: List[str] = [],
+    markers_: List[str] = [],
+    no_capture: bool = False,
+    last_failed: bool = False,
+    fail_fast: bool = False,
+):
+    """Run tests (call py.test)
 
     It changes to the top level directory of the repo."""
     with ctx.cd(REPO_ROOT):
@@ -23,7 +48,18 @@ def test(ctx: Context, debug=False, verbose=False):
             args = f"{args} --pdb"
         if verbose:
             args = f"{args} --pdb"
-
+        if kw:
+            keyword = " ".join(f"-k {term}" for term in kw)
+            args = f"{args} {keyword}"
+        if no_capture:
+            args = f"{args} -s"
+        if markers_:
+            markers = " ".join(f"-m {repr(m)}" for m in markers_)
+            args = f"{args} {markers}"
+        if last_failed:
+            args = f"{args} --last-failed"
+        if fail_fast:
+            args = f"{args} -x"
         ctx.run(f"hatch run dev:pytest {args}", pty=True)
 
 
@@ -35,8 +71,7 @@ def clean_dist(ctx: Context):
 
 
 @task()
-def upload(ctx: Context, repository="pypi"):
-    ...
+def upload(ctx: Context, repository="pypi"): ...
 
 
 @task(pre=[clean_dist])
@@ -105,3 +140,13 @@ def print_module_path(ctx: Context, module=""):
     if path is None:
         sys.exit(f"No __path__ for {module}")
     return path[0]
+
+
+@task()
+def test_in_docker(ctx: Context) -> None:
+    with ctx.cd(REPO_ROOT):
+        tag = "invoke-toolkit:docker-test"
+        ctx.run(f"docker build -f scripts/docker/Dockerfile . -t {tag}")
+        ctx.run(
+            f"docker run --rm -ti -f scripts/docker/Dockerfile . -t {tag}", pty=True
+        )

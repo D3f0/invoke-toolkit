@@ -76,7 +76,7 @@ def ctx(tmp_path) -> Generator[Context, None, None]:
 def tmp_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Sets $HOME to tmp_path fixture"""
     monkeypatch.setenv("HOME", str(tmp_path))
-    return tmp_home()
+    return tmp_home
 
 
 @pytest.fixture()

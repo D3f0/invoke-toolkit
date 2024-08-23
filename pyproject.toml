@@ -83,6 +83,8 @@ dependencies = [
   "coverage",
   "pdbpp",
   "hunter",
+  "pexpect",
+  "pytest-venv",
 ]
 [tool.hatch.envs.dev.scripts]
 run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
@@ -98,3 +100,9 @@ dependencies = [
 
 [tool.ruff.lint.per-file-ignores]
 "*tasks*" = ["ARG001"]
+
+[tool.pytest.ini_options]
+markers = [
+    "webtest: mark a test as a webtest.",
+    "slow: mark test as slow.",
+]

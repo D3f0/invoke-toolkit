@@ -15,12 +15,10 @@ class CollectionError(Exception):
     """Base class for import discovery errors"""
 
 
-class CollectionNotImportedError(CollectionError):
-    ...
+class CollectionNotImportedError(CollectionError): ...
 
 
-class CollectionCantFindModulePathError(CollectionError):
-    ...
+class CollectionCantFindModulePathError(CollectionError): ...
 
 
 def import_submodules(package_name: str) -> Dict[str, ModuleType]:
@@ -41,7 +39,9 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
     path = getattr(package, "__path__", None)
     if path is None:
         raise CollectionCantFindModulePathError(package)
-    for _loader, name, _is_pkg in pkgutil.walk_packages(package.__path__):
+    discovered = pkgutil.walk_packages(package.__path__)
+    debug(f"Discovered packages: {discovered}")
+    for _loader, name, _is_pkg in discovered:
         try:
             result[name] = importlib.import_module(package_name + "." + name)
         except (ImportError, SyntaxError) as error:
