@@ -74,6 +74,11 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 
+[project.optional-dependencies]
+debug = [
+  "hunter",
+  "pdbpp",
+]
 
 [tool.hatch.envs.dev]
 dependencies = [
