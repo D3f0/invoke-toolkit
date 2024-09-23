@@ -1,3 +1,5 @@
+# TODO: Move this functionality to the program since it's too late to expand the collection
+# in a task
 from itertools import chain
 from pathlib import Path
 from textwrap import dedent

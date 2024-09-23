@@ -7,10 +7,12 @@ from ast import literal_eval
 from pathlib import Path
 from typing import List, Optional
 
+from invoke.parser import Argument
 from invoke.program import Program
 from rich.traceback import install
 from invoke_toolkit.collections import InvokeCollection
 from appdirs import user_data_dir
+from invoke_toolkit.output import console
 
 
 class InvokeToolkitProgram(Program):
@@ -30,6 +32,18 @@ class InvokeToolkitProgram(Program):
             install()
 
         return super().run(argv, exit)
+
+    def core_args(self) -> List[Argument]:
+        ret: List[Argument] = super().core_args()
+        ret.append(
+            Argument(names=("plugin", "P"), kind=list, default=[], help="Add plugins")
+        )
+        return ret
+
+    def parse_cleanup(self) -> None:
+        for plugin in self.args.plugin.value:
+            console.log(f"Should load plugin {plugin}")
+        return super().parse_cleanup()
 
     def create_config(self) -> None:
         """Adds the invoke-toolkit extra keys"""
