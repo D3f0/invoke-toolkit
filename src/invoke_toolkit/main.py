@@ -2,13 +2,11 @@
 A CLI to create CLIs
 """
 
-from invoke.program import Program
-from .program import InvokeToolkitProgram
 from .collections import Collection
-from rich.traceback import install
-
+from .program import InvokeToolkitProgram
 
 ns = Collection()
+# TODO: Push down to the program
 ns.add_collections_from_namespace("invoke_toolkit.tasks")
 program = InvokeToolkitProgram(
     "InvokeToolkit",

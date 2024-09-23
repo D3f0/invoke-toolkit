@@ -3,15 +3,20 @@ A CLI to create CLIs
 """
 
 import os
-from typing import List
-from invoke.program import Program
-from .collections import Collection
-from .program import Collection
-from rich.traceback import install
 from ast import literal_eval
+from pathlib import Path
+from typing import List, Optional
+
+from invoke.program import Program
+from rich.traceback import install
+from invoke_toolkit.collections import InvokeCollection
+from appdirs import user_data_dir
 
 
 class InvokeToolkitProgram(Program):
+    collection: InvokeCollection
+    author: str = "InvokeToolkitTeam"
+
     def run(self, argv: List[str] | None = None, exit: bool = True) -> None:
         """
         Runs the program using invoke code but pre-enabling rich traceback.
@@ -25,3 +30,18 @@ class InvokeToolkitProgram(Program):
             install()
 
         return super().run(argv, exit)
+
+    def create_config(self) -> None:
+        """Adds the invoke-toolkit extra keys"""
+        super().create_config()
+        section = self.config.setdefault("invoke-toolkit", {})
+        section["instance"] = self
+
+    @property
+    def plugin_dir(self):
+        location = user_data_dir(type(self).__name__, self.author)
+        path = Path(location) / "plugins"
+
+        if not path.exists():
+            path.mkdir(parents=True)
+        return path

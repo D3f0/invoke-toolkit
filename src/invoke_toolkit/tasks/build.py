@@ -9,5 +9,8 @@ from invoke_toolkit.output import console
 
 @task(default=True)
 def build(ctx: Context):
-    """Builds a package"""
+    """
+    Builds a distributable self contained Python based executable
+    using shiv
+    """
     console.print("[underline]Not yet implemented[/underline]")

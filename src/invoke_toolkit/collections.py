@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Dict, Union
+from invoke_toolkit.output import console
 
 from invoke.collection import Collection as InvokeCollection
 from invoke.util import debug
@@ -91,11 +92,29 @@ class Collection(InvokeCollection):
             #       collection.configure(config)
             self.add_collection(coll=coll, name=name)
 
-    def load_plugins(self):
-        """
-        This will call to .add_collections_from_namespace but will ensure to
-        add the plugin folder to the sys.path
-        """
+    # XXX: Moved to tasks
+    # def load_plugins(self):
+    #     """
+    #     This will call to .add_collections_from_namespace but will ensure to
+    #     add the plugin folder to the sys.path
+    #     """
+
+    MULTI_MODULE_BLACK_LIST = {"__init__.py", "tasks.py"}
+
+    @classmethod
+    def good_candidate(cls, name: Union[str, Path]) -> bool:
+        if isinstance(name, Path):
+            name = name.name
+
+        if name in cls.MULTI_MODULE_BLACK_LIST:
+            return False
+        if name.startswith("_"):
+            return False
+        if "plugin" in name:
+            return False
+        if "test" in name:
+            return False
+        return True
 
     def load_directory(self, directory: Union[str, Path]) -> None:
         """Loads tasks from a folder"""
@@ -109,4 +128,23 @@ class Collection(InvokeCollection):
 
         existing_paths = {pth for pth in sys.path if Path(pth).is_dir()}
         if path not in existing_paths:
-            sys.path.append(str(path))
+            parent_path = str(path.parent)
+            if parent_path not in sys.path:
+                console.log(f"Adding import path {parent_path} ")
+                sys.path.append(parent_path)
+            files: Dict[str, Path] = {
+                f.name: f for f in path.glob("*.py") if f.is_file()
+            }
+
+            spare_files: Dict[str, Path] = {
+                name: path for name, path in files.items() if self.good_candidate(path)
+            }
+            multi_module = len(spare_files) > 0
+            if multi_module:
+                for file_py in spare_files:
+                    module_name = file_py.replace(".py", "")
+                    fqmn = f"{path.name}.{module_name}"
+                    console.log(f"Importing {fqmn}")
+                    module = importlib.import_module(fqmn)
+                    col = self.from_module(module)
+                    self.add_collection(col)
