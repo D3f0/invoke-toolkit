@@ -3,57 +3,170 @@ A CLI to create CLIs
 """
 
 import os
+import sys
+from typing import (
+    TYPE_CHECKING,
+    List,
+    Optional,
+)
+
+from invoke.exceptions import Exit, ParseError, UnexpectedExit
+from invoke.parser import Argument
+from invoke.util import debug
+from rich.logging import RichHandler
+
+if TYPE_CHECKING:
+    pass
+
 from ast import literal_eval
 from pathlib import Path
-from typing import List, Optional
-
-from invoke.parser import Argument
-from invoke.program import Program
-from rich.traceback import install
-from invoke_toolkit.collections import InvokeCollection
+import logging
 from appdirs import user_data_dir
-from invoke_toolkit.output import console
+from invoke.program import Program
+from rich import traceback as rich_traceback
+
+from invoke_toolkit.collections import InvokeCollection
+from invoke_toolkit.output import console, rich_exit
 
 
 class InvokeToolkitProgram(Program):
     collection: InvokeCollection
     author: str = "InvokeToolkitTeam"
 
-    def run(self, argv: List[str] | None = None, exit: bool = True) -> None:
+    # We override the main invoke run functions but enabling
+    # some opinionated features like rich tracebacks
+    def run(self, argv: Optional[List[str]] = None, exit: bool = True) -> None:
         """
-        Runs the program using invoke code but pre-enabling rich traceback.
-        """
-        env_disable_rich_tb = os.getenv("NO_RICH_TB", "0")
-        try:
-            enable = not literal_eval(env_disable_rich_tb)
-        except Exception:
-            enable = True
-        if enable:
-            install()
+        Execute main CLI logic, based on ``argv``.
 
-        return super().run(argv, exit)
+        :param argv:
+            The arguments to execute against. May be ``None``, a list of
+            strings, or a string. See `.normalize_argv` for details.
+
+        :param bool exit:
+            When ``False`` (default: ``True``), will ignore `.ParseError`,
+            `.Exit` and `.Failure` exceptions, which otherwise trigger calls to
+            `sys.exit`.
+
+            .. note::
+                This is mostly a concession to testing. If you're setting this
+                to ``False`` in a production setting, you should probably be
+                using `.Executor` and friends directly instead!
+
+        .. versionadded:: 1.0
+        """
+
+        try:
+            # Enable rich as early as possible
+            self.enable_rich()
+
+            # Create an initial config, which will hold defaults & values from
+            # most config file locations (all but runtime.) Used to inform
+            # loading & parsing behavior.
+
+            self.create_config()
+            # Parse the given ARGV with our CLI parsing machinery, resulting in
+            # things like self.args (core args/flags), self.collection (the
+            # loaded namespace, which may be affected by the core flags) and
+            # self.tasks (the tasks requested for exec and their own
+            # args/flags)
+            self.parse_core(argv)
+            # Handle collection concerns including project config
+            self.parse_collection()
+            # Load plugins based on the core arguments
+            self.load_plugins()
+            # Parse remainder of argv as task-related input
+            self.parse_tasks()
+            # End of parsing (typically bailout stuff like --list, --help)
+            self.parse_cleanup()
+            # Update the earlier Config with new values from the parse step -
+            # runtime config file contents and flag-derived overrides (e.g. for
+            # run()'s echo, warn, etc options.)
+            self.update_config()
+            # Create an Executor, passing in the data resulting from the prior
+            # steps, then tell it to execute the tasks.
+            self.execute()
+        except (UnexpectedExit, Exit, ParseError) as e:
+            debug("Received a possibly-skippable exception: {!r}".format(e))
+            # Print error messages from parser, runner, etc if necessary;
+            # prevents messy traceback but still clues interactive user into
+            # problems.
+            if isinstance(e, ParseError):
+                print(e, file=sys.stderr)
+            if isinstance(e, Exit) and e.message:
+                print(e.message, file=sys.stderr)
+            if isinstance(e, UnexpectedExit) and e.result.hide:
+                print(e, file=sys.stderr, end="")
+            # Terminate execution unless we were told not to.
+            if exit:
+                if isinstance(e, UnexpectedExit):
+                    code = e.result.exited
+                elif isinstance(e, Exit):
+                    code = e.code
+                elif isinstance(e, ParseError):
+                    code = 1
+                sys.exit(code)
+            else:
+                debug("Invoked as run(..., exit=False), ignoring exception")
+        except KeyboardInterrupt:
+            sys.exit(1)  # Same behavior as Python itself outside of REPL
 
     def core_args(self) -> List[Argument]:
-        ret: List[Argument] = super().core_args()
-        ret.append(
-            Argument(names=("plugin", "P"), kind=list, default=[], help="Add plugins")
-        )
-        return ret
+        """
+        Adds the plugin flag to the core arguments
+        """
+        invoke_core_args: List[Argument] = super().core_args()
+        toolkit_core_args = [
+            Argument(names=("plugin", "P"), kind=list, default=[], help="Add plugins"),
+            # This argument cannot be parsed soon enough
+            # Argument(
+            #     names=("poor"),
+            #     kind=bool,
+            #     default=False,
+            #     help="Disable rich integration",
+            # ),
+        ]
 
-    def parse_cleanup(self) -> None:
+        return invoke_core_args + toolkit_core_args
+
+    FORMAT = "%(message)s"
+
+    def enable_rich(self):
+        """Enable rich tracebacks"""
+        poor = os.environ.get("INVOKE_POOR", "0")
+        try:
+            enable_rich = not literal_eval(poor)
+        except Exception:
+            enable_rich = True
+
+        if enable_rich:
+            rich_traceback.install()
+
+            logging.basicConfig(
+                level="NOTSET",
+                format=self.FORMAT,
+                datefmt="[%X]",
+                handlers=[RichHandler()],
+            )
+
+    # Abandoning this idea for now
+    # def create_config(self) -> None:
+    #     """Adds the invoke-toolkit extra keys"""
+    #     super().create_config()
+    #     section = self.config.setdefault("invoke-toolkit", {})
+    #     section["instance"] = self
+
+    def load_plugins(self) -> None:
+        if not self.collection:
+            rich_exit("Can't find the main collection")
         for plugin in self.args.plugin.value:
             console.log(f"Should load plugin {plugin}")
-        return super().parse_cleanup()
-
-    def create_config(self) -> None:
-        """Adds the invoke-toolkit extra keys"""
-        super().create_config()
-        section = self.config.setdefault("invoke-toolkit", {})
-        section["instance"] = self
 
     @property
-    def plugin_dir(self):
-        location = user_data_dir(type(self).__name__, self.author)
+    def plugin_dir(self) -> Path:
+        """Returns the base path where the plugins will be loaded"""
+        appname = type(self).__name__
+        location = user_data_dir(appname=appname, appauthor=self.author)
         path = Path(location) / "plugins"
 
         if not path.exists():

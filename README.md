@@ -14,8 +14,9 @@ This extends the Collection from Invoke so it can create automatically collectio
 - [invoke-toolkit](#invoke-toolkit)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
-  - [Do I need this package](#do-i-need-this-package)
+  - [Do I need this package?](#do-i-need-this-package)
   - [Installation](#installation)
+    - [Installation with `uv`](#installation-with-uv)
     - [Into exiting pipx project](#into-exiting-pipx-project)
     - [Bootstrapping a new CLI](#bootstrapping-a-new-cli)
   - [Development](#development)
@@ -23,34 +24,40 @@ This extends the Collection from Invoke so it can create automatically collectio
 
 ## Features
 
-- Task discovery by namespace for extendable/composable CLIs
-- Discovery to *plain old* tasks.py (or any other name)
+- Use of `rich` for pretty printing to `stderr` by default
+- Tasks can be loaded from separate repos
+- Almost untouched original invoke's `tasks.py` and `tasks/` discovery.
 - Integration with stand alone binaries for specific tasks
 - **Future** Download binaries
 
-## Do I need this package
+## Do I need this package?
 
 If you have...
 
 - Used `invoke` for a while and...
-- Have a large `tasks.py` that needs to be modularized
-- Have a lot of copy/pasted code in multiple `tasks.py` across multiple repos.
-- Have exceeded the approach of a repository cloned as `~/tasks/` with more .py files that you want to manage.
+  - Have a large `tasks.py` that needs to be modularized
+  - Have a lot of copy/pasted code in multiple `tasks.py` across multiple repos.
+  - Have exceeded the approach of a repository cloned as `~/tasks/` with more .py files that you want to manage.
 - Or you want to combine various tasks defined in multiple directories
-- You want to create a zipped (shiv) redistribute script for container environments
-  like Kubernetes based CI environments with only requiring the Python interpreter.
+- ~~You want to create a zipped (shiv) redistribute script for container environments
+  like Kubernetes based CI environments with only requiring the Python interpreter.~~
+  - `uv tool` can be used to for almost stand alone execution providing
+    a more flexible tool for automation
 
 ## Installation
 
-> [!WARNING]  
-> Invoke should not be installed in the system, it this is the case we
-> recommend to uninstall it and use `pipx` instead.
+<!-- > [!WARNING]
+> Avoid installing `invoke` from `apt`/`yum, it this is the case we
+> recommend to uninstall it and use `pipx` or **`uv`** instead. -->
+
+### Installation with `uv`
+
+`uv tool install https://github.com/D3f0/invoke-toolkit/`
 
 ### Into exiting pipx project
 
 ```console
-which invoke || pipx install invoke
-pipx inject invke invoke-toolkit
+pipx install https://github.com/D3f0/invoke-toolkit/
 ```
 
 ### Bootstrapping a new CLI
