@@ -1,19 +1,16 @@
 # TODO: Move this functionality to the program since it's too late to expand the collection
 # in a task
-from itertools import chain
-from pathlib import Path
-from textwrap import dedent
-from typing import Optional
-from invoke.collection import Collection
-from invoke import Context, task
 import re
 from enum import Enum, auto
-from invoke_toolkit.output import rich_exit, console
-from invoke_toolkit.program import InvokeToolkitProgram
-from rich.table import Table
-from invoke.util import helpline
+from itertools import chain
+from pathlib import Path
 from shutil import rmtree
-from urllib.parse import urlparse
+from textwrap import dedent
+
+from invoke import Context, task
+
+from invoke_toolkit.output import console, rich_exit
+from invoke_toolkit.program import InvokeToolkitProgram
 
 
 def clean_python_name(a_name: str) -> str:
@@ -108,71 +105,9 @@ def create(
         )
 
 
-@task(name="with", help={"force": "Force re-fresh plugins"})
-def with_(ctx: Context, plugin_ref: str, force=False) -> None:
-    """
-    Add a repo to the Collections for one-shot runs like CI pipelines.
-    """
-    program: Optional[InvokeToolkitProgram] = ctx.get("invoke-toolkit", {}).get(
-        "instance"
-    )
-    if program is None:
-        rich_exit("Can't access the program. Likely it's not a InvokeToolkit program")
-    elif not isinstance(program, InvokeToolkitProgram):
-        console.log("The program instance is not a subclass of InvokeToolkit.")
-
-    try:
-        parsed = urlparse(plugin_ref)
-
-        org, name = parsed.path.strip("/").split("/")[:2]
-        name, *_ = name.split(".")
-        target_dir = program.plugin_dir / f"{org}_{name}"
-        if target_dir.exists() and not force:
-            print("Plugin already available...")
-        else:
-            target_dir.mkdir(parents=True)
-            console.print(f"Getting plugin from {plugin_ref} ([yellow]git[/yellow])")
-            # FIXME: We need to let know we need git here
-            ctx.run(f"git clone {plugin_ref} '{target_dir}'")
-        console.print(f"Loading tasks from '{target_dir}'")
-        program.collection.load_directory(target_dir)
-
-    except Exception as error:
-        console.print_exception(show_locals=True)
-        rich_exit(f"Can't handle {plugin_ref} yet: {error=}")
-
-
-@task()
-def tasks(ctx: Context):
-    """Lists tasks after the program has been instantiated, use with plugin.with"""
-    program: Optional[InvokeToolkitProgram] = ctx.get("invoke-toolkit", {}).get(
-        "instance"
-    )
-    if program is None:
-        rich_exit("Can't access the program. Likely it's not a InvokeToolkit program")
-
-    collections = program.collection.collections
-    console.print("[green]Subcommands[/green]\n")
-    table = Table(title="Available tasks", row_styles=["", "dim"], box=None)
-
-    table.add_column("Task")
-    table.add_column("Help")
-
-    for name, items in collections.items():
-        # console.print(f"{sep}[yellow bold]{name}[/yellow bold]")
-        if isinstance(items, Collection):
-            for item, likely_task in items.tasks.items():
-                # console.print(f"{sep * 2}{name}.{item}")
-
-                table.add_row(f"{name}.{item}", helpline(likely_task))
-        else:
-            console.print(f"{type(items)}")
-    console.print(table)
-
-
 @task()
 def clean(ctx: Context):
-    """Remove all the downloaded plugins"""
+    """Remove all the cached plugins"""
     program: InvokeToolkitProgram = ctx.config.get("invoke-toolkit", {}).get("instance")
 
     for i, name in enumerate(program.plugin_dir.glob("*")):

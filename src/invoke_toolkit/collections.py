@@ -3,13 +3,19 @@ import pkgutil
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, Union
-from invoke_toolkit.output import console
+from typing import Any, Dict, Optional, Union
+from urllib.parse import urlparse
+from invoke_toolkit.output import console, rich_exit
+from invoke.context import Context
+from logging import getLogger
+
 
 from invoke.collection import Collection as InvokeCollection
 from invoke.util import debug
 
 from invoke_toolkit.utils.inspection import get_calling_file_path
+
+logger = getLogger(__name__)
 
 
 class CollectionError(Exception):
@@ -46,10 +52,7 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
         try:
             result[name] = importlib.import_module(package_name + "." + name)
         except (ImportError, SyntaxError) as error:
-            if not name.startswith("__"):
-                debug(f"Error loading {name}: {error}")
-            else:
-                debug(f"Error loading {name}: {error}")
+            logger.warning(f"Error loading {name}: {error}")
 
     return result
 
@@ -59,6 +62,10 @@ class Collection(InvokeCollection):
     This Collection allows to load sub-collections from python package paths/namespaces
     like `myscripts.tasks.*`
     """
+
+    # FIXME: Add plugin base folder
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
 
     def add_collections_from_namespace(self, namespace: str) -> bool:
         """Iterates over a namespace and imports the submodules"""
@@ -114,6 +121,8 @@ class Collection(InvokeCollection):
             return False
         if "test" in name:
             return False
+        if name.startswith("_"):
+            return False
         return True
 
     def load_directory(self, directory: Union[str, Path]) -> None:
@@ -148,3 +157,36 @@ class Collection(InvokeCollection):
                     module = importlib.import_module(fqmn)
                     col = self.from_module(module)
                     self.add_collection(col)
+
+
+def add_plugins(
+    ctx: Context,
+    plugin_dir: Path,
+    plugin_ref: str,
+    collection: Collection,
+    force=False,
+) -> None:
+    """
+    Add a repo to the Collections for one-shot runs like CI pipelines.
+    """
+    context = ctx or Context()
+
+    try:
+        parsed = urlparse(plugin_ref)
+
+        org, name = parsed.path.strip("/").split("/")[:2]
+        name, *_ = name.split(".")
+        target_dir = plugin_dir / f"{org}_{name}"
+        if target_dir.exists() and not force:
+            logger.debug("Plugin already available...")
+        else:
+            target_dir.mkdir(parents=True)
+            console.print(f"Getting plugin from {plugin_ref} ([yellow]git[/yellow])")
+            # FIXME: We need to let know we need git here
+            context.run(f"git clone {plugin_ref} '{target_dir}'")
+        console.print(f"Loading tasks from '{target_dir}'")
+        collection.load_directory(target_dir)
+
+    except Exception as error:
+        console.print_exception(show_locals=True)
+        rich_exit(f"Can't handle {plugin_ref} yet: {error=}")

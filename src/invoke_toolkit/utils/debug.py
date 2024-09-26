@@ -1,22 +1,11 @@
-import sys
-from typing import List, Optional
+import hunter
+from typing import List
+import logging
 
-from invoke import task
-from invoke.context import Context
-
-from invoke_toolkit.output import rich_exit
-
-try:
-    import hunter
-
-    HUNTER_AVAILABLE = True
-except ImportError:
-    HUNTER_AVAILABLE = False
+logger = logging.getLogger(__name__)
 
 
-@task()
-def trace(
-    ctx: Context,
+def enable_hunter_race(
     query_: List[str] = [],
     verbose: bool = False,
     code: bool = True,
@@ -29,9 +18,7 @@ def trace(
     For more sophisticated calls use PYTHONHUNTER=xxx inv yyy
     Read more about it at: https://python-hunter.readthedocs.io/en/latest/introduction.html#activation
     """
-    if not HUNTER_AVAILABLE:
-        rich_exit("[bold]hunter[/bold] package not available")
-
+    logger.debug("Enabling tracing")
     if not query_:
         query_ = ["module_sw=invoke_toolkit.tasks"]
 

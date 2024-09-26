@@ -2,31 +2,30 @@
 A CLI to create CLIs
 """
 
+import logging
 import os
 import sys
+
+# if TYPE_CHECKING:
+#     pass
+from ast import literal_eval
+from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
     List,
     Optional,
 )
 
+from appdirs import user_data_dir
 from invoke.exceptions import Exit, ParseError, UnexpectedExit
 from invoke.parser import Argument
-from invoke.util import debug
-from rich.logging import RichHandler
-
-if TYPE_CHECKING:
-    pass
-
-from ast import literal_eval
-from pathlib import Path
-import logging
-from appdirs import user_data_dir
 from invoke.program import Program
+from invoke.util import debug
 from rich import traceback as rich_traceback
+from rich.logging import RichHandler
 
 from invoke_toolkit.collections import InvokeCollection
 from invoke_toolkit.output import console, rich_exit
+from invoke_toolkit.utils.debug import enable_hunter_race
 
 
 class InvokeToolkitProgram(Program):
@@ -118,6 +117,9 @@ class InvokeToolkitProgram(Program):
         invoke_core_args: List[Argument] = super().core_args()
         toolkit_core_args = [
             Argument(names=("plugin", "P"), kind=list, default=[], help="Add plugins"),
+            Argument(
+                names=("tracer", "x"), kind=bool, default=False, help="Enable tracer"
+            ),
             # This argument cannot be parsed soon enough
             # Argument(
             #     names=("poor"),
@@ -128,6 +130,11 @@ class InvokeToolkitProgram(Program):
         ]
 
         return invoke_core_args + toolkit_core_args
+
+    def parse_core_args(self) -> None:
+        super().parse_core_args()
+        if self.args.tracer:
+            enable_hunter_race()
 
     FORMAT = "%(message)s"
 
@@ -143,7 +150,7 @@ class InvokeToolkitProgram(Program):
             rich_traceback.install()
 
             logging.basicConfig(
-                level="NOTSET",
+                level="INFO",
                 format=self.FORMAT,
                 datefmt="[%X]",
                 handlers=[RichHandler()],
@@ -159,8 +166,16 @@ class InvokeToolkitProgram(Program):
     def load_plugins(self) -> None:
         if not self.collection:
             rich_exit("Can't find the main collection")
+        from .collections import add_plugins
+
         for plugin in self.args.plugin.value:
             console.log(f"Should load plugin {plugin}")
+            add_plugins(
+                None,
+                plugin_dir=self.plugin_dir,
+                plugin_ref=plugin,
+                collection=self.collection,
+            )
 
     @property
     def plugin_dir(self) -> Path:
