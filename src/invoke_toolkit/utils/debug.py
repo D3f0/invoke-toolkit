@@ -20,7 +20,7 @@ def enable_hunter_race(
     """
     logger.debug("Enabling tracing")
     if not query_:
-        query_ = ["module_sw=invoke_toolkit.tasks"]
+        query_ = ["module_sw=tasks"]
 
     def build_query(a_string):
         key, value = a_string.split(

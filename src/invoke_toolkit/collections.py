@@ -139,7 +139,7 @@ class Collection(InvokeCollection):
         if path not in existing_paths:
             parent_path = str(path.parent)
             if parent_path not in sys.path:
-                console.log(f"Adding import path {parent_path} ")
+                debug(f"Adding import path {parent_path} ")
                 sys.path.append(parent_path)
             files: Dict[str, Path] = {
                 f.name: f for f in path.glob("*.py") if f.is_file()
@@ -153,7 +153,7 @@ class Collection(InvokeCollection):
                 for file_py in spare_files:
                     module_name = file_py.replace(".py", "")
                     fqmn = f"{path.name}.{module_name}"
-                    console.log(f"Importing {fqmn}")
+                    debug(f"Importing {fqmn}")
                     module = importlib.import_module(fqmn)
                     col = self.from_module(module)
                     self.add_collection(col)
@@ -173,17 +173,28 @@ def add_plugins(
 
     try:
         parsed = urlparse(plugin_ref)
+        if parsed.netloc and parsed.scheme:
+            debug(f"Cloning repo {plugin_ref}")
+            org, name = parsed.path.strip("/").split("/")[:2]
+            name, *_ = name.split(".")
+            target_dir = plugin_dir / f"{org}_{name}"
 
-        org, name = parsed.path.strip("/").split("/")[:2]
-        name, *_ = name.split(".")
-        target_dir = plugin_dir / f"{org}_{name}"
-        if target_dir.exists() and not force:
-            logger.debug("Plugin already available...")
+            if target_dir.exists() and not force:
+                logger.debug("Plugin already available...")
+            else:
+                target_dir.mkdir(parents=True)
+                console.print(
+                    f"Getting plugin from {plugin_ref} ([yellow]git[/yellow])"
+                )
+                # FIXME: We need to let know we need git here
+                context.run(f"git clone {plugin_ref} '{target_dir}'")
         else:
-            target_dir.mkdir(parents=True)
-            console.print(f"Getting plugin from {plugin_ref} ([yellow]git[/yellow])")
-            # FIXME: We need to let know we need git here
-            context.run(f"git clone {plugin_ref} '{target_dir}'")
+            debug(f"Attenotubg to use {plugin_ref} as a directory...")
+            target_dir = Path(parsed.path)
+            if not target_dir.is_dir():
+                debug("Not a valid folder")
+                return
+
         console.print(f"Loading tasks from '{target_dir}'")
         collection.load_directory(target_dir)
 

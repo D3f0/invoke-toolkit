@@ -70,6 +70,8 @@ class InvokeToolkitProgram(Program):
             # self.tasks (the tasks requested for exec and their own
             # args/flags)
             self.parse_core(argv)
+            # Enable tracing (like bash -x)
+            self.enable_tracing()
             # Handle collection concerns including project config
             self.parse_collection()
             # Load plugins based on the core arguments
@@ -131,8 +133,9 @@ class InvokeToolkitProgram(Program):
 
         return invoke_core_args + toolkit_core_args
 
-    def parse_core_args(self) -> None:
-        super().parse_core_args()
+    def enable_tracing(
+        self,
+    ) -> None:
         if self.args.tracer:
             enable_hunter_race()
 
