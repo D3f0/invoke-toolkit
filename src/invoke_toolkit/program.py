@@ -118,7 +118,13 @@ class InvokeToolkitProgram(Program):
         """
         invoke_core_args: List[Argument] = super().core_args()
         toolkit_core_args = [
-            Argument(names=("plugin", "P"), kind=list, default=[], help="Add plugins"),
+            Argument(
+                names=("with", "W"),
+                kind=list,
+                default=[],
+                help="Add a collection of tasks (plugin) to the collection. "
+                "This can be a local folder or a git remote",
+            ),
             Argument(
                 names=("tracer", "x"), kind=bool, default=False, help="Enable tracer"
             ),
@@ -171,7 +177,7 @@ class InvokeToolkitProgram(Program):
             rich_exit("Can't find the main collection")
         from .collections import add_plugins
 
-        for plugin in self.args.plugin.value:
+        for plugin in self.args["with"].value:
             console.log(f"Should load plugin {plugin}")
             add_plugins(
                 None,

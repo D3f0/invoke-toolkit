@@ -90,6 +90,7 @@ dependencies = [
   "hunter",
   "pexpect",
   "pytest-venv",
+  "icecream",
 ]
 [tool.hatch.envs.dev.scripts]
 run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"

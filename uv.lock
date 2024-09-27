@@ -94,6 +94,7 @@ version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "appdirs" },
+    { name = "hunter" },
     { name = "invoke" },
     { name = "rich" },
     { name = "typing-extensions" },
@@ -101,14 +102,13 @@ dependencies = [
 
 [package.optional-dependencies]
 debug = [
-    { name = "hunter" },
     { name = "pdbpp" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "appdirs" },
-    { name = "hunter", marker = "extra == 'debug'" },
+    { name = "hunter" },
     { name = "invoke" },
     { name = "pdbpp", marker = "extra == 'debug'" },
     { name = "rich" },
