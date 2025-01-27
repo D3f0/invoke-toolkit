@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "invoke-toolkit"
+name = "invtk"
 dynamic = ["version"]
-description = "A set of extended APIs for PyInvoke for composable scripts, plugins and richer output"
+description = "A set of extended APIs for the venerable PyInvoke aimed at scripts composition, plugins and richer output"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
