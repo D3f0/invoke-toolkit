@@ -13,6 +13,7 @@ keywords = []
 authors = [
   { name = "Nahuel Defossé", email = "D3f0@users.noreply.github.com" },
 ]
+
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -74,6 +75,11 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+
+[tool.hatch.build]
+packages = ["src/invoke_toolkit"]
+sources = ["src"]
 
 [project.optional-dependencies]
 debug = [
