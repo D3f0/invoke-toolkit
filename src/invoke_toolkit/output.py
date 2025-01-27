@@ -2,6 +2,7 @@ from rich.console import Console
 import sys
 
 console = Console(file=sys.stderr)
+out_console = Console(file=sys.stdout)
 
 
 def rich_exit(reason: str, exit_code: int = 1):
