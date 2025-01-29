@@ -2,20 +2,23 @@
 A CLI to create CLIs
 """
 
+import inspect
 import logging
 import os
 import sys
 
 # if TYPE_CHECKING:
 #     pass
-from ast import literal_eval
+from ast import Dict, literal_eval
 from pathlib import Path
+from types import ModuleType
 from typing import (
     List,
     Optional,
 )
 
 from appdirs import user_data_dir
+from invoke.context import Context
 from invoke.exceptions import Exit, ParseError, UnexpectedExit
 from invoke.parser import Argument
 from invoke.program import Program
@@ -24,6 +27,7 @@ from rich import traceback as rich_traceback
 from rich.logging import RichHandler
 
 from invoke_toolkit.collections import InvokeCollection
+from invoke_toolkit.executor import InvokeToolkitExecutor
 from invoke_toolkit.output import console, rich_exit
 from invoke_toolkit.utils.debug import enable_hunter_race
 
@@ -31,6 +35,28 @@ from invoke_toolkit.utils.debug import enable_hunter_race
 class InvokeToolkitProgram(Program):
     collection: InvokeCollection
     author: str = "InvokeToolkitTeam"
+
+    def __init__(
+        self,
+        version=None,
+        namespace=None,
+        name=None,
+        binary=None,
+        loader_class=None,
+        executor_class=InvokeToolkitExecutor,
+        config_class=None,
+        binary_names=None,
+    ):
+        super().__init__(
+            version,
+            namespace,
+            name,
+            binary,
+            loader_class,
+            executor_class,
+            config_class,
+            binary_names,
+        )
 
     # We override the main invoke run functions but enabling
     # some opinionated features like rich tracebacks
@@ -186,6 +212,19 @@ class InvokeToolkitProgram(Program):
                 collection=self.collection,
             )
 
+    def print_version(self) -> None:
+        try:
+            where_are_we = __file__
+            parent = Path(where_are_we).parent
+        except Exception:
+            print("Error")
+        ctx = Context()
+        git = ctx.run(f"git -C {parent} status", warn=True, hide=True)
+        if git.ok:
+            version = self.version
+
+        print("{} {}".format(self.name, version or "unknown"))
+
     @property
     def plugin_dir(self) -> Path:
         """Returns the base path where the plugins will be loaded"""
@@ -196,3 +235,43 @@ class InvokeToolkitProgram(Program):
         if not path.exists():
             path.mkdir(parents=True)
         return path
+
+
+def get_caller_module() -> ModuleType:
+    """
+    From a script get the module it was called from
+    """
+    # Get the current frame
+    current_frame = inspect.currentframe()
+    # Get the caller's frame (1 level up in the stack)
+    caller_frame = current_frame.f_back.f_back
+
+    # Get the module name from the caller's frame
+    module = inspect.getmodule(caller_frame)
+
+    # Clean up the frame references to prevent memory leaks
+    del current_frame
+    del caller_frame
+
+    return module
+
+
+def script():
+    from invoke import Task
+    from invoke.collection import Collection
+
+    caller_script = get_caller_module()
+    tasks: Dict[str, Task] = {}
+    for name, obj in inspect.getmembers(caller_script):
+        if isinstance(obj, Task):
+            tasks[name] = obj
+    if not tasks:
+        sys.exit(f"No task defined in {caller_script.__file__}")
+    ns = Collection()
+    for name, task in tasks.items():
+        ns.add_task(task, name)
+    program = Program(
+        version="",
+        namespace=ns,
+    )
+    program.run()
