@@ -86,18 +86,17 @@ debug = [
   "pdbpp",
 ]
 
-[tool.hatch.envs.dev]
-dependencies = [
-  # Invoke's original set of tasks
-  "pytest",
-  "pytest-virtualenv",
-  "coverage",
-  "pdbpp",
-  "hunter",
-  "pexpect",
-  "pytest-venv",
-  "icecream",
-]
+# [tool.hatch.envs.dev]
+# dependencies = [
+#   "pytest",
+#   "pytest-virtualenv",
+#   "coverage",
+#   "pdbpp",
+#   "hunter",
+#   "pexpect",
+#   "pytest-venv",
+#   "icecream",
+# ]
 [tool.hatch.envs.dev.scripts]
 run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
 run = "run-coverage --no-cov"
@@ -117,4 +116,16 @@ dependencies = [
 markers = [
     "webtest: mark a test as a webtest.",
     "slow: mark test as slow.",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6.1",
+    "hunter>=3.7.0",
+    "icecream>=2.1.4",
+    "pdbpp>=0.10.3",
+    "pexpect>=4.9.0",
+    "pytest>=8.3.4",
+    "pytest-venv>=0.3",
+    "pytest-virtualenv>=1.8.1",
 ]
