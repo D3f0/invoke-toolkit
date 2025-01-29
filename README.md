@@ -29,8 +29,32 @@ This extends the Collection from Invoke so it can create automatically collectio
 - Make single file invoke executables with [`uv` as your shebang](https://akrabat.com/using-uv-as-your-shebang-line/)
 
   ```python
-  #
+  #!/usr/bin/env -S uv run --script
+  # /// script
+  # dependencies = [
+  #   "invoke_toolkit",
+  # ]
+  # ///
+
+  from invoke_toolkit.program import script
+  from invoke import task, Context
+
+
+  @task()
+  def hello(ctx: Context):
+      print("hello")
+
+
+  script()
   ```
+
+  And running it as:
+
+  ```bash
+  chmod +x script.py
+  ./script.py hello
+  ```
+
 - Use of `rich` for pretty printing to `stderr` by default.
   Print beautiful messages using a pre-configured rich console object.
 
