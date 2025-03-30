@@ -26,14 +26,15 @@ from invoke.util import debug
 from rich import traceback as rich_traceback
 from rich.logging import RichHandler
 
-from invoke_toolkit.collections import InvokeCollection
+from invoke_toolkit.collections import InvokeToolkitCollection
 from invoke_toolkit.executor import InvokeToolkitExecutor
 from invoke_toolkit.output import console, rich_exit
 from invoke_toolkit.utils.debug import enable_hunter_race
+from invoke_toolkit.config import InvokeToolkitConfig
 
 
 class InvokeToolkitProgram(Program):
-    collection: InvokeCollection
+    collection: InvokeToolkitCollection
     author: str = "InvokeToolkitTeam"
 
     def __init__(
@@ -44,7 +45,7 @@ class InvokeToolkitProgram(Program):
         binary=None,
         loader_class=None,
         executor_class=InvokeToolkitExecutor,
-        config_class=None,
+        config_class=InvokeToolkitConfig,
         binary_names=None,
     ):
         super().__init__(

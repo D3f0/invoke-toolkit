@@ -10,7 +10,7 @@ from invoke.context import Context
 from logging import getLogger
 
 
-from invoke.collection import Collection as InvokeCollection
+from invoke.collection import Collection
 from invoke.util import debug
 
 from invoke_toolkit.utils.inspection import get_calling_file_path
@@ -57,7 +57,7 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
     return result
 
 
-class Collection(InvokeCollection):
+class InvokeToolkitCollection(Collection):
     """
     This Collection allows to load sub-collections from python package paths/namespaces
     like `myscripts.tasks.*`
@@ -94,7 +94,7 @@ class Collection(InvokeCollection):
             importlib.import_module(namespace)
 
         for name, module in import_submodules(namespace).items():
-            coll = Collection.from_module(module)
+            coll = InvokeToolkitCollection.from_module(module)
             # TODO: Discover if the namespace has configuration
             #       collection.configure(config)
             self.add_collection(coll=coll, name=name)
@@ -163,7 +163,7 @@ def add_plugins(
     ctx: Context,
     plugin_dir: Path,
     plugin_ref: str,
-    collection: Collection,
+    collection: InvokeToolkitCollection,
     force=False,
 ) -> None:
     """
