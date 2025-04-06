@@ -142,11 +142,18 @@ def print_module_path(ctx: Context, module=""):
     return path[0]
 
 
-@task()
-def test_in_docker(ctx: Context) -> None:
-    with ctx.cd(REPO_ROOT):
-        tag = "invoke-toolkit:docker-test"
-        ctx.run(f"docker build -f scripts/docker/Dockerfile . -t {tag}")
-        ctx.run(
-            f"docker run --rm -ti -f scripts/docker/Dockerfile . -t {tag}", pty=True
-        )
+@task(help={"image": "An image, must contain uv"})
+def test_in_docker_uvx(ctx: Context, command="", image="", env_=[]) -> None:
+    """Runs invoke-toolkit command (invtk) with uvx in docker"""
+    env_for_compose_placeholders = {
+        "COMMAND": command,
+        "IMAGE": image,
+    }
+
+    env = env_for_compose_placeholders
+    user_env = " ".join(f"-e {user_env}" for user_env in env_)
+    ctx.run(
+        f"docker compose run {user_env} --rm invoke-toolkit",
+        pty=True,
+        env=env,
+    )

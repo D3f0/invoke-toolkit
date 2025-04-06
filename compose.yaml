@@ -1,0 +1,19 @@
+services:
+  invoke-toolkit:
+    image: ${IMAGE:-ghcr.io/astral-sh/uv:debian-slim}
+    # entrypoint: uvx --from . ${COMMAND:- invtk -l}
+    command:
+      - bash
+      - -xc
+      - |
+        set -x
+        uvx --from . ${COMMAND:- invtk -l}
+    working_dir: /code
+    #command: bash
+    volumes:
+      - ".:/code:ro"
+      - venv:/venv
+      - cache:/root/.cache
+volumes:
+  venv:
+  cache:
