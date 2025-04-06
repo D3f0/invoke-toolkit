@@ -143,11 +143,14 @@ def print_module_path(ctx: Context, module=""):
 
 
 @task(help={"image": "An image, must contain uv"})
-def test_in_docker_uvx(ctx: Context, command="", image="", env_=[]) -> None:
+def test_in_docker_uvx(
+    ctx: Context, command="", image="", env_=[], with_: str = []
+) -> None:
     """Runs invoke-toolkit command (invtk) with uvx in docker"""
     env_for_compose_placeholders = {
         "COMMAND": command,
         "IMAGE": image,
+        "WITH_PKG": " ".join(f"--with {pkg}" for pkg in with_),
     }
 
     env = env_for_compose_placeholders

@@ -7,13 +7,15 @@ services:
       - -xc
       - |
         set -x
-        uvx --from . ${COMMAND:- invtk -l}
+        uvx ${WITH_PKG:-} --from . ${COMMAND:- invtk -l}
     working_dir: /code
     #command: bash
     volumes:
       - ".:/code:ro"
       - venv:/venv
       - cache:/root/.cache
+      - local:/root/.local
 volumes:
   venv:
   cache:
+  local:
