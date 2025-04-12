@@ -1,5 +1,5 @@
 """
-A CLI to create CLIs
+Entry point that creates the program class and executes it
 """
 
 from .collections import InvokeToolkitCollection
