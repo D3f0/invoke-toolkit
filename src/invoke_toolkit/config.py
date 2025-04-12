@@ -1,7 +1,21 @@
+"""
+Extend the config object used by invoke inside the context
+passed as the first argument to every task.
+
+The context object is has a dedicated attribute access method
+that will look up for methods/attributes in the config object
+after not resolving them inside of the Context class.
+
+NOTE: The context class is created in the tasks.Call class which
+is not particularly extendable in the Program class.
+"""
+
 from invoke.config import Config, Local
 from invoke.terminals import WINDOWS
 from typing import Dict, Any
 from .runner import InvokeToolkitRunner
+from invoke_toolkit.output import rich_exit
+
 
 from copy import copy
 
@@ -46,6 +60,8 @@ GLOBAL_DEFAULTS = {
     "timeouts": {"command": None},
 }
 
+# TODO: Implement the protocol for autocompletion in tasks
+
 
 class InvokeToolkitConfig(Config):
     @staticmethod
@@ -73,4 +89,10 @@ class InvokeToolkitConfig(Config):
         global_defaults["run"]["shell"] = shell
         # Change the default runner
         global_defaults["runners"]["local"] = InvokeToolkitRunner
-        return global_defaults
+        # Callable attributes
+
+        callables = {
+            "rich_exit": rich_exit,
+        }
+
+        return global_defaults | callables
