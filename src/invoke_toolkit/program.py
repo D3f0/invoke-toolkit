@@ -237,6 +237,16 @@ class InvokeToolkitProgram(Program):
             path.mkdir(parents=True)
         return path
 
+    # import hunter
+    # @hunter.wrap(local=False)
+    def parse_collection(self) -> None:
+        # Program was given a default collection, not parsing
+        return super().parse_collection()
+
+    def load_collection(self):
+        print("HELLO")
+        return super().load_collection()
+
 
 def get_caller_module() -> ModuleType:
     """

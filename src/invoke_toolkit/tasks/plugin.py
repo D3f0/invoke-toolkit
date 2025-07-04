@@ -7,7 +7,8 @@ from pathlib import Path
 from shutil import rmtree
 from textwrap import dedent
 
-from invoke import Context, task
+from invoke_toolkit.task import task
+from invoke_toolkit.context import Context
 
 from invoke_toolkit.output import console, rich_exit
 from invoke_toolkit.program import InvokeToolkitProgram
@@ -30,6 +31,7 @@ def list_(ctx: Context):
 @task()
 def add(ctx: Context, plugin_spec: str) -> None:
     """Add a plugin"""
+    ...
 
 
 @task()
