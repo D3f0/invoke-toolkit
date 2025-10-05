@@ -93,3 +93,10 @@ dependencies = [
 
 [tool.ruff.lint.per-file-ignores]
 "*tasks*" = ["ARG001"]
+
+[dependency-groups]
+dev = [
+    "hunter>=3.7.0",
+    "pdbpp>=0.11.7",
+    "pytest>=8.3.5",
+]

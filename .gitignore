@@ -1,0 +1,4 @@
+.*
+!.envrc
+!.gitignore
+**/__pycache__/*

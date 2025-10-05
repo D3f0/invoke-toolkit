@@ -50,6 +50,10 @@ This project utilizes the `pre-commit` framework, make sure you run:
 
 `pre-commit install`
 
+With `uvx`:
+
+`uvx --with pre-commit-uv pre-commit install`
+
 ## License
 
 `invoke-toolkit` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
