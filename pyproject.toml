@@ -27,6 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "invoke>=2.2.1",
+    "rich>=14.2.0",
     "typing-extensions>=4.13.2",
 ]
 
