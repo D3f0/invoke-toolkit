@@ -18,10 +18,11 @@ def version(
 ):
     """Shows package version (git based)"""
     with ctx.cd(REPO_ROOT):
-        return ctx.run(
-            "uvx --with uv-dynamic-versioning hatchling version",
-            hide=not ctx.config.run.echo,
-        ).stdout.strip()
+        with ctx.status("Computing version from SCM"):
+            return ctx.run(
+                "uvx --with uv-dynamic-versioning hatchling version",
+                hide=not ctx.config.run.echo,
+            ).stdout.strip()
 
 
 @task(
