@@ -148,11 +148,5 @@ per-file-ignores = [
 
     "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
-    
+    "**/tasks.py:dangerous-default-value",
 ]
-
-
-
-#src/invoke_toolkit/scripts/loader.py:32:4: W0622: Redefining built-in 'locals' (redefined-builtin)
-#src/invoke_toolkit/scripts/loader.py:34:8: W0612: Unused variable 'name' (unused-variable)
-# src/invoke_toolkit/tasks/plugin.py:5:10: W0613: Unused argument 'ctx' (unused-argument)

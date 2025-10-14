@@ -1,5 +1,3 @@
-from pathlib import Path
-from typing import Annotated
 from invoke import task, Context
 import subprocess
 
@@ -9,24 +7,45 @@ REPO_ROOT = (
     .decode()
 )
 
-TOP_LEVEL: Annotated[Path, "The root directory of the repo"] = Path(__file__).parent
-
 
 @task(default=True, autoprint=True)
 def version(
     ctx: Context,
 ):
     """Shows package version (git based)"""
-    with ctx.cd(TOP_LEVEL):
+    with ctx.cd(REPO_ROOT):
         return ctx.run(
             "uvx --with uv-dynamic-versioning hatchling version",
             hide=not ctx.config.run.echo,
         ).stdout.strip()
 
 
+@task(
+    help={
+        "target_": "Target format",
+        "output": "Output directory, by default is ./dist/",
+    },
+    autoprint=True,
+)
+def build(ctx: Context, target_=[], output="./dist/"):
+    """Builds distributable package"""
+    args = ""
+    if target_:
+        target = " ".join(f"-t {t}" for t in target_)
+        args = f"{args} {target}"
+    if output:
+        args = f"{args} -d {output}"
+
+    return ctx.run(
+        f"uvx --with uv-dynamic-versioning hatchling build {args}",
+        hide=not ctx.config.run.echo,
+    ).stderr.strip()
+
+
 @task()
-def build(ctx: Context):
-    ctx.run("hatch build", pty=True)
+def clean(ctx: Context):
+    """Cleans dist"""
+    ctx.run(r"rm -rf ./dist/*.{tar.gz,whl}")
 
 
 @task()
