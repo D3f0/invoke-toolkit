@@ -1,6 +1,6 @@
 # invoke-toolkit
 
-A set of extended APIs for PyInvoke for composable scripts, plugins and richer output.
+A set of extensions for rich output, more options in collection/config discovery through `entry-points`.
 
 This extends the Collection from Invoke so it can create automatically collections.
 

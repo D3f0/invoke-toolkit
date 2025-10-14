@@ -1,10 +1,12 @@
+"""Call stack inspection"""
+
 import inspect
-import sys
 from pathlib import Path
 from typing import Optional
 
 from invoke.util import debug
-from rich import print
+from invoke_toolkit.output import get_console
+
 
 # def print_call_stack():
 #     """Prints the current call stack."""
@@ -14,7 +16,8 @@ from rich import print
 
 
 def print_rich_frames(frames: list):
-    print(frames, file=sys.stderr)
+    """Show frames in rich format"""
+    get_console().print(frames)
 
 
 def get_calling_file_path(find_call_text: str) -> Optional[str]:
@@ -31,7 +34,7 @@ def get_calling_file_path(find_call_text: str) -> Optional[str]:
     found = False
     for i, frame in index_frame_dict.items():
         if any(find_call_text in line for line in frame.code_context):
-            debug(f"Found '{find_call_text}' in {frame}, call offset {i+2}")
+            debug(f"Found '{find_call_text}' in {frame}, call offset {i + 2}")
             found = True
             break
     if not found:

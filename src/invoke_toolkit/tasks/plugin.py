@@ -1,3 +1,5 @@
+"""Plugin handling tasks"""
+
 from invoke import Context, task
 
 

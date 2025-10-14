@@ -36,13 +36,14 @@ dependencies = [
   "appdirs",
 ]
 
+[project.scripts]
+invtk = "invoke_toolkit.program.main:program.run"
+
 [project.urls]
 Documentation = "https://github.com/D3f0/invoke-toolkit#readme"
 Issues = "https://github.com/D3f0/invoke-toolkit/issues"
 Source = "https://github.com/D3f0/invoke-toolkit"
 
-[tool.hatch.version]
-path = "src/invoke_toolkit/__about__.py"
 
 [tool.hatch.envs.types]
 extra-dependencies = [
@@ -55,9 +56,7 @@ check = "mypy --install-types --non-interactive {args:src/invoke_toolkit tests}"
 source_pkgs = ["invoke_toolkit", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/invoke_toolkit/__about__.py",
-]
+
 
 [tool.coverage.paths]
 invoke_toolkit = ["src/invoke_toolkit", "*/invoke-toolkit/src/invoke_toolkit"]
@@ -98,5 +97,58 @@ dependencies = [
 dev = [
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",
+    "pylint>=3.2.7",
+    "pylint-per-file-ignores>=1.0.0",
     "pytest>=8.3.5",
 ]
+
+[tool.pylint.main]
+load-plugins = [
+    "pylint_per_file_ignores",
+]
+
+[tool.pylint.design]
+max-positional-arguments = 12
+max-args = 12
+
+[tool.pylint."messages control"]
+# Only show warnings with the listed confidence levels. Leave empty to show all.
+# Valid levels: HIGH, CONTROL_FLOW, INFERENCE, INFERENCE_FAILURE, UNDEFINED.
+confidence = [ "HIGH", "CONTROL_FLOW", "INFERENCE", "INFERENCE_FAILURE", "UNDEFINED" ]
+
+# Disable the message, report, category or checker with the given id(s). You can
+# either give multiple identifiers separated by comma (,) or put this option
+# multiple times (only on the command line, not in the configuration file where
+# it should appear only once). You can also use "--disable=all" to disable
+# everything first and then re-enable specific checks. For example, if you want
+# to run only the similarities checker, you can use "--disable=all
+# --enable=similarities". If you want to run only the classes checker, but have
+# no Warning level messages displayed, use "--disable=all --enable=classes
+# --disable=W".
+disable = [
+  "C0411",
+  "C0209",
+  "W0511", # TODO lines
+  "C0413", # Imports order
+]
+
+
+per-file-ignores = [
+    "tasks.py:missing-function-docstring,missing-class-docstring,missing-module-docstring",
+    "src/invoke_toolkit/program/program.py:ungrouped-imports",
+    "src/**/__init__.py:missing-module-docstring",
+    "src/invoke_toolkit/scripts/loader.py:redefined-builtin",
+    "src/**/tasks/*.py:unused-argument",
+    "src/invoke_toolkit/collections.py:logging-fstring-interpolation,missing-class-docstring",
+    "src/invoke_toolkit/utils/inspection.py:logging-fstring-interpolation",
+
+    "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring",
+    "tests/conftest.py:missing-module-docstring,redefined-outer-name",
+    
+]
+
+
+
+#src/invoke_toolkit/scripts/loader.py:32:4: W0622: Redefining built-in 'locals' (redefined-builtin)
+#src/invoke_toolkit/scripts/loader.py:34:8: W0612: Unused variable 'name' (unused-variable)
+# src/invoke_toolkit/tasks/plugin.py:5:10: W0613: Unused argument 'ctx' (unused-argument)

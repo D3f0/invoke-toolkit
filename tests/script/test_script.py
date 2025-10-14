@@ -10,15 +10,15 @@ from invoke_toolkit.scripts.loader import run
 
 
 @task()
-def foo(ctx):
+def sample_task(ctx):
     ctx.run("echo hello")
 
 
 def add_lines(file_to_update: Path, lines=str, sep="\n") -> None:
     if not isinstance(file_to_update, Path):
         file_to_update = Path(file_to_update)
-    new_contents = sep.join([file_to_update.read_text(), lines])
-    file_to_update.write_text(new_contents)
+    new_contents = sep.join([file_to_update.read_text(encoding="utf-8"), lines])
+    file_to_update.write_text(new_contents, encoding="utf-8")
 
 
 def test_script_with_uv_run(tmp_path: Path, ctx: Context, git_root) -> None:
@@ -30,7 +30,7 @@ def test_script_with_uv_run(tmp_path: Path, ctx: Context, git_root) -> None:
         env = {"VIRTUAL_ENV": ""}
         ctx.run(
             "touch test.py",
-            in_stream=None,
+            in_stream=False,
         )
         ctx.run(
             "uv add --script test.py invoke",
@@ -43,13 +43,13 @@ def test_script_with_uv_run(tmp_path: Path, ctx: Context, git_root) -> None:
             env=env,
         )
 
-        code = inspect.getsource(foo)
+        code = inspect.getsource(sample_task)
         add_lines(test_py, "from invoke import task")
         add_lines(test_py, code)
-        inv_c_l = ctx.run("uv run -- inv -c test -l", in_stream=None, hide=True)
+        inv_c_l = ctx.run("uv run -- inv -c test -l", in_stream=False, hide=True)
         assert inv_c_l is not None
         stdout = inv_c_l.stdout.strip()
-        assert "foo" in stdout.strip()
+        assert "sample-task" in stdout.strip()
 
 
 def test_frame_inspect(capsys):

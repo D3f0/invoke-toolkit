@@ -1,3 +1,5 @@
+"""Extended collection with package inspection"""
+
 import importlib
 import pkgutil
 import sys
@@ -15,12 +17,10 @@ class CollectionError(Exception):
     """Base class for import discovery errors"""
 
 
-class CollectionNotImportedError(CollectionError):
-    ...
+class CollectionNotImportedError(CollectionError): ...
 
 
-class CollectionCantFindModulePathError(CollectionError):
-    ...
+class CollectionCantFindModulePathError(CollectionError): ...
 
 
 def import_submodules(package_name: str) -> Dict[str, ModuleType]:
