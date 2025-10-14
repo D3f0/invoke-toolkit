@@ -26,6 +26,7 @@ classifiers = [
   "Topic :: System :: Systems Administration",
 ]
 dependencies = [
+    "invoke>=2.2.1",
     "typing-extensions>=4.13.2",
 ]
 
