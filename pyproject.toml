@@ -25,6 +25,9 @@ classifiers = [
   "Topic :: System :: Software Distribution",
   "Topic :: System :: Systems Administration",
 ]
+dependencies = [
+    "typing-extensions>=4.13.2",
+]
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
@@ -145,8 +148,11 @@ per-file-ignores = [
     "src/**/tasks/*.py:unused-argument",
     "src/invoke_toolkit/collections.py:logging-fstring-interpolation,missing-class-docstring",
     "src/invoke_toolkit/utils/inspection.py:logging-fstring-interpolation",
+    "**/types.py:too-many-arguments,too-few-public-methods,too-many-locals,missing-class-docstring",
+    "**/context.py:too-few-public-methods",
+
+    "**/tasks.py:dangerous-default-value",
 
     "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
-    "**/tasks.py:dangerous-default-value",
 ]

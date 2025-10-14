@@ -3,7 +3,7 @@ Class that implements the ctx.status through the config class
 """
 
 from contextlib import contextmanager
-from typing import Optional
+from typing import Generator, Optional
 
 from rich.console import Console, RenderableType
 from rich.style import StyleType
@@ -33,7 +33,7 @@ class StatusHelper:
         spinner_style: StyleType = "status.spinner",
         speed: float = 1.0,
         refresh_per_second: float = 12.5,
-    ) -> Status:
+    ) -> Generator[Status, None, None]:
         """Context manager for status management"""
         if self._current_status is not None:
             self._current_status.update(
