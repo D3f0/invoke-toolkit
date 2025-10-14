@@ -34,9 +34,11 @@ def version(
 def build(ctx: Context, target_=[], output="./dist/"):  # pylint: disable=dangerous-default-value
     """Builds distributable package"""
     args = ""
-    if target_:
+    if isinstance(target_, list):
         target = " ".join(f"-t {t}" for t in target_)
         args = f"{args} {target}"
+    elif target_:
+        args = f"{args} -t {target_}"
     if output:
         args = f"{args} -d {output}"
 
@@ -62,12 +64,6 @@ def test(ctx: Context, debug=False, verbose=False):
             args = f"{args} --pdb"
 
         ctx.run(f"hatch run dev:pytest {args}", pty=True)
-
-
-@task()
-def clean_dist(ctx: Context):
-    with ctx.cd(REPO_ROOT):
-        ctx.run("dist/*")
 
 
 @task()
@@ -121,13 +117,13 @@ def release(ctx: Context, skip_sync: bool = False) -> None:
     ctx.run("git push origin --tags")
     ctx.print("[blue]Pushing tag...[/blue]")
     ctx.print("[bold]OK[/bold]")
-    clean_dist(ctx)
+    clean(ctx)
     build(ctx, target_="wheel")
 
     ctx.print("Creating the release on github")
-    artifacts = list((REPO_ROOT / "dist").glob("*.whl"))
+
     subprocess.run(
-        f"gh release create {next_tag_version} {' '.join(artifacts)}",
+        f"gh release create {next_tag_version} ./dist/*.whl",
         shell=True,
         check=True,
     )
