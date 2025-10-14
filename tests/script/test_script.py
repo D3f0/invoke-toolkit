@@ -44,7 +44,7 @@ def test_script_with_uv_run(tmp_path: Path, ctx: Context, git_root) -> None:
         )
 
         code = inspect.getsource(sample_task)
-        add_lines(test_py, "from invoke import task")
+        add_lines(test_py, "from invoke_toolkit import task")
         add_lines(test_py, code)
         inv_c_l = ctx.run("uv run -- inv -c test -l", in_stream=False, hide=True)
         assert inv_c_l is not None

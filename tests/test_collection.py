@@ -13,7 +13,7 @@ def test_collection_load_submodules(monkeypatch, tmp_path: Path):
     ns = Collection()
     code_module_for_tasks = dedent(
         """
-    from invoke import task
+    from invoke_toolkit import task
                   
     @task()
     def a_task(ctx):

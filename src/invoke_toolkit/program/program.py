@@ -4,6 +4,7 @@ Main Program class extension
 
 __all__ = ["InvokeToolkitProgram"]
 
+import inspect
 import sys
 from importlib import metadata
 from logging import getLogger
@@ -102,3 +103,37 @@ class InvokeToolkitProgram(Program):
         for tup in tuples:
             grid.add_row(*tup)
         get_console().print(grid)
+
+    def print_task_help(self, name: str) -> None:
+        """
+        Print help for a specific task, e.g. ``inv --help <taskname>``.
+
+        .. versionadded:: 1.0
+        """
+        # Setup
+        print = get_console().print  # pylint: disable=redefined-builtin
+        ctx = self.parser.contexts[name]
+        tuples = ctx.help_tuples()
+        docstring = inspect.getdoc(self.collection[name])
+        header = "Usage: {} [--core-opts] {} {}[other tasks here ...]"
+        opts = "[--options] " if tuples else ""
+        print(header.format(self.binary, name, opts))
+        print("")
+        print("[yellow]Docstring:[/yellow]")
+        if docstring:
+            # Really wish textwrap worked better for this.
+            for line in docstring.splitlines():
+                if line.strip():
+                    print(self.leading_indent + line)
+                else:
+                    print("")
+            print("")
+        else:
+            print(self.leading_indent + "none")
+            print("")
+        print("Options:")
+        if tuples:
+            self.print_columns(tuples)
+        else:
+            print(self.leading_indent + "none")
+            print("")

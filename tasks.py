@@ -68,7 +68,11 @@ def test(ctx: Context, debug=False, verbose=False):
 
 @task()
 def release(ctx: Context, skip_sync: bool = False) -> None:
-    """Creates a release with github client"""
+    """
+    Tags (if the git repo is [bold]clean[/bold]) proposing the next tag
+    Pushes the tag to [bold]github[/bold]
+    Creates a release
+    """
     if not skip_sync:
         with ctx.status("Syncing tags 🏷️ "):
             ctx.run("git fetch --tags")
@@ -127,12 +131,3 @@ def release(ctx: Context, skip_sync: bool = False) -> None:
         shell=True,
         check=True,
     )
-
-
-@task()
-def dummy(ctx: Context):
-    with ctx.status("Hello"):
-        ctx.run("sleep 1")
-
-    ctx.rich_exit("[bold]Done[/bold]")
-    ctx.print("[bold]hello[/bold]")
