@@ -110,6 +110,7 @@ dev = [
     "pylint>=3.2.7",
     "pylint-per-file-ignores>=1.0.0",
     "pytest>=8.3.5",
+    "pytest-cov>=5.0.0",
 ]
 
 [tool.pylint.main]
@@ -159,3 +160,9 @@ per-file-ignores = [
     "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
 ]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=invoke_toolkit"
+filterwarnings = []
