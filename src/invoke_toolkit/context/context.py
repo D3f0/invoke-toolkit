@@ -9,7 +9,7 @@ from typing import (
     TYPE_CHECKING,
 )
 from invoke_toolkit.config import InvokeToolkitConfig
-from .types import BoundPrintProtocol
+from .types import BoundPrintProtocol, ContextRunProtocol
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -31,4 +31,5 @@ class ConfigProtocol(Protocol):
 class InvokeToolkitContext(Context, ConfigProtocol):
     """Type annotated override"""
 
+    run: ContextRunProtocol
     _config: InvokeToolkitConfig
