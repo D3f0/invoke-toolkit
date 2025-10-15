@@ -29,4 +29,4 @@ def test_auto_print_uses_rich(tmp_path, monkeypatch, capsys):
     # with pytest.raises(SystemExit):
     p.run(["", "test-task"])
     output = capsys.readouterr()
-    assert output.err.strip() == repr(expectation).strip()
+    assert output.out.strip() == repr(expectation).strip()
