@@ -106,6 +106,7 @@ dev = [
     "pylint-per-file-ignores>=1.0.0",
     "pytest>=8.3.5",
     "pytest-cov>=5.0.0",
+    "pytest-picked>=0.5.1",
 ]
 
 [tool.pylint.main]
