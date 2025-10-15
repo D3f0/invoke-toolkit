@@ -107,7 +107,7 @@ class InvokeToolkitExecutor(Executor):
             args = (context, *call.args)
             result = call.task(*args, **call.kwargs)
             if autoprint:
-                get_console().print(result)
+                get_console("out").print(result)
                 # print(result)
             # TODO: handle the non-dedupe case / the same-task-different-args
             # case, wherein one task obj maps to >1 result.
