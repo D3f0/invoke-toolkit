@@ -8,6 +8,7 @@ from types import ModuleType
 from typing import Dict, Union
 
 from invoke.collection import Collection as InvokeCollection
+from invoke.tasks import Task
 from invoke.util import debug
 
 from invoke_toolkit.utils.inspection import get_calling_file_path
@@ -51,6 +52,29 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
                 debug(f"Error loading {name}: {error}")
 
     return result
+
+
+def clean_collection(collection: InvokeCollection) -> None:
+    """Removes tasks that are imported from other modules or start with underscores"""
+
+    def user_facing_task(name: str, task: Task) -> bool:
+        if name.startswith("_"):
+            debug(f"Not adding task {name=} because it starts with _")
+            return False
+        *_, module_name = task.__module__.split(".")
+        # Make sure composed_col is composed-col
+        if module_name.replace("_", "-") != collection.name:
+            debug(f"Imported task from another place {module_name=} {collection.name=}")
+            return False
+
+        return True
+
+    collection.tasks = {
+        name: task
+        for name, task in collection.tasks.items()
+        # if not name.startswith("_")
+        if user_facing_task(name, task)
+    }
 
 
 class Collection(InvokeCollection):
@@ -110,3 +134,35 @@ class Collection(InvokeCollection):
         existing_paths = {pth for pth in sys.path if Path(pth).is_dir()}
         if path not in existing_paths:
             sys.path.append(str(path))
+
+    @classmethod
+    def from_package(cls, package_path) -> "Collection":  # pylint: disable=too-many-branches)
+        """
+        Creates a collection from a package and configures it
+        """
+        ns = Collection()
+        global_config: dict[str, str | dict[str, str]] = {}
+        for name, module in import_submodules(package_path).items():
+            config = getattr(module, "config", None)
+            collection: Collection = ns.from_module(module)
+            clean_collection(collection=collection)
+            # TODO: Namespaced configuration seems to be an not present when merged!§
+            # if config and isinstance(config, (dict, )):
+            #     debug(f"🔧 Adding config to module 📦 {name}: {config}")
+            #     collection.configure(config)
+            if config:
+                # FIXME: Detect coitions
+                if isinstance(config, (dict,)):
+                    debug(f"🔧 Adding config to module 📦 {name}: {config.keys()}")
+                    global_config.update(**config)
+                else:
+                    debug(f"In the module {module} the config name is for {config}")
+            ns.add_collection(
+                collection,
+                name=name,
+            )
+
+        if global_config:
+            debug(f"Adding root collection configuration: {config}")
+            ns.configure(global_config)
+        return ns
