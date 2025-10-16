@@ -1,0 +1,64 @@
+project:
+  type: website
+
+website:
+  navbar:
+    background: primary
+    search: true
+    left: 
+      - text: "Home"
+        file: index.qmd
+      - text: "Reference"
+        file: reference/index.qmd
+
+
+# tell quarto to read the generated sidebar
+metadata-files:
+  - reference/_sidebar.yml
+
+# tell quarto to read the generated styles
+format:
+  html:
+    css:
+      - reference/_styles-quartodoc.css
+
+quartodoc:
+  # the name used to import the package you want to create reference docs for
+  package: invoke_toolkit
+
+  # write sidebar and style data
+  sidebar: reference/_sidebar.yml
+  css: reference/_styles-quartodoc.css
+
+  sections:
+    - title: Invoke Toolkit special classes
+      desc: Functions to inspect .
+      contents:
+        # the functions being documented in the package.
+        # you can refer to anything: class methods, modules, etc..
+        - context.context
+        - tasks.plugin
+        - tasks.dist
+        - context.types
+        - config.config
+        - config.status_helper
+        - output.console
+        - output.utils
+        - utils.inspection
+        - collections
+        # - scripts.loader
+        # - program.program
+        # - program.main
+        # - log.logger
+        # - runners.rich
+        # - executor
+
+
+    - title: More
+      desc: Invoke reference
+      package: invoke
+      contents:
+        # the functions being documented in the package.
+        # you can refer to anything: class methods, modules, etc..
+        - tasks.task
+        

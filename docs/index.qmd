@@ -1,0 +1,30 @@
+# Welcome to Invoke Toolkit documentation
+
+
+<img alt="PyPI - Package Version" src="https://img.shields.io/pypi/v/invoke-toolkit">
+
+Invoke Toolkit is a set of opinionated extensions to the popular [Python invoke library](https://pyinvoke.org).
+
+- Add's some `Context` attributes
+- Renames the `inv`/`invoke` to `it`/`invoke-toolkit`, reads the same `tasks.py`.
+- Replaces `print()` with `rich`'s Console print (internal logging uses `rich` logger): `it -d`.
+- Command echo defaults to `stderr` (`it -e`)
+- 
+
+## Installation
+
+The recommended way to use `invoke-toolkit` is through `uv` package manager:
+
+```bash
+uv tool install invoke-toolkit
+```
+
+## Simple task example
+
+```python
+from invoke_toolkit import task, Context
+
+@task()
+def build(ctx: Context):
+    ctx.run("quarto build")
+```

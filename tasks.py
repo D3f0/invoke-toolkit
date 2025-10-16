@@ -141,9 +141,40 @@ def release(ctx: Context, skip_sync: bool = False) -> None:
 
 
 @task(aliases=["b"])
-def docs_api_build(ctx: Context):
+def docs_api_build(
+    ctx: Context,
+    config: str = "",
+    filter_: str = "",
+    dry_run: bool = False,
+    watch: bool = False,
+    verbose: bool = False,
+):
+    """
+    Run quartodoc with uv
+    """
+    # uv run quartodc build --help
+    #   --config TEXT  Change the path to the configuration file.  The default is
+    #                  `./_quarto.yml`
+    #   --filter TEXT  Specify the filter to select specific files. The default is
+    #                  '*' which selects all files.
+    #   --dry-run      If set, prevents new documents from being generated.
+    #   --watch        If set, the command will keep running and watch for changes
+    #                  in the package directory.
+    #   --verbose      Enable verbose logging.
+    #   --help         Show this message and exit.
+    args = ""
+    if config:
+        args = f"{args} --config {config}"
+    if filter_:
+        args = f"{args} --filter {filter_}"
+    if dry_run:
+        args = f"{args} --dry_run"
+    if watch:
+        args = f"{args} --watch"
+    if verbose:
+        args = f"{args} --verbose"
     with ctx.cd(REPO_ROOT / "docs"):
-        ctx.run("uv run quartodoc build")
+        ctx.run(f"uv run quartodoc build {args}")
 
 
 @task(aliases=["p"])
