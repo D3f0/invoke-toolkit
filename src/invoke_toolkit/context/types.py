@@ -3,7 +3,6 @@ Type annotations for finding out what's there in ctx.attribute
 """
 
 import sys
-from builtins import NoneType
 from typing import IO, Any, Optional, Union
 
 from invoke.runners import Result
@@ -120,7 +119,7 @@ class ContextRunProtocol(Protocol):
             """,
         ] = False,
         in_stream: Annotated[
-            Union[NoneType, IO],
+            Union[None, IO, bool],
             """
             A file-like stream object to used as the subprocess' standard
             input. If ``None`` (the default), ``sys.stdin`` will be used.
@@ -133,7 +132,7 @@ class ContextRunProtocol(Protocol):
             """,
         ] = sys.stdin,
         out_stream: Annotated[
-            Union[NoneType, IO],
+            Union[None, IO],
             """
             A file-like stream object to which the subprocess' standard output
             should be written. If ``None`` (the default), ``sys.stdout`` will
