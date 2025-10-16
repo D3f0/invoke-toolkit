@@ -4,8 +4,9 @@ import sys
 
 from invoke_toolkit import Context, task
 from rich.prompt import Prompt
+from pathlib import Path
 
-REPO_ROOT = (
+REPO_ROOT = Path(
     subprocess.check_output("git rev-parse --show-toplevel", shell="sh")
     .strip()
     .decode()
@@ -56,15 +57,20 @@ def clean(ctx: Context):
 
 
 @task()
-def test(ctx: Context, debug=False, verbose=False):
+def test(ctx: Context, debug=False, verbose=False, capture_output=True, picked=False):
+    """Runs pytest and exposes some commonly used flags"""
     with ctx.cd(REPO_ROOT):
         args = ""
         if debug:
             args = f"{args} --pdb"
         if verbose:
-            args = f"{args} --pdb"
-
-        ctx.run(f"hatch run dev:pytest {args}", pty=True)
+            args = f"{args} -v"
+        if not capture_output:
+            args = f"{args} -s"
+        # Run on tests of changed files
+        if picked:
+            args = f"{args} --picked"
+        ctx.run(f"uv run pytest {args}", pty=True)
 
 
 @task()
@@ -132,3 +138,15 @@ def release(ctx: Context, skip_sync: bool = False) -> None:
         shell=True,
         check=True,
     )
+
+
+@task(aliases=["b"])
+def docs_api_build(ctx: Context):
+    with ctx.cd(REPO_ROOT / "docs"):
+        ctx.run("uv run quartodoc build")
+
+
+@task(aliases=["p"])
+def docs_preview(ctx: Context):
+    with ctx.cd(REPO_ROOT / "docs"):
+        ctx.run("quarto preview")

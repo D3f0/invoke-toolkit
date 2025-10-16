@@ -30,6 +30,7 @@ dependencies = [
     "rich>=14.2.0",
     "typing-extensions>=4.13.2",
     "appdirs",
+    "tomlkit>=0.13.3",
 ]
 
 # Git based versioning, uses git tags
@@ -41,9 +42,19 @@ build-backend = "hatchling.build"
 source = "uv-dynamic-versioning"
 
 
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "pep440"
+version_provider = "uv"
+update_changelog_on_bump = true
+major_version_zero = true
+
 [project.scripts]
-invtk = "invoke_toolkit.program.main:program.run"
+it = "invoke_toolkit.program.main:program.run"
 invoke-toolkit = "invoke_toolkit.program.main:program.run"
+
 
 [project.urls]
 Documentation = "https://github.com/D3f0/invoke-toolkit#readme"
@@ -75,7 +86,6 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 
-
 [tool.hatch.envs.dev]
 dependencies = [
   # Invoke's original set of tasks
@@ -90,10 +100,6 @@ run = "run-coverage --no-cov"
 test = "pytest -v {}"
 testdbg = "pytest -v --pdb {}"
 
-[tool.hatch.envs.docs]
-dependencies = [
-  "sphinx"
-]
 
 [tool.ruff.lint.per-file-ignores]
 "*tasks*" = ["ARG001"]
@@ -107,6 +113,10 @@ dev = [
     "pytest>=8.3.5",
     "pytest-cov>=5.0.0",
     "pytest-picked>=0.5.1",
+    "pytest-sugar>=1.1.1",
+]
+doc = [
+    "quartodoc>=0.11.1",
 ]
 
 [tool.pylint.main]
