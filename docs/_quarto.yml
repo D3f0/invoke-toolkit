@@ -2,6 +2,7 @@ project:
   type: website
 
 website:
+  title: "Invoke Toolkit"
   navbar:
     background: primary
     search: true
@@ -10,6 +11,16 @@ website:
         file: index.qmd
       - text: "Reference"
         file: reference/index.qmd
+    tools:
+      - icon: github
+        menu:
+          - text: Source Code
+            href:  https://github.com/D3f0/invoke-toolkit
+          - text: Report a Bug
+            href:  https://github.com/D3f0/invoke-toolkit/issues/new
+  # sidebar:
+  #   # style: ""
+  #   search: true
 
 
 # tell quarto to read the generated sidebar
