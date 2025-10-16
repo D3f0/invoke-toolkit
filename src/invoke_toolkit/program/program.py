@@ -21,16 +21,17 @@ setup_rich_logging()
 # we force rich to be installed first
 
 
-from invoke.exceptions import Exit  # noqa: E402
-from invoke.program import (  # noqa: E402
-    Program,  # noqa: E402
-    print_completion_script,  # noqa: E402
+from invoke.exceptions import Exit
+from invoke.parser import Argument
+from invoke.program import (
+    Program,
+    print_completion_script,
 )
-from invoke.util import debug  # noqa: E402
+from invoke.util import debug
 
 # Overrides that need to be imported afterwards
-from invoke_toolkit.config import InvokeToolkitConfig  # noqa: E402
-from invoke_toolkit.executor import InvokeToolkitExecutor  # noqa: E402
+from invoke_toolkit.config import InvokeToolkitConfig
+from invoke_toolkit.executor import InvokeToolkitExecutor
 
 
 class InvokeToolkitProgram(Program):
@@ -61,7 +62,7 @@ class InvokeToolkitProgram(Program):
     def get_version(self) -> str:
         """Compute version
 
-        https://adamj.eu/tech/2025/07/30/python-check-package-version-importlib-metadata-version/
+        [see more](https://adamj.eu/tech/2025/07/30/python-check-package-version-importlib-metadata-version/)
         """
         return metadata.version("invoke-toolkit")
 
@@ -137,3 +138,21 @@ class InvokeToolkitProgram(Program):
         else:
             print(self.leading_indent + "none")
             print("")
+
+    def core_args(self) -> List["Argument"]:
+        """
+        Return default core `.Argument` objects, as a list.
+
+        .. versionadded:: 1.0
+        """
+        # Arguments present always, even when wrapped as a different binary
+        args = super().core_args()
+        args.append(
+            Argument(
+                names=("internal-col", "x"),
+                kind=bool,
+                default=False,
+                help="Loads the internal invoke-toolkit collections",
+            )
+        )
+        return args

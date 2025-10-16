@@ -103,6 +103,10 @@ testdbg = "pytest -v --pdb {}"
 
 [tool.ruff.lint.per-file-ignores]
 "*tasks*" = ["ARG001"]
+"__init__.py" = ["E402"]
+"**/{tests,docs}/*" = ["E402"]
+"src/invoke_toolkit/program/program.py" = ["E402"]
+
 
 [dependency-groups]
 dev = [
@@ -161,7 +165,7 @@ per-file-ignores = [
     "**/types.py:too-many-arguments,too-few-public-methods,too-many-locals,missing-class-docstring",
     "**/context.py:too-few-public-methods",
     # This is for the list initialization of var-args in Invoke
-    "**/*.py:dangerous-default-value",
+    "**/*.py:dangerous-default-value,line-too-long",
 
     "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
@@ -172,3 +176,5 @@ per-file-ignores = [
 testpaths = ["tests"]
 addopts = "--cov=invoke_toolkit"
 filterwarnings = []
+
+ 
