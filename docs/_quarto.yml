@@ -36,7 +36,8 @@ quartodoc:
       contents:
         # the functions being documented in the package.
         # you can refer to anything: class methods, modules, etc..
-        - context.context
+        - program.program
+        - context.InvokeToolkitContext
         - tasks.plugin
         - tasks.dist
         - context.types
@@ -47,12 +48,20 @@ quartodoc:
         - utils.inspection
         - collections
         # - scripts.loader
-        # - program.program
         # - program.main
         # - log.logger
         # - runners.rich
         # - executor
 
+    - title: Builtin collections
+      desc: >
+        A
+        B
+        C
+      package: invoke_toolkit.tasks
+      contents:
+        - plugin
+        - dist
 
     - title: More
       desc: Invoke reference
