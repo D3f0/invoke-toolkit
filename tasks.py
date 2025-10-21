@@ -1,16 +1,22 @@
 import re
+from shutil import which
 import subprocess
 import sys
-
-from invoke_toolkit import Context, task
-from rich.prompt import Prompt
 from pathlib import Path
 
-REPO_ROOT = Path(
-    subprocess.check_output("git rev-parse --show-toplevel", shell="sh")
-    .strip()
-    .decode()
-)
+from rich.prompt import Prompt
+
+from invoke_toolkit import Context, task
+from invoke.util import debug
+
+try:
+    REPO_ROOT = Path(
+        subprocess.check_output("git rev-parse --show-toplevel", shell=True)
+        .strip()
+        .decode()
+    )
+except subprocess.SubprocessError:
+    REPO_ROOT = Path()
 
 
 @task(default=True, autoprint=True)
@@ -56,12 +62,28 @@ def clean(ctx: Context):
     ctx.run(r"rm -rf ./dist/*.{tar.gz,whl}")
 
 
-@task()
-def test(ctx: Context, debug=False, verbose=False, capture_output=True, picked=False):
-    """Runs pytest and exposes some commonly used flags"""
+@task(
+    aliases=["t"],
+    help={
+        "debug": "Uses [green]pdb[pp][/green] to debug tests, use [bold]sticky[/bold]",
+        "verbose": "Run in verbose mode, shows output to stdout",
+        "capture_output": "Do not capture output",
+        "picked": "Run only changed tests in git",
+        "fzf": "Uses fuzzy finder to select which tests to run",
+    },
+)
+def test(
+    ctx: Context,
+    debug_=False,
+    verbose=False,
+    capture_output=True,
+    picked=False,
+    fzf: bool = False,
+):
+    """Runs [green]pytest[/green] and exposes some commonly used flags"""
     with ctx.cd(REPO_ROOT):
         args = ""
-        if debug:
+        if debug_:
             args = f"{args} --pdb"
         if verbose:
             args = f"{args} -v"
@@ -70,6 +92,26 @@ def test(ctx: Context, debug=False, verbose=False, capture_output=True, picked=F
         # Run on tests of changed files
         if picked:
             args = f"{args} --picked"
+        if fzf:
+            # Select the tests with fzf
+            if not which("fzf"):
+                ctx.rich_exit("[bold]fzf[/bold] not found")
+            if which("bat"):
+                debug("Running with bat")
+                preview_cmd = r"bat --color always {}"
+            else:
+                debug("Preview with cat")
+                preview_cmd = r"cat {}"
+            test_to_run = ctx.run(
+                f"""
+                find ./tests/ -name 'test_*.py' | fzf --preview '{preview_cmd}'
+                """
+            ).stdout.strip()
+            if not test_to_run:
+                ctx.rich_exit("No tests selected 😭")
+            else:
+                args = f"{args} {test_to_run}"
+
         ctx.run(f"uv run pytest {args}", pty=True)
 
 
@@ -150,7 +192,7 @@ def docs_api_build(
     verbose: bool = False,
 ):
     """
-    Run quartodoc with uv
+    Runs uv run quartodoc build with the provided arguments.
     """
     # uv run quartodc build --help
     #   --config TEXT  Change the path to the configuration file.  The default is
@@ -179,5 +221,67 @@ def docs_api_build(
 
 @task(aliases=["p"])
 def docs_preview(ctx: Context):
+    """
+    Runs [green]quarto preview[/green] to visualize the documentation.
+    """
     with ctx.cd(REPO_ROOT / "docs"):
         ctx.run("quarto preview")
+
+
+@task()
+def run_in_container(
+    ctx: Context,
+    image="ghcr.io/astral-sh/uv:trixie",
+    container_tool: str = "",
+    command: str = "it -l",
+    rm: bool = True,
+    interactive: bool = True,
+    tty: bool = True,
+):
+    """
+    Runs [green]invoke-toolkit[/green] in a container.
+    """
+    container_tool = "podman"
+    volumes = "--volume $PWD:/repo:ro --volume $PWD/tasks.py:/tasks.py"
+    flags = ""
+    if rm:
+        flags = f"{flags} --rm"
+    if interactive:
+        flags = f"{flags} -i"
+    if tty:
+        flags = f"{flags} -t"
+    ctx.run(
+        f"""
+        {container_tool} run {flags} -ti {volumes} {image} uv tool run --from /repo/ {command}
+        """,
+        pty=ctx.config.run.pty,
+    )
+
+
+@task()
+def env(ctx: Context, clear=False) -> None:
+    """([green]re[/green])creates the virtual environment (with [red]uv[/red])"""
+    args = ""
+    if clear:
+        args = f"{args} --clear"
+    ctx.run(f"uv venv {args}; uv sync --group dev", pty=True)
+
+
+@task()
+def type_check(ctx: Context, all_files=False):
+    """
+    Performs type checks, [bold]not yet included in pre-commit[/bold]
+    """
+    args = ""
+    if not all_files:
+        # get staged files
+        staged_files = ctx.run("git diff --name-only --cached").stdout.splitlines()
+
+        args = f"{args} {' '.join(staged_files)}"
+    args = ""
+    ctx.run(
+        f"""
+        uv run --with pyrefly pyrefly check {args}
+        """,
+        pty=True,  # Colors 🎨
+    )

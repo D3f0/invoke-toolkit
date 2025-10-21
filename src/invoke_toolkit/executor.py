@@ -2,21 +2,51 @@
 Custom executor class to for Syntax highlighted output
 """
 
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 from invoke.executor import Executor
-from invoke.parser import ParserContext
-from invoke.util import debug
-from invoke.tasks import Task
+from invoke.parser import ParserContext, ParseResult
 from invoke.runners import Result
+from invoke.tasks import Task
+from invoke.util import debug
+
+from invoke_toolkit.collections import InvokeToolkitCollection
+from invoke_toolkit.config import InvokeToolkitConfig
 from invoke_toolkit.output import get_console
+from invoke_toolkit.tasks.tasks import InvokeToolkitCall, InvokeToolkitTask
 
 
 class InvokeToolkitExecutor(Executor):
     """Task execution"""
 
+    def __init__(  # pylint: disable=super-init-not-called
+        self,
+        collection: "InvokeToolkitCollection",
+        config: Optional["InvokeToolkitConfig"] = None,
+        core: Optional["ParseResult"] = None,
+    ) -> None:
+        """
+        Initialize executor with handles to necessary data structures.
+
+        :param collection:
+            A `.Collection` used to look up requested tasks (and their default
+            config data, if any) by name during execution.
+
+        :param config:
+            An optional `.Config` holding configuration state. Defaults to an
+            empty `.Config` if not given.
+
+        :param core:
+            An optional `.ParseResult` holding parsed core program arguments.
+            Defaults to ``None``.
+        """
+        self.collection = collection
+        self.config = config if config is not None else InvokeToolkitConfig()
+        self.core = core
+
     def execute(
         self, *tasks: Union[str, Tuple[str, Dict[str, Any]], ParserContext]
-    ) -> Dict["Task", "Result"]:
+    ) -> Dict["InvokeToolkitTask", "Result"]:
         """
         Execute one or more ``tasks`` in sequence.
 
@@ -113,3 +143,86 @@ class InvokeToolkitExecutor(Executor):
             # case, wherein one task obj maps to >1 result.
             results[call.task] = result
         return results
+
+    def normalize(
+        self,
+        tasks: Tuple[Union[str, Tuple[str, Dict[str, Any]], ParserContext], ...],
+    ) -> List["InvokeToolkitCall"]:
+        """
+        Transform arbitrary task list w/ various types, into `.Call` objects.
+
+        See docstring for `~.Executor.execute` for details.
+
+        .. versionadded:: 1.0
+        """
+        calls = []
+        for task in tasks:
+            name: Optional[str]
+            if isinstance(task, str):
+                name = task
+                kwargs = {}
+            elif isinstance(task, ParserContext):
+                name = task.name
+                kwargs = task.as_kwargs
+            else:
+                name, kwargs = task
+            c = InvokeToolkitCall(self.collection[name], kwargs=kwargs, called_as=name)
+            calls.append(c)
+        if not tasks and self.collection.default is not None:
+            calls = [InvokeToolkitCall(self.collection[self.collection.default])]
+        return calls
+
+    def dedupe(self, calls: List["InvokeToolkitTask"]) -> List["InvokeToolkitTask"]:
+        """
+        Deduplicate a list of `tasks <.Call>`.
+
+        :param calls: An iterable of `.Call` objects representing tasks.
+
+        :returns: A list of `.Call` objects.
+
+        .. versionadded:: 1.0
+        """
+        deduped = []
+        debug("Deduplicating tasks...")
+        for call in calls:
+            if call not in deduped:
+                debug("{!r}: no duplicates found, ok".format(call))
+                deduped.append(call)
+            else:
+                debug("{!r}: found in list already, skipping".format(call))
+        return deduped
+
+    def expand_calls(
+        self, calls: List["InvokeToolkitCall"]
+    ) -> List["InvokeToolkitCall"]:
+        """
+        Expand a list of `.Call` objects into a near-final list of same.
+
+        The default implementation of this method simply adds a task's
+        pre/post-task list before/after the task itself, as necessary.
+
+        Subclasses may wish to do other things in addition (or instead of) the
+        above, such as multiplying the `calls <.Call>` by argument vectors or
+        similar.
+
+        .. versionadded:: 1.0
+        """
+        ret = []
+        for call in calls:
+            # Normalize to Call (this method is sometimes called with pre/post
+            # task lists, which may contain 'raw' Task objects)
+            if isinstance(call, Task):
+                call = InvokeToolkitCall(call)
+            debug("Expanding task-call {!r}".format(call))
+            # TODO: this is where we _used_ to call Executor.config_for(call,
+            # config)...
+            # TODO: now we may need to preserve more info like where the call
+            # came from, etc, but I feel like that shit should go _on the call
+            # itself_ right???
+            # TODO: we _probably_ don't even want the config in here anymore,
+            # we want this to _just_ be about the recursion across pre/post
+            # tasks or parameterization...?
+            ret.extend(self.expand_calls(call.pre))
+            ret.append(call)
+            ret.extend(self.expand_calls(call.post))
+        return ret

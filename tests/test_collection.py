@@ -3,14 +3,14 @@ import sys
 from textwrap import dedent
 import ast
 
-from invoke_toolkit.collections import Collection
+from invoke_toolkit.collections import InvokeToolkitCollection
 
 
 def test_collection_load_submodules(monkeypatch, tmp_path: Path):
     """
     Creates some module in a temporary directory and tries to import from that location
     """
-    ns = Collection()
+    ns = InvokeToolkitCollection()
     code_module_for_tasks = dedent(
         """
     from invoke_toolkit import task

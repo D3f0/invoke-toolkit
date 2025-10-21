@@ -2,4 +2,4 @@
 
 from .program import InvokeToolkitProgram
 
-program = InvokeToolkitProgram()
+program = InvokeToolkitProgram(name="invoke-toolkit")

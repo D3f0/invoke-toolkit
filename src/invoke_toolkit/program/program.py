@@ -1,5 +1,7 @@
 """
-Main Program class extension
+The Program class runs the CLI. It can load a single tasks.py file
+using a filesystem loader or a base collection.
+It allows three classes to be parametrized: Loader, Config and Executor
 """
 
 __all__ = ["InvokeToolkitProgram"]
@@ -21,13 +23,15 @@ setup_rich_logging()
 # we force rich to be installed first
 
 
-from invoke.exceptions import Exit
+from invoke.exceptions import CollectionNotFound, Exit
 from invoke.parser import Argument
 from invoke.program import (
     Program,
     print_completion_script,
 )
 from invoke.util import debug
+
+from invoke_toolkit.collections import InvokeToolkitCollection
 
 # Overrides that need to be imported afterwards
 from invoke_toolkit.config import InvokeToolkitConfig
@@ -97,13 +101,14 @@ class InvokeToolkitProgram(Program):
             raise Exit
 
     def print_columns(self, tuples, col_count: int | None = 2):
+        print = get_console("out").print
         col_count = col_count or max(len(t) for t in tuples)
-        grid = Table.grid(expand=True)  # noqa: F821
+        grid = Table.grid(expand=True, padding=(0, 4))  # noqa: F821
         for _ in range(col_count):
             grid.add_column()
         for tup in tuples:
             grid.add_row(*tup)
-        get_console().print(grid)
+        print(grid)
 
     def print_task_help(self, name: str) -> None:
         """
@@ -112,7 +117,7 @@ class InvokeToolkitProgram(Program):
         .. versionadded:: 1.0
         """
         # Setup
-        print = get_console().print  # pylint: disable=redefined-builtin
+        print = get_console("out").print  # pylint: disable=redefined-builtin
         ctx = self.parser.contexts[name]
         tuples = ctx.help_tuples()
         docstring = inspect.getdoc(self.collection[name])
@@ -156,3 +161,39 @@ class InvokeToolkitProgram(Program):
             )
         )
         return args
+
+    def load_collection(self) -> None:
+        """
+        Load a task collection based on parsed core args, or die trying.
+
+        Ensures that the type is InvokeToolkitCollection for correctness.
+        """
+        # NOTE: start, coll_name both fall back to configuration values within
+        # Loader (which may, however, get them from our config.)
+        start = self.args["search-root"].value
+        loader = self.loader_class(  # type: ignore
+            config=self.config, start=start
+        )
+        coll_name = self.args.collection.value
+        try:
+            module, parent = loader.load(coll_name)
+            # This is the earliest we can load project config, so we should -
+            # allows project config to affect the task parsing step!
+            # TODO: is it worth merging these set- and load- methods? May
+            # require more tweaking of how things behave in/after __init__.
+            self.config.set_project_location(parent)
+            self.config.load_project()
+            self.collection = InvokeToolkitCollection.from_module(
+                module,
+                loaded_from=parent,
+                auto_dash_names=self.config.tasks.auto_dash_names,
+            )
+        except CollectionNotFound as e:
+            raise Exit("Can't find any collection named {!r}!".format(e.name))
+
+        if self.args["internal-col"].value:
+            debug("Trying to load internal invoke-toolkit collections")
+            InvokeToolkitCollection.from_package(  # pylint: disable=unexpected-keyword-arg
+                "invoke_toolkit.extensions.tasks",
+                self.collection,
+            )

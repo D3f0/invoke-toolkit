@@ -7,11 +7,14 @@ from pathlib import Path
 from types import ModuleType
 from typing import Dict, Union
 
-from invoke.collection import Collection as InvokeCollection
+from invoke.collection import Collection
 from invoke.tasks import Task
 from invoke.util import debug
 
 from invoke_toolkit.utils.inspection import get_calling_file_path
+from logging import getLogger
+
+logger = getLogger("invoke")
 
 
 class CollectionError(Exception):
@@ -27,14 +30,10 @@ class CollectionCantFindModulePathError(CollectionError): ...
 def import_submodules(package_name: str) -> Dict[str, ModuleType]:
     """
     Import all submodules of a module from an imported module
-
-    :param package_name: Package name
-    :type package_name: str
-    :rtype: dict[types.ModuleType]
     """
-    debug("Importing submodules in %s", package_name)
+    logger.info("Importing submodules in %s", package_name)
     try:
-        package = sys.modules[package_name]
+        package = importlib.import_module(package_name)
     except ImportError as import_error:
         msg = f"Module {package_name} not imported"
         raise CollectionNotImportedError(msg) from import_error
@@ -46,15 +45,15 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
         try:
             result[name] = importlib.import_module(package_name + "." + name)
         except (ImportError, SyntaxError) as error:
+            # TODO: Add a flag to show loading exceptions
+            logger.exception(error)
             if not name.startswith("__"):
-                debug(f"Error loading {name}: {error}")
-            else:
-                debug(f"Error loading {name}: {error}")
+                logger.error(f"Error loading {name} from {package_name}: {error}")
 
     return result
 
 
-def clean_collection(collection: InvokeCollection) -> None:
+def clean_collection(collection: "InvokeToolkitCollection") -> None:
     """Removes tasks that are imported from other modules or start with underscores"""
 
     def user_facing_task(name: str, task: Task) -> bool:
@@ -77,13 +76,13 @@ def clean_collection(collection: InvokeCollection) -> None:
     }
 
 
-class Collection(InvokeCollection):
+class InvokeToolkitCollection(Collection):
     """
     This Collection allows to load sub-collections from python package paths/namespaces
     like `myscripts.tasks.*`
     """
 
-    def add_collections_from_namespace(self, namespace: str) -> bool:
+    def add_collections_from_namespace(self, namespace: str):
         """Iterates over a namespace and imports the submodules"""
         # Attempt simple import
         ok = False
@@ -93,7 +92,7 @@ class Collection(InvokeCollection):
                 importlib.import_module(namespace)
                 ok = True
             except ImportError:
-                debug(f"Failed to import  {namespace}")
+                logger.warning(f"Failed to import  {namespace}")
 
         if not ok:
             debug("Starting stack inspection to find module")
@@ -110,7 +109,7 @@ class Collection(InvokeCollection):
             importlib.import_module(namespace)
 
         for name, module in import_submodules(namespace).items():
-            coll = Collection.from_module(module)
+            coll = InvokeToolkitCollection.from_module(module)
             # TODO: Discover if the namespace has configuration
             #       collection.configure(config)
             self.add_collection(coll=coll, name=name)
@@ -136,15 +135,23 @@ class Collection(InvokeCollection):
             sys.path.append(str(path))
 
     @classmethod
-    def from_package(cls, package_path) -> "Collection":  # pylint: disable=too-many-branches)
+    def from_module(
+        cls, module, name=None, config=None, loaded_from=None, auto_dash_names=None
+    ) -> "InvokeToolkitCollection":
+        return super().from_module(module, name, config, loaded_from, auto_dash_names)
+
+    @classmethod
+    def from_package(
+        cls, package_path: str, into: "InvokeToolkitCollection"
+    ) -> "InvokeToolkitCollection":  # pylint: disable=too-many-branches)
         """
         Creates a collection from a package and configures it
         """
-        ns = Collection()
+        ns = into or cls()
         global_config: dict[str, str | dict[str, str]] = {}
         for name, module in import_submodules(package_path).items():
             config = getattr(module, "config", None)
-            collection: Collection = ns.from_module(module)
+            collection: "InvokeToolkitCollection" = ns.from_module(module)
             clean_collection(collection=collection)
             # TODO: Namespaced configuration seems to be an not present when merged!§
             # if config and isinstance(config, (dict, )):
@@ -154,7 +161,8 @@ class Collection(InvokeCollection):
                 # FIXME: Detect coitions
                 if isinstance(config, (dict,)):
                     debug(f"🔧 Adding config to module 📦 {name}: {config.keys()}")
-                    global_config.update(**config)
+                    prefixed_config = {name: config}
+                    global_config.update(**prefixed_config)
                 else:
                     debug(f"In the module {module} the config name is for {config}")
             ns.add_collection(
