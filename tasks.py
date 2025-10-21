@@ -19,7 +19,7 @@ except subprocess.SubprocessError:
     REPO_ROOT = Path()
 
 
-@task(default=True, autoprint=True)
+@task(default=True, autoprint=True, aliases=["v"])
 def version(
     ctx: Context,
 ):
@@ -262,6 +262,22 @@ def run_in_container(
         {container_tool} run {flags} -ti {volumes} {image} uv tool run --from /repo/ {command}
         """,
         pty=ctx.config.run.pty,
+    )
+
+
+@task(pre=[clean, build])
+def publish(ctx: Context):
+    """
+    Build and publish to PyPI using a token.
+
+    [red]TODO:[/red] This should be a github action with trusted publishing
+    """
+    ctx.run(
+        """
+        set -e
+        test -z PYPI_PASSWORD
+        uv publish -t $PYPI_PASSWORD
+        """
     )
 
 
