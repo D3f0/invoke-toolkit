@@ -81,6 +81,7 @@ def test(
     keyword: list[str] = [],
     last_failed: bool = False,
     fzf: bool = False,
+    html: bool = False,
 ):
     """Runs [green]pytest[/green] and exposes some commonly used flags"""
     with ctx.cd(REPO_ROOT):
@@ -99,6 +100,9 @@ def test(
             args = f"{args} {kw}"
         if last_failed:
             args = f"{args} --last-failed"
+        if html:
+            # addopts = "--html=report.html --self-contained-html"
+            args = f"{args} --html=report.html --self-contained-html"
         if fzf:
             # Select the tests with fzf
             if not which("fzf"):
@@ -119,7 +123,11 @@ def test(
             else:
                 args = f"{args} {test_to_run}"
 
-        ctx.run(f"uv run pytest {args}", pty=True)
+        run = ctx.run(f"uv run pytest {args}", pty=True, warn=True)
+        if html:
+            ctx.run("test -f report.html && open report.html")
+        if not run.ok:
+            ctx.rich_exit("test failed", exit_code=run.return_code)
 
 
 @task()
@@ -197,6 +205,7 @@ def docs_api_build(
     dry_run: bool = False,
     watch: bool = False,
     verbose: bool = False,
+    timeout: int = 0,
 ):
     """
     Runs uv run quartodoc build with the provided arguments.
@@ -222,8 +231,24 @@ def docs_api_build(
         args = f"{args} --watch"
     if verbose:
         args = f"{args} --verbose"
+
     with ctx.cd(REPO_ROOT / "docs"):
-        ctx.run(f"uv run quartodoc build {args}")
+        ctx.run(
+            f"uv run quartodoc build {args}", timeout=timeout if timeout > 0 else None
+        )
+
+
+@task()
+def docs_api_watch_entr(ctx: Context, timeout: int = 5):
+    """Uses entr to rebuild, when --watch doesn't detect changes. Requires entr CLI"""
+    if not which("entr"):
+        ctx.rich_exit("[bold]entr[/bold] not found in [green]$PATH[/green]")
+    ctx.run(
+        f"""
+        git ls-files **/*.py | entr -n {sys.argv[0]} -T {timeout} -e docs-api-build
+        """,
+        echo=True,
+    )
 
 
 @task(aliases=["p"])
