@@ -5,11 +5,31 @@
 
 Invoke Toolkit is a set of opinionated extensions to the popular [Python invoke library](https://pyinvoke.org).
 
-- Add's some `Context` attributes
-- Renames the `inv`/`invoke` to `it`/`invoke-toolkit`, reads the same `tasks.py`.
-- Replaces `print()` with `rich`'s Console print (internal logging uses `rich` logger): `it -d`.
-- Command echo defaults to `stderr` (`it -e`)
-- 
+* <details>
+  <summary>
+  Add's some `Context` attributes such as `ctx.status()` or `ctx.print` using [rich](https://rich.readthedocs.io/en/stable/introduction.html)
+  </summary>
+
+    ```{.python}
+    @task()
+    def long_task(ctx: Context):
+        with ctx.status("Doing something slow"):
+            ctx.run("sleep 1")
+    ```
+</details>
+
+* Renames the `inv`/`invoke` to `it`/`invoke-toolkit`, reads the same `tasks.py`.
+* Replaces `print()` with `rich`'s Console print (internal logging uses `rich` logger): `it -d`.
+* Command echo defaults to `stderr` (`it -e`)
+* <details>
+  <summary>
+  Populates with built in collections to manage *plugins*
+  </summary>
+  ```bash
+  it -xl
+  ```
+  </details>
+
 
 ## Installation
 
@@ -17,6 +37,18 @@ The recommended way to use `invoke-toolkit` is through `uv` package manager:
 
 ```bash
 uv tool install invoke-toolkit
+```
+
+### Ad-hoc run with `uvx`/`pipx`
+
+With `uvx` or `uv tool run`
+```bash
+uvx invoke-toolkit --help
+```
+
+With `pipx`
+```bash
+pipx run invoke-toolkit
 ```
 
 ## Simple task example

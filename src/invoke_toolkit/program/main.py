@@ -1,5 +1,5 @@
 """Entrypoint for project.scripts"""
 
-from .program import InvokeToolkitProgram
+from .program import ToolkitProgram
 
-program = InvokeToolkitProgram(name="invoke-toolkit")
+program = ToolkitProgram(name="invoke-toolkit")

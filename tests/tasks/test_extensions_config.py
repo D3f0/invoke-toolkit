@@ -4,7 +4,7 @@ Tests invoke_toolkit.extension.config collection of tasks
 
 import ast
 from textwrap import dedent
-from invoke_toolkit.program import InvokeToolkitProgram
+from invoke_toolkit.program import ToolkitProgram
 import pytest
 
 
@@ -22,7 +22,7 @@ def test_collection(tmp_path, monkeypatch: pytest.MonkeyPatch, capsys):
         )
     )
     monkeypatch.chdir(tmp_path)
-    p = InvokeToolkitProgram()
+    p = ToolkitProgram()
 
     p.run(
         [

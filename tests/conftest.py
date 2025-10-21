@@ -40,3 +40,11 @@ def venv(ctx, tmp_path: Path) -> Generator[Path, None, None]:
 def package_in_venv(git_root, ctx: Context, venv: Path) -> None:
     """A virtual environment in a temporary directory with the package"""
     ctx.run(f"uv pip install --editable {git_root}")
+
+
+@pytest.fixture(autouse=True)
+def clean_consoles():
+    """Resets the console manager"""
+    from invoke_toolkit.output.console import manager  # pylint: disable=import-outside-toplevel
+
+    manager._consoles = {}  # pylint: disable=protected-access

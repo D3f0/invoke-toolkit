@@ -9,7 +9,7 @@ from typing import Any
 from invoke.loader import FilesystemLoader
 from invoke.util import debug
 
-from invoke_toolkit.collections import InvokeToolkitCollection
+from invoke_toolkit.collections import ToolkitCollection
 
 COLLECTION_ENTRY_POINT = "invoke_toolkit.collection"
 
@@ -143,23 +143,23 @@ class EntryPointLoader(FilesystemLoader):
             return None
 
         # Create root collection
-        root = InvokeToolkitCollection()
+        root = ToolkitCollection()
 
         # Add each loaded collection as a sub-collection
         for name, collection in entry_points.items():
-            if isinstance(collection, InvokeToolkitCollection):
+            if isinstance(collection, ToolkitCollection):
                 # It's already a Collection, add it
                 root.add_collection(collection, name=name)
             elif hasattr(collection, "__dict__") and hasattr(collection, "tasks"):
                 # It's a module with tasks, wrap it in a Collection
                 root.add_collection(
-                    InvokeToolkitCollection.from_module(collection), name=name
+                    ToolkitCollection.from_module(collection), name=name
                 )
             else:
                 # Try to treat it as a module
                 try:
                     root.add_collection(
-                        InvokeToolkitCollection.from_module(collection), name=name
+                        ToolkitCollection.from_module(collection), name=name
                     )
                 except Exception as e:
                     import warnings

@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Optional, Union, overload
 from invoke.collection import Collection
 from invoke.tasks import Task
 from invoke.util import debug
-from invoke_toolkit.tasks import InvokeToolkitTask
+from invoke_toolkit.tasks import ToolkitTask
 from invoke_toolkit.utils.inspection import get_calling_file_path
 from logging import getLogger
 
@@ -53,7 +53,7 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
     return result
 
 
-def clean_collection(collection: "InvokeToolkitCollection") -> None:
+def clean_collection(collection: "ToolkitCollection") -> None:
     """Removes tasks that are imported from other modules or start with underscores"""
 
     def user_facing_task(name: str, task: Task) -> bool:
@@ -76,7 +76,7 @@ def clean_collection(collection: "InvokeToolkitCollection") -> None:
     }
 
 
-class InvokeToolkitCollection(Collection):
+class ToolkitCollection(Collection):
     """
     This Collection allows to load sub-collections from python package paths/namespaces
     like `myscripts.tasks.*`
@@ -89,21 +89,21 @@ class InvokeToolkitCollection(Collection):
     def __init__(
         self,
         name: str,
-        *args: Union[Task, InvokeToolkitTask, Collection, "InvokeToolkitCollection"],
+        *args: Union[Task, ToolkitTask, Collection, "ToolkitCollection"],
         **kwargs,
     ) -> None: ...
 
     def __init__(
-        self, *args: Union[str, Task, InvokeToolkitTask, Collection], **kwargs
+        self, *args: Union[str, Task, ToolkitTask, Collection], **kwargs
     ) -> None:
         debug(f"Instantiating collection with {args=} and {kwargs=}")
         super().__init__(*args, **kwargs)
 
     def _add_object(self, obj: Any, name: Optional[str] = None) -> None:
         method: Callable
-        if isinstance(obj, (Task, InvokeToolkitTask)):
+        if isinstance(obj, (Task, ToolkitTask)):
             method = self.add_task
-        elif isinstance(obj, (InvokeToolkitCollection, Collection, ModuleType)):
+        elif isinstance(obj, (ToolkitCollection, Collection, ModuleType)):
             method = self.add_collection
         else:
             raise TypeError("No idea how to insert {!r}!".format(type(obj)))
@@ -136,7 +136,7 @@ class InvokeToolkitCollection(Collection):
             importlib.import_module(namespace)
 
         for name, module in import_submodules(namespace).items():
-            coll = InvokeToolkitCollection.from_module(module)
+            coll = ToolkitCollection.from_module(module)
             # TODO: Discover if the namespace has configuration
             #       collection.configure(config)
             self.add_collection(coll=coll, name=name)
@@ -164,13 +164,13 @@ class InvokeToolkitCollection(Collection):
     @classmethod
     def from_module(
         cls, module, name=None, config=None, loaded_from=None, auto_dash_names=None
-    ) -> "InvokeToolkitCollection":
+    ) -> "ToolkitCollection":
         return super().from_module(module, name, config, loaded_from, auto_dash_names)
 
     @classmethod
     def from_package(
-        cls, package_path: str, into: "InvokeToolkitCollection"
-    ) -> "InvokeToolkitCollection":  # pylint: disable=too-many-branches)
+        cls, package_path: str, into: "ToolkitCollection"
+    ) -> "ToolkitCollection":  # pylint: disable=too-many-branches)
         """
         Creates a collection from a package and configures it
         """
@@ -178,7 +178,7 @@ class InvokeToolkitCollection(Collection):
         global_config: dict[str, str | dict[str, str]] = {}
         for name, module in import_submodules(package_path).items():
             config = getattr(module, "config", None)
-            collection: "InvokeToolkitCollection" = ns.from_module(module)
+            collection: "ToolkitCollection" = ns.from_module(module)
             clean_collection(collection=collection)
             # TODO: Namespaced configuration seems to be an not present when merged!§
             # if config and isinstance(config, (dict, )):

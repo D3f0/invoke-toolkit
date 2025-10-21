@@ -32,6 +32,7 @@ format:
   html:
     css:
       - reference/_styles-quartodoc.css
+    theme: superhero
 
 quartodoc:
   # the name used to import the package you want to create reference docs for
@@ -47,17 +48,18 @@ quartodoc:
       contents:
         # the functions being documented in the package.
         # you can refer to anything: class methods, modules, etc..
-        - program.program
-        - context.InvokeToolkitContext
-        - tasks.plugin
-        - tasks.dist
-        - context.types
-        - config.config
-        - config.status_helper
-        - output.console
-        - output.utils
-        - utils.inspection
-        - collections
+        - program.ToolkitProgram
+        - context.ToolkitContext
+        - config.ToolkitConfig
+        # - tasks.plugin
+        # - tasks.dist
+        # - context.types
+        # - config.config
+        # - config.status_helper
+        # - output.console
+        # - output.utils
+        # - utils.inspection
+        # - collections
         # - scripts.loader
         # - program.main
         # - log.logger
@@ -69,10 +71,10 @@ quartodoc:
         A
         B
         C
-      package: invoke_toolkit.tasks
+      package: invoke_toolkit.extensions.tasks
       contents:
-        - plugin
-        - dist
+        - config
+        - collections
 
     - title: More
       desc: Invoke reference

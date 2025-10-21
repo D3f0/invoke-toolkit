@@ -8,13 +8,13 @@ from typing import Any, Callable, Optional, Sequence, Type, TypeVar, cast
 from invoke import task as invoke_task
 from invoke.tasks import Call, Task
 
-from invoke_toolkit.context import InvokeToolkitContext
+from invoke_toolkit.context import ToolkitContext
 
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 
-class InvokeToolkitTask(Task): ...
+class ToolkitTask(Task): ...
 
 
 def task(  # pylint: disable=too-many-arguments
@@ -32,7 +32,7 @@ def task(  # pylint: disable=too-many-arguments
     help: Optional[dict[str, str]] = None,  # pylint: disable=redefined-builtin
     pre: Optional[list[Callable[..., Any]]] = None,
     post: Optional[list[Callable[..., Any]]] = None,
-    klass: Optional[Type["InvokeToolkitTask"]] = InvokeToolkitTask,
+    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
 ) -> Callable[[F], F]:
     """
     Decorator for Invoke tasks that preserves type hints and Context annotation.
@@ -101,10 +101,10 @@ def task(  # pylint: disable=too-many-arguments
     return decorator
 
 
-class InvokeToolkitCall(Call):
+class ToolkitCall(Call):
     def make_context(self, config):
         """Generates the Context for the task"""
-        return InvokeToolkitContext(config=config)
+        return ToolkitContext(config=config)
 
 
 def call(task_: "Task", *args: Any, **kwargs: Any) -> "Call":
@@ -140,4 +140,4 @@ def call(task_: "Task", *args: Any, **kwargs: Any) -> "Call":
 
     .. versionadded:: 1.0
     """
-    return InvokeToolkitCall(task_, args=args, kwargs=kwargs)
+    return ToolkitCall(task_, args=args, kwargs=kwargs)

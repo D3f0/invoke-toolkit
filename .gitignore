@@ -7,3 +7,5 @@ docs/reference/
 **/.quarto/*
 docs/objects.json
 _tasks.py
+report.html
+_scratchpad.py

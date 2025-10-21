@@ -11,11 +11,30 @@ from invoke.config import Config
 from ..runners.rich import NoStdoutRunner
 
 
-class InvokeToolkitConfig(Config):
+class ToolkitConfig(Config):
     """
     Config object used for resolving ctx attributes and functions
     such as .cd, .run, etc.
+
+    To create a custom config class you can do the following
+
+    ```python
+    class MyConfig(Config, prefix="custom", file_prefix="file_", env_prefix="ENV_"):
+        pass
+
+    ```
     """
+
+    def __init_subclass__(
+        cls, prefix=None, file_prefix=None, env_prefix=None, **kwargs
+    ):
+        super().__init_subclass__(**kwargs)
+        if prefix is not None:
+            cls.prefix = prefix
+        if file_prefix is not None:
+            cls.file_prefix = file_prefix
+        if env_prefix is not None:
+            cls.env_prefix = env_prefix
 
     @staticmethod
     def global_defaults() -> Dict[str, Any]:

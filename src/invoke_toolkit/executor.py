@@ -10,19 +10,19 @@ from invoke.runners import Result
 from invoke.tasks import Task
 from invoke.util import debug
 
-from invoke_toolkit.collections import InvokeToolkitCollection
-from invoke_toolkit.config import InvokeToolkitConfig
+from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.output import get_console
-from invoke_toolkit.tasks.tasks import InvokeToolkitCall, InvokeToolkitTask
+from invoke_toolkit.tasks.tasks import ToolkitCall, ToolkitTask
 
 
-class InvokeToolkitExecutor(Executor):
+class ToolkitExecutor(Executor):
     """Task execution"""
 
     def __init__(  # pylint: disable=super-init-not-called
         self,
-        collection: "InvokeToolkitCollection",
-        config: Optional["InvokeToolkitConfig"] = None,
+        collection: "ToolkitCollection",
+        config: Optional["ToolkitConfig"] = None,
         core: Optional["ParseResult"] = None,
     ) -> None:
         """
@@ -41,12 +41,12 @@ class InvokeToolkitExecutor(Executor):
             Defaults to ``None``.
         """
         self.collection = collection
-        self.config = config if config is not None else InvokeToolkitConfig()
+        self.config = config if config is not None else ToolkitConfig()
         self.core = core
 
     def execute(
         self, *tasks: Union[str, Tuple[str, Dict[str, Any]], ParserContext]
-    ) -> Dict["InvokeToolkitTask", "Result"]:
+    ) -> Dict["ToolkitTask", "Result"]:
         """
         Execute one or more ``tasks`` in sequence.
 
@@ -147,7 +147,7 @@ class InvokeToolkitExecutor(Executor):
     def normalize(
         self,
         tasks: Tuple[Union[str, Tuple[str, Dict[str, Any]], ParserContext], ...],
-    ) -> List["InvokeToolkitCall"]:
+    ) -> List["ToolkitCall"]:
         """
         Transform arbitrary task list w/ various types, into `.Call` objects.
 
@@ -166,13 +166,13 @@ class InvokeToolkitExecutor(Executor):
                 kwargs = task.as_kwargs
             else:
                 name, kwargs = task
-            c = InvokeToolkitCall(self.collection[name], kwargs=kwargs, called_as=name)
+            c = ToolkitCall(self.collection[name], kwargs=kwargs, called_as=name)
             calls.append(c)
         if not tasks and self.collection.default is not None:
-            calls = [InvokeToolkitCall(self.collection[self.collection.default])]
+            calls = [ToolkitCall(self.collection[self.collection.default])]
         return calls
 
-    def dedupe(self, calls: List["InvokeToolkitTask"]) -> List["InvokeToolkitTask"]:
+    def dedupe(self, calls: List["ToolkitTask"]) -> List["ToolkitTask"]:
         """
         Deduplicate a list of `tasks <.Call>`.
 
@@ -192,9 +192,7 @@ class InvokeToolkitExecutor(Executor):
                 debug("{!r}: found in list already, skipping".format(call))
         return deduped
 
-    def expand_calls(
-        self, calls: List["InvokeToolkitCall"]
-    ) -> List["InvokeToolkitCall"]:
+    def expand_calls(self, calls: List["ToolkitCall"]) -> List["ToolkitCall"]:
         """
         Expand a list of `.Call` objects into a near-final list of same.
 
@@ -212,7 +210,7 @@ class InvokeToolkitExecutor(Executor):
             # Normalize to Call (this method is sometimes called with pre/post
             # task lists, which may contain 'raw' Task objects)
             if isinstance(call, Task):
-                call = InvokeToolkitCall(call)
+                call = ToolkitCall(call)
             debug("Expanding task-call {!r}".format(call))
             # TODO: this is where we _used_ to call Executor.config_for(call,
             # config)...

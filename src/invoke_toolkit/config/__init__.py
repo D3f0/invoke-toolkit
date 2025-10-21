@@ -1,3 +1,3 @@
 """Config class"""
 
-from .config import InvokeToolkitConfig  # noqa: F401
+from .config import ToolkitConfig  # noqa: F401

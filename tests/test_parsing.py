@@ -3,13 +3,13 @@ from invoke import Program
 from invoke.collection import Collection
 
 from invoke_toolkit import task
-from invoke_toolkit.collections import InvokeToolkitCollection
-from invoke_toolkit.context.context import InvokeToolkitContext
-from invoke_toolkit.program import InvokeToolkitProgram
+from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.context.context import ToolkitContext
+from invoke_toolkit.program import ToolkitProgram
 
 
 @task()
-def boolean_flag(c: InvokeToolkitContext, flag=True):
+def boolean_flag(c: ToolkitContext, flag=True):
     print(flag)
 
 
@@ -18,8 +18,8 @@ def boolean_flag(c: InvokeToolkitContext, flag=True):
     [
         (Program, Collection),
         pytest.param(
-            InvokeToolkitProgram,
-            InvokeToolkitCollection,
+            ToolkitProgram,
+            ToolkitCollection,
             marks=pytest.mark.skip(reason="TODO: Fix boolean flags set up to True"),
         ),
     ],

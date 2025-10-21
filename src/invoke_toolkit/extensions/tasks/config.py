@@ -12,7 +12,7 @@ config = {"format": "yaml"}
 SAFE_TYPES = (str, int, float, bool, type(None), list, dict, tuple)
 
 
-def clean_dict_for_serialization(data):
+def _clean_dict_for_serialization(data):
     """Remove non-serializable values from dictionary.
 
     Keeps: str, int, float, bool, None, list, dict
@@ -20,18 +20,20 @@ def clean_dict_for_serialization(data):
     """
     if isinstance(data, dict):
         return {
-            k: clean_dict_for_serialization(v)
+            k: _clean_dict_for_serialization(v)
             for k, v in data.items()
-            if is_serializable(v)
+            if _is_serializable(v)
         }
     if isinstance(data, list):
         return [
-            clean_dict_for_serialization(item) for item in data if is_serializable(item)
+            _clean_dict_for_serialization(item)
+            for item in data
+            if _is_serializable(item)
         ]
     return data
 
 
-def is_serializable(value):
+def _is_serializable(value):
     """Check if value is a primitive serializable type."""
     if value is None:
         return True
@@ -67,7 +69,7 @@ def show(
 
     # Now ensure the values are serializable
     if serializable:
-        items = clean_dict_for_serialization(items)
+        items = _clean_dict_for_serialization(items)
 
     format_ = format_.lower()
     if format_ in {"y", "yaml"}:

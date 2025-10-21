@@ -117,6 +117,7 @@ dev = [
     "pylint-per-file-ignores>=1.0.0",
     "pytest>=8.3.5",
     "pytest-cov>=5.0.0",
+    "pytest-html>=4.1.1",
     "pytest-picked>=0.5.1",
     "pytest-sugar>=1.1.1",
 ]
@@ -166,7 +167,7 @@ per-file-ignores = [
     "**/types.py:too-many-arguments,too-few-public-methods,too-many-locals,missing-class-docstring",
     "**/context.py:too-few-public-methods",
     # This is for the list initialization of var-args in Invoke
-    "**/*.py:dangerous-default-value,line-too-long,logging-format-interpolation,missing-module-docstring,missing-class-docstring",
+    "**/*.py:dangerous-default-value,line-too-long,logging-format-interpolation,missing-module-docstring,missing-class-docstring,logging-fstring-interpolation",
     "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring,redefined-outer-name",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
     "src/invoke_toolkit/loader/entrypoint.py:missing-function-docstring,logging-fstring-interpolation,import-outside-toplevel,broad-exception-caught,unused-argument,arguments-differ",

@@ -20,10 +20,10 @@ def setup_rich_logging():
         level="WARNING",
         format=FORMAT,
         datefmt="[%X]",
-        handlers=[RichHandler(console=get_console(), rich_tracebacks=True)],
+        handlers=[RichHandler(console=get_console("log"), rich_tracebacks=True)],
     )
 
 
 def setup_traceback_handler() -> None:
     """Ensure to call this function before importing any invoke modules"""
-    install_traceback_handler(show_locals=True, console=get_console())
+    install_traceback_handler(show_locals=True, console=get_console("log"))

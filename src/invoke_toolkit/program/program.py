@@ -4,7 +4,7 @@ using a filesystem loader or a base collection.
 It allows three classes to be parametrized: Loader, Config and Executor
 """
 
-__all__ = ["InvokeToolkitProgram"]
+__all__ = ["ToolkitProgram"]
 
 import inspect
 import sys
@@ -31,14 +31,14 @@ from invoke.program import (
 )
 from invoke.util import debug
 
-from invoke_toolkit.collections import InvokeToolkitCollection
+from invoke_toolkit.collections import ToolkitCollection
 
 # Overrides that need to be imported afterwards
-from invoke_toolkit.config import InvokeToolkitConfig
-from invoke_toolkit.executor import InvokeToolkitExecutor
+from invoke_toolkit.config import ToolkitConfig
+from invoke_toolkit.executor import ToolkitExecutor
 
 
-class InvokeToolkitProgram(Program):
+class ToolkitProgram(Program):
     """Invoke Toolkit program providing rich output, package versioning and other features"""
 
     def __init__(
@@ -48,8 +48,8 @@ class InvokeToolkitProgram(Program):
         name=None,
         binary=None,
         loader_class=None,
-        executor_class=InvokeToolkitExecutor,
-        config_class=InvokeToolkitConfig,
+        executor_class=ToolkitExecutor,
+        config_class=ToolkitConfig,
         binary_names=None,
     ):
         super().__init__(
@@ -70,13 +70,36 @@ class InvokeToolkitProgram(Program):
         """
         return metadata.version("invoke-toolkit")
 
+    def setup_consoles(self):
+        """Pre-populate the console objects"""
+        patterns = self.args["scrub_pattern"].value
+        out, err = self.args.scrub_stdout.value, self.args.scrub_stderr.value
+        enable_all = False
+        if not patterns:
+            if out or err:
+                get_console("err").print(
+                    "--scrub-patter was not passed, no secret scrubbing"
+                )
+            return
+        if not out and not err:
+            enable_all = True
+
+        if out or enable_all:
+            debug(f"Setting secret scrubbing in stdout with {patterns=}")
+            get_console("out").secret_patterns = patterns
+        if err or enable_all:
+            debug(f"Setting secret scrubbing in stderr with {patterns=}")
+            get_console("err").secret_patterns = patterns
+
     def parse_core(self, argv: Optional[List[str]]) -> None:
         debug("argv given to Program.run: {!r}".format(argv))  # pylint: disable=W1202
         self.normalize_argv(argv)
 
         # Obtain core args (sets self.core)
         self.parse_core_args()
+        # Ensure the cache of consoles is pre-configured
         debug("Finished parsing core args")
+        self.setup_consoles()
 
         # Set interpreter bytecode-writing flag
         sys.dont_write_bytecode = not self.args["write-pyc"].value
@@ -152,21 +175,41 @@ class InvokeToolkitProgram(Program):
         """
         # Arguments present always, even when wrapped as a different binary
         args = super().core_args()
-        args.append(
+        toolkit_program_arguments = [
             Argument(
                 names=("internal-col", "x"),
                 kind=bool,
                 default=False,
                 help="Loads the internal invoke-toolkit collections",
-            )
-        )
+            ),
+            Argument(
+                names=("scrub_stdout", "So"),
+                kind=bool,
+                default=False,
+                help="Prevents console to print secrets to [green]stdout[/green]",
+            ),
+            Argument(
+                names=("scrub_stderr", "Se"),
+                kind=bool,
+                default=False,
+                help="Prevents console to print secrets to [yellow]stderr[/yellow]",
+            ),
+            Argument(
+                names=("scrub_pattern", "Sp"),
+                kind=list,
+                default=[],
+                help="Defines which patterns should be scrubbed, such as *_API*KEY or regexes. Settings this alone enables "
+                "scrubbing both for [green]stdout[/green] and [yellow]stderr[/yellow]",
+            ),
+        ]
+        args.extend(toolkit_program_arguments)
         return args
 
     def load_collection(self) -> None:
         """
         Load a task collection based on parsed core args, or die trying.
 
-        Ensures that the type is InvokeToolkitCollection for correctness.
+        Ensures that the type is ToolkitCollection for correctness.
         """
         # NOTE: start, coll_name both fall back to configuration values within
         # Loader (which may, however, get them from our config.)
@@ -183,7 +226,7 @@ class InvokeToolkitProgram(Program):
             # require more tweaking of how things behave in/after __init__.
             self.config.set_project_location(parent)
             self.config.load_project()
-            self.collection = InvokeToolkitCollection.from_module(
+            self.collection = ToolkitCollection.from_module(
                 module,
                 loaded_from=parent,
                 auto_dash_names=self.config.tasks.auto_dash_names,
@@ -193,7 +236,7 @@ class InvokeToolkitProgram(Program):
 
         if self.args["internal-col"].value:
             debug("Trying to load internal invoke-toolkit collections")
-            InvokeToolkitCollection.from_package(  # pylint: disable=unexpected-keyword-arg
+            ToolkitCollection.from_package(  # pylint: disable=unexpected-keyword-arg
                 "invoke_toolkit.extensions.tasks",
                 self.collection,
             )

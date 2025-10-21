@@ -1,3 +1,3 @@
-from .program import InvokeToolkitProgram
+from .program import ToolkitProgram
 
-__all__ = ["InvokeToolkitProgram"]
+__all__ = ["ToolkitProgram"]
