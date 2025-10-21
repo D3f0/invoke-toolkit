@@ -299,9 +299,7 @@ def publish(ctx: Context):
     """
     ctx.run(
         """
-        set -e
-        test -z PYPI_PASSWORD
-        uv publish -t $PYPI_PASSWORD
+        test -n PYPI_PASSWORD && uv publish -t $PYPI_PASSWORD
         """
     )
 
