@@ -5,12 +5,12 @@ import pkgutil
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, Union
+from typing import Any, Callable, Dict, Optional, Union, overload
 
 from invoke.collection import Collection
 from invoke.tasks import Task
 from invoke.util import debug
-
+from invoke_toolkit.tasks import InvokeToolkitTask
 from invoke_toolkit.utils.inspection import get_calling_file_path
 from logging import getLogger
 
@@ -81,6 +81,33 @@ class InvokeToolkitCollection(Collection):
     This Collection allows to load sub-collections from python package paths/namespaces
     like `myscripts.tasks.*`
     """
+
+    @overload
+    def __init__(self, **kwargs) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        name: str,
+        *args: Union[Task, InvokeToolkitTask, Collection, "InvokeToolkitCollection"],
+        **kwargs,
+    ) -> None: ...
+
+    def __init__(
+        self, *args: Union[str, Task, InvokeToolkitTask, Collection], **kwargs
+    ) -> None:
+        debug(f"Instantiating collection with {args=} and {kwargs=}")
+        super().__init__(*args, **kwargs)
+
+    def _add_object(self, obj: Any, name: Optional[str] = None) -> None:
+        method: Callable
+        if isinstance(obj, (Task, InvokeToolkitTask)):
+            method = self.add_task
+        elif isinstance(obj, (InvokeToolkitCollection, Collection, ModuleType)):
+            method = self.add_collection
+        else:
+            raise TypeError("No idea how to insert {!r}!".format(type(obj)))
+        method(obj, name=name)
 
     def add_collections_from_namespace(self, namespace: str):
         """Iterates over a namespace and imports the submodules"""

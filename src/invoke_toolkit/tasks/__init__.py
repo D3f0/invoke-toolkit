@@ -1,1 +1,1 @@
-from .tasks import task, Call, call  # noqa: F401
+from .tasks import task, Call, call, InvokeToolkitTask  # noqa: F401

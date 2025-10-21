@@ -59,7 +59,7 @@ def show(
     """
     Shows the contents of the configuration in the context
     """
-    ctx.print(f"{serializable=}")
+    ctx.print_err(f"{serializable=}")
     if ctx.config.run.echo:
         ctx.print(f"Showing sections: {configs}")
     # All sections or the selected ones

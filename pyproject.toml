@@ -167,7 +167,7 @@ per-file-ignores = [
     "**/context.py:too-few-public-methods",
     # This is for the list initialization of var-args in Invoke
     "**/*.py:dangerous-default-value,line-too-long,logging-format-interpolation,missing-module-docstring,missing-class-docstring",
-    "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring",
+    "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring,redefined-outer-name",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
     "src/invoke_toolkit/loader/entrypoint.py:missing-function-docstring,logging-fstring-interpolation,import-outside-toplevel,broad-exception-caught,unused-argument,arguments-differ",
 ]

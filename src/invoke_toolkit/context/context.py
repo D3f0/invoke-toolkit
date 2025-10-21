@@ -1,6 +1,5 @@
 """Context object for invoke_toolkit tasks"""
 
-from contextlib import contextmanager
 import sys
 from invoke.context import Context
 from typing import (
@@ -56,10 +55,11 @@ class InvokeToolkitContext(Context, ConfigProtocol):
         console = get_console()
         return console
 
-    @contextmanager
+    # @contextmanager
+    @property
     def status(self):
         """A rich Context manager to show progress on long running tasks"""
-        yield self._status_helper.status
+        return self._status_helper.status
 
     @property
     def status_update(
@@ -82,6 +82,11 @@ class InvokeToolkitContext(Context, ConfigProtocol):
 
     @property
     def print(self):
+        """Rich print, use square bracketed markup for color/highlights"""
+        return get_console("out").print
+
+    @property
+    def print_err(self):
         """Rich print, use square bracketed markup for color/highlights"""
         return self._console.print
 

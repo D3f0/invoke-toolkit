@@ -78,6 +78,8 @@ def test(
     verbose=False,
     capture_output=True,
     picked=False,
+    keyword: list[str] = [],
+    last_failed: bool = False,
     fzf: bool = False,
 ):
     """Runs [green]pytest[/green] and exposes some commonly used flags"""
@@ -92,6 +94,11 @@ def test(
         # Run on tests of changed files
         if picked:
             args = f"{args} --picked"
+        if keyword:
+            kw = " ".join(f"-k {kw}" for kw in keyword)
+            args = f"{args} {kw}"
+        if last_failed:
+            args = f"{args} --last-failed"
         if fzf:
             # Select the tests with fzf
             if not which("fzf"):
