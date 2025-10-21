@@ -68,9 +68,7 @@ quartodoc:
 
     - title: Builtin collections
       desc: >
-        A
-        B
-        C
+        Collections that get enabled with `-x` that extend invoke functionality
       package: invoke_toolkit.extensions.tasks
       contents:
         - config
