@@ -23,6 +23,7 @@ jobs:
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
+          set -x
           if [[ "$COMMIT_MESSAGE" == *"[release major]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump major]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "bump-type=major" >> $GITHUB_OUTPUT
@@ -41,6 +42,7 @@ jobs:
         if: steps.check.outputs.should-release == 'true'
         run: |
           # Get latest tag, remove 'v' prefix
+          set -x
           CURRENT=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0")
           echo "current-version=$CURRENT" >> $GITHUB_OUTPUT
           
@@ -82,6 +84,7 @@ jobs:
         env:
           NEXT_VERSION: ${{ needs.check-release.outputs.next-version }}
         run: |
+          set -x
           git tag -a "v${NEXT_VERSION}" -m "Release v${NEXT_VERSION}"
           git push origin "v${NEXT_VERSION}"
       
