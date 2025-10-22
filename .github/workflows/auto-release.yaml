@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Check for [release] in commit message
+      - name: Check for [release/bump] in commit message
         id: check
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
@@ -35,24 +35,16 @@ jobs:
           else
             echo "should-release=false" >> $GITHUB_OUTPUT
           fi
-
-      - name: Install uv
-        if: steps.check.outputs.should-release == 'true'
-        uses: astral-sh/setup-uv@v3
       
-      - name: Set up Python
-        if: steps.check.outputs.should-release == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      
-      - name: Get current version
+      - name: Get version from latest tag
         id: version
         if: steps.check.outputs.should-release == 'true'
         run: |
-          CURRENT=$(uvx --with uv-dynamic-versioning hatchling version)
+          # Get latest tag, remove 'v' prefix
+          CURRENT=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0")
           echo "current-version=$CURRENT" >> $GITHUB_OUTPUT
           
+          # Parse version and bump
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
           
           if [[ "${{ steps.check.outputs.bump-type }}" == "major" ]]; then
