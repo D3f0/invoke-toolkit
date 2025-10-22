@@ -23,13 +23,13 @@ jobs:
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "$COMMIT_MESSAGE" == *"[release major]"* ]]; then
+          if [[ "$COMMIT_MESSAGE" == *"[release major]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump major]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "bump-type=major" >> $GITHUB_OUTPUT
-          elif [[ "$COMMIT_MESSAGE" == *"[release minor]"* ]]; then
+          elif [[ "$COMMIT_MESSAGE" == *"[release minor]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump minor]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "bump-type=minor" >> $GITHUB_OUTPUT
-          elif [[ "$COMMIT_MESSAGE" == *"[release patch]"* ]]; then
+          elif [[ "$COMMIT_MESSAGE" == *"[release patch]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump patch]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "bump-type=patch" >> $GITHUB_OUTPUT
           else
