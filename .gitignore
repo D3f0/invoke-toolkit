@@ -1,7 +1,7 @@
-!.envrc
-!.gitignore
-!.github/*
-.*
+.env
+.venv/**
+.ripgrep
+
 **/__pycache__/*
 **/_site/*
 docs/reference/
@@ -10,3 +10,7 @@ docs/objects.json
 _tasks.py
 report.html
 _scratchpad.py
+
+# Test files
+_*.py
+_test/*
