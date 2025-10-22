@@ -3,6 +3,15 @@
 
 <img alt="PyPI - Package Version" src="https://img.shields.io/pypi/v/invoke-toolkit">
 
+::: {.callout-warning}
+This software is in early development. Expect API breakages until version `0.1.x` is 
+released.
+:::
+
+::: {.callout-tip}
+It should work in spaces where `invoke` is used substituting the imports.
+:::
+
 Invoke Toolkit is a set of opinionated extensions to the popular [Python invoke library](https://pyinvoke.org).
 
 * <details>
@@ -43,7 +52,7 @@ uv tool install invoke-toolkit
 
 With `uvx` or `uv tool run`
 ```bash
-uvx invoke-toolkit --help
+uvx invoke-toolkit
 ```
 
 With `pipx`
@@ -60,3 +69,5 @@ from invoke_toolkit import task, Context
 def build(ctx: Context):
     ctx.run("quarto build")
 ```
+
+## Built in collections

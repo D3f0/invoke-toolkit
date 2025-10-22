@@ -6,7 +6,7 @@ from invoke import task
 from invoke.context import Context
 import inspect
 from pathlib import Path
-from invoke_toolkit.scripts.loader import run
+from invoke_toolkit import script
 
 
 @task()
@@ -59,7 +59,7 @@ def test_frame_inspect(capsys):
     @task()
     def task_bar(c): ...
 
-    run(argv=["-l"], exit=False)
+    script(argv=["-l"], exit=False)
     outerr: str = capsys.readouterr()
     assert "task-foo" in outerr.out
     assert "task-bar" in outerr.out

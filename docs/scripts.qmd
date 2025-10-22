@@ -1,0 +1,36 @@
+# Writing scripts
+
+A script is a Python file that has [inline script metadata](https://peps.python.org/pep-0723/)
+and can be run without a setup process.
+
+The script is run like:
+ * `uv run script.py`
+ * `pipx run script.py`
+
+The contents of the script should look like this:
+
+```python
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "invoke-toolkit",
+# ]
+# ///
+
+from invoke_toolkit import script, task, Context
+
+@task()
+def list_my_issues(ctx: Context):
+    """Show my issues"""
+    if not ctx.run("which gh 2>/dev/null", warn=True).ok:
+        ctx.rich_exit(
+            "Please install [bold]gh[/bold] (Github Command Line Utility)"
+            "to run this task"
+        )
+    ctx.run('gh issue list --assignee @me')
+
+script()
+```
+
+> Tip: the lines in `#` are created with `uv add --script invoke-toolkit`, the 
+> rest of the script only need to call `script()`
