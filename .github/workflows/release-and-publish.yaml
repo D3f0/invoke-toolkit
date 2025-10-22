@@ -18,7 +18,8 @@ jobs:
     needs: [test, release]
     if: needs.release.outputs.should-release == 'true'
     runs-on: ubuntu-latest
-    
+    environment: release
+
     permissions:
       id-token: write
     
