@@ -2,13 +2,15 @@
 Run scripts with https://peps.python.org/pep-0723/
 """
 
-from typing import Optional, List
-from invoke.program import Program
-from invoke.collection import Collection
-from invoke.tasks import Task
 import inspect
+from types import FrameType
+from typing import List, Optional
 
+from invoke.tasks import Task
+
+from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.output.utils import rich_exit
+from invoke_toolkit.program import ToolkitProgram
 
 
 def script(argv: Optional[List[str]] = None, exit: bool = True) -> None:
@@ -39,15 +41,18 @@ def script(argv: Optional[List[str]] = None, exit: bool = True) -> None:
     Then run the script with `uv run --with invoke-toolkit mytasks.py
 
     """
-    frame = inspect.currentframe().f_back
-    if frame is None:
-        rich_exit(f"Can't inspect the {__file__} for tasks")
+    current_frame = inspect.currentframe()
+    assert current_frame is not None
+    if current_frame.f_back is not None:
+        frame: FrameType = current_frame.f_back
+    else:
+        rich_exit("Inspection failed trying to get previous frame")
     f_locals = frame.f_locals
     if f_locals is None:
         rich_exit(f"Can't inspect the {__file__} for tasks")
-    c = Collection()
+    c = ToolkitCollection()
     for _, obj in f_locals.items():
         if isinstance(obj, Task):
             c.add_task(obj)
-    p = Program(namespace=c)
+    p = ToolkitProgram(namespace=c)
     return p.run(argv=argv, exit=exit)

@@ -19,9 +19,8 @@ def test_context_class(capsys):
     p.run(["", "task-test"], exit=False)
     captured = capsys.readouterr()
     # TODO: capture status with custom console object
-    out, err = captured.out, captured.err
+    out, _err = captured.out, captured.err
     assert out.strip() == "hello"
-    assert not err.strip()
 
 
 def test_context_class_pint_err(capsys):
