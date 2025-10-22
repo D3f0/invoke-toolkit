@@ -1,6 +1,7 @@
 .*
 !.envrc
 !.gitignore
+!.github/
 **/__pycache__/*
 **/_site/*
 docs/reference/
