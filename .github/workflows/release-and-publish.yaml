@@ -25,6 +25,9 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.next-version }}
+          fetch-depth: 0
       
       - name: Install uv
         uses: astral-sh/setup-uv@v3
