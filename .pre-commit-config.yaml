@@ -64,3 +64,8 @@ repos:
           "-rn", # Only display messages
           "-sn", # Don't display the score
         ]
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.8
+    hooks:
+      - id: actionlint
+        args: ['--config-file=.github/actionlint-config.yaml']
