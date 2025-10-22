@@ -28,7 +28,7 @@ jobs:
           enable-cache: true
       
       - name: Build package
-        run: uv build
+        run: uvx --with uv-dynamic-versioning hatchling build -d ./dist/ 
       
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
