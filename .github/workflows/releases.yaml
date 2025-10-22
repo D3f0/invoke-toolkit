@@ -1,44 +1,93 @@
-name: Publish
+name: Release
 
 on:
-  # release:
-  #   types: [published]
-  push:
-    tags:
-      - 'v*'
+  workflow_call:
+    outputs:
+      should-release:
+        description: 'Whether to release'
+        value: ${{ jobs.check-release.outputs.should-release }}
+      bump-type:
+        description: 'Type of bump (major/minor/patch)'
+        value: ${{ jobs.check-release.outputs.bump-type }}
+      current-version:
+        description: 'Current version'
+        value: ${{ jobs.check-release.outputs.current-version }}
+      next-version:
+        description: 'Next version'
+        value: ${{ jobs.check-release.outputs.next-version }}
 
 jobs:
-  test:
-    uses: ./.github/workflows/tests.yaml
-
-  publish:
-    needs: test
+  check-release:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    
-    permissions:
-      id-token: write
+    outputs:
+      should-release: ${{ steps.check.outputs.should-release }}
+      bump-type: ${{ steps.check.outputs.bump-type }}
+      current-version: ${{ steps.version.outputs.current-version }}
+      next-version: ${{ steps.version.outputs.next-version }}
     
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install uv and set the python version
-        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          enable-cache: true
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+          fetch-depth: 0
       
-      - name: Build package
-        run: uv build
+      - name: Check for [release/bump] in commit message
+        id: check
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [[ "$COMMIT_MESSAGE" == *"[release major]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump major]"* ]]; then
+            echo "should-release=true" >> $GITHUB_OUTPUT
+            echo "bump-type=major" >> $GITHUB_OUTPUT
+          elif [[ "$COMMIT_MESSAGE" == *"[release minor]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump minor]"* ]]; then
+            echo "should-release=true" >> $GITHUB_OUTPUT
+            echo "bump-type=minor" >> $GITHUB_OUTPUT
+          elif [[ "$COMMIT_MESSAGE" == *"[release patch]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump patch]"* ]]; then
+            echo "should-release=true" >> $GITHUB_OUTPUT
+            echo "bump-type=patch" >> $GITHUB_OUTPUT
+          else
+            echo "should-release=false" >> $GITHUB_OUTPUT
+          fi
       
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Get version from latest tag
+        id: version
+        if: steps.check.outputs.should-release == 'true'
+        run: |
+          CURRENT=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0")
+          echo "current-version=$CURRENT" >> $GITHUB_OUTPUT
+          
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          
+          if [[ "${{ steps.check.outputs.bump-type }}" == "major" ]]; then
+            NEXT="$((MAJOR + 1)).0.0"
+          elif [[ "${{ steps.check.outputs.bump-type }}" == "minor" ]]; then
+            NEXT="$MAJOR.$((MINOR + 1)).0"
+          else
+            NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
+          fi
+          
+          echo "next-version=$NEXT" >> $GITHUB_OUTPUT
+
+  create-release:
+    needs: check-release
+    if: needs.check-release.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
         with:
-          attestations: true
+          fetch-depth: 0
+      
+      - name: Configure Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+      
+      - name: Create Release Tag
+        env:
+          NEXT_VERSION: ${{ needs.check-release.outputs.next-version }}
+        run: |
+          git tag -a "v${NEXT_VERSION}" -m "Release v${NEXT_VERSION}"
+          git push origin "v${NEXT_VERSION}"
