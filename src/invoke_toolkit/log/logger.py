@@ -7,7 +7,7 @@ import logging
 from rich.logging import RichHandler
 from rich.traceback import install as install_traceback_handler
 
-from ..output import get_console
+from invoke_toolkit.output import get_console
 
 
 def setup_rich_logging():
