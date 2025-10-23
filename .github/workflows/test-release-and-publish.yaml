@@ -1,4 +1,4 @@
-name: Release and Publish
+name: Test, Release (if [release/bump]) and Publish
 
 on:
   push:

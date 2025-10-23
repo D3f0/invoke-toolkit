@@ -41,25 +41,40 @@ def version(
 )
 def build(ctx: Context, target_=[], output="./dist/"):  # pylint: disable=dangerous-default-value
     """Builds distributable package"""
-    args = ""
-    if isinstance(target_, list):
-        target = " ".join(f"-t {t}" for t in target_)
-        args = f"{args} {target}"
-    elif target_:
-        args = f"{args} -t {target_}"
-    if output:
-        args = f"{args} -d {output}"
+    with ctx.cd(REPO_ROOT):
+        args = ""
+        if isinstance(target_, list):
+            target = " ".join(f"-t {t}" for t in target_)
+            args = f"{args} {target}"
+        elif target_:
+            args = f"{args} -t {target_}"
+        if output:
+            args = f"{args} -d {output}"
 
-    return ctx.run(
-        f"uvx --with uv-dynamic-versioning hatchling build {args}",
-        hide=not ctx.config.run.echo,
-    ).stderr.strip()
+        return ctx.run(
+            f"uvx --with uv-dynamic-versioning hatchling build {args}",
+            hide=not ctx.config.run.echo,
+        ).stderr.strip()
 
 
 @task()
 def clean(ctx: Context):
     """Cleans dist"""
-    ctx.run(r"rm -rf ./dist/*.{tar.gz,whl}")
+    with ctx.cd(REPO_ROOT):
+        ctx.run(r"rm -rf ./dist/*.{tar.gz,whl}")
+
+
+@task()
+def show_package_files(ctx: Context, file_type="whl"):
+    """Shows the contents of the latest package"""
+    with ctx.cd(REPO_ROOT / "dist"):
+        ls = ctx.run(f"ls -t *.{file_type}", warn=True, echo=ctx.config.run.echo)
+        if not ls.ok:
+            ctx.rich_exit(
+                f"Couldn't find any package files of type [red]{file_type}[/red]"
+            )
+        newest_pkg, *_ = ls.stdout.splitlines()
+        ctx.run(f"tar tvf {newest_pkg}")
 
 
 @task(
