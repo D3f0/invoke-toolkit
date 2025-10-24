@@ -5,13 +5,13 @@ from invoke.util import debug
 
 from invoke_toolkit import Context, task
 from invoke_toolkit.collections import ToolkitCollection
-from invoke_toolkit.output import SecretScrubberConsole, get_console
+from invoke_toolkit.output import SecretredactberConsole, get_console
 from invoke_toolkit.program import ToolkitProgram
 
 
 def test_console_object(monkeypatch):
     monkeypatch.setenv("SECRET", "12345")
-    console = SecretScrubberConsole(secret_patterns=["*"], record=True)
+    console = SecretredactberConsole(secret_patterns=["*"], record=True)
     console.print(f"{os.environ['SECRET']}")
     with console.capture() as capture:
         console.print("12345")
@@ -28,9 +28,9 @@ def test_console_object(monkeypatch):
         # only providing the pattern, will enable it for both out and err
         (["SUPER_SECRET"], [], ["SUPER_SECRET"], ["SUPER_SECRET"]),
         # Only err
-        (["SUPER_SECRET"], ["--scrub-stdout"], ["SUPER_SECRET"], []),
+        (["SUPER_SECRET"], ["--redact-stdout"], ["SUPER_SECRET"], []),
         # only out
-        (["SUPER_SECRET"], ["--scrub-stderr"], [], ["SUPER_SECRET"]),
+        (["SUPER_SECRET"], ["--redact-stderr"], [], ["SUPER_SECRET"]),
     ),
     ids=["none", "pattern_only", "out", "err"],
 )
@@ -50,7 +50,7 @@ def test_console_stream_pattern_setup(
     p = ToolkitProgram(namespace=ToolkitCollection(nothing))
     program_arguments = [""]
     for ptrn in pattern:
-        program_arguments.extend(["--scrub-pattern", ptrn])
+        program_arguments.extend(["--redact-pattern", ptrn])
 
     program_arguments.extend(stream_args)
     program_arguments.append("nothing")
@@ -64,7 +64,7 @@ def test_console_stream_pattern_setup(
     ), program_arguments
 
 
-def test_console_scrubber(
+def test_console_redactber(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ):
     @task()
@@ -74,7 +74,7 @@ def test_console_scrubber(
     monkeypatch.setenv("SUPER_SECRET", "dont_show")
     p = ToolkitProgram(namespace=ToolkitCollection(leaker))
     p.run(
-        ["", "-d", "--scrub-stdout", "--scrub-pattern", "SUPER_SECRET", "leaker"],
+        ["", "-d", "--redact-stdout", "--redact-pattern", "SUPER_SECRET", "leaker"],
         exit=False,
     )
     out, _err = capsys.readouterr()

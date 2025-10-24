@@ -14,8 +14,8 @@ from rich.text import Text
 from invoke_toolkit.utils.singleton import singleton
 
 
-class SecretScrubberConsole(Console):
-    """Console that automatically scrubs secret values from output."""
+class SecretredactberConsole(Console):
+    """Console that automatically redacts secret values from output."""
 
     def __init__(
         self,
@@ -27,13 +27,13 @@ class SecretScrubberConsole(Console):
         **kwargs,
     ):
         """
-        Initialize console with secret scrubbing.
+        Initialize console with secret redactbing.
 
         Args:
             secret_patterns: List of patterns to match secret keys.
                             Supports: simple strings, fnmatch patterns, or regex.
                             If None, uses all environment variables.
-            scrub_char: Character to replace secrets with (default: "*")
+            redact_char: Character to replace secrets with (default: "*")
         """
         super().__init__(*args, **kwargs)
         self._compiled_patterns: List[Pattern] = []
@@ -96,9 +96,9 @@ class SecretScrubberConsole(Console):
                     return True
         return False
 
-    def _scrub_text(self, text: str) -> str:
-        """Replace secret values with scrubbed version."""
-        scrubbed = text
+    def _redact_text(self, text: str) -> str:
+        """Replace secret values with redactbed version."""
+        redactbed = text
 
         # Sort by length (longest first) to avoid partial replacements
         sorted_secrets = sorted(
@@ -107,42 +107,42 @@ class SecretScrubberConsole(Console):
 
         for key, value in sorted_secrets:
             if value:  # Skip empty values
-                # Create scrubbed replacement (same length as secret)
+                # Create redactbed replacement (same length as secret)
                 if len(self.substitution) == 1:
-                    scrubbed_value = self.substitution * len(value)
+                    redactbed_value = self.substitution * len(value)
                 else:
-                    scrubbed_value = self.substitution.format(key)
-                scrubbed = scrubbed.replace(value, scrubbed_value)
+                    redactbed_value = self.substitution.format(key)
+                redactbed = redactbed.replace(value, redactbed_value)
 
-        return scrubbed
+        return redactbed
 
     def print(self, *objects, **kwargs):
-        """Override print to scrub secrets before output."""
+        """Override print to redact secrets before output."""
         # Process each object
-        scrubbed_objects = []
+        redactbed_objects = []
 
         for obj in objects:
             if isinstance(obj, str):
-                scrubbed_objects.append(self._scrub_text(obj))
+                redactbed_objects.append(self._redact_text(obj))
             elif isinstance(obj, Text):
-                # Rebuild Text object with scrubbed content
+                # Rebuild Text object with redactbed content
                 new_text = Text()
 
                 for segment in obj._spans:  # pylint: disable=protected-access
                     start, end, style = segment
                     segment_text = obj.plain[start:end]
-                    scrubbed_segment = self._scrub_text(segment_text)
-                    new_text.append(scrubbed_segment, style=style)
+                    redactbed_segment = self._redact_text(segment_text)
+                    new_text.append(redactbed_segment, style=style)
 
-                scrubbed_objects.append(new_text)
+                redactbed_objects.append(new_text)
             else:
-                scrubbed_objects.append(obj)
+                redactbed_objects.append(obj)
 
-        super().print(*scrubbed_objects, **kwargs)
+        super().print(*redactbed_objects, **kwargs)
 
     def __repr__(self) -> str:
         return (
-            f"<console with secret scrubbing width={self.width}"
+            f"<console with secret redactbing width={self.width}"
             f" {self._color_system!s} {self.secret_patterns}>"
         )
 
@@ -157,11 +157,11 @@ class ConsoleManager:  # pylint: disable=too-few-public-methods
     def get_console(
         self,
         stream: Union[Literal["out"], Literal["err"], Literal["log"]] = "err",
-    ) -> Union[SecretScrubberConsole]:
+    ) -> Union[SecretredactberConsole]:
         """
-        Returns a Console object. If scrub is on will return a SecretScrubberConsole
+        Returns a Console object. If redact is on will return a SecretredactberConsole
 
-        The streams are cached, so you don't need to pass the scrub or patterns arguments
+        The streams are cached, so you don't need to pass the redact or patterns arguments
         afterwards, they will have no effect.
         """
 
@@ -175,7 +175,7 @@ class ConsoleManager:  # pylint: disable=too-few-public-methods
             elif stream == "out":
                 kwargs["stderr"] = False
 
-            self._consoles[stream] = SecretScrubberConsole(**kwargs)
+            self._consoles[stream] = SecretredactberConsole(**kwargs)
         else:
             debug(
                 f"Providing exiting console for  {stream=} {self._consoles[stream]=} "

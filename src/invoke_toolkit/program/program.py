@@ -72,23 +72,23 @@ class ToolkitProgram(Program):
 
     def setup_consoles(self):
         """Pre-populate the console objects"""
-        patterns = self.args["scrub_pattern"].value
-        out, err = self.args.scrub_stdout.value, self.args.scrub_stderr.value
+        patterns = self.args["redact_pattern"].value
+        out, err = self.args.redact_stdout.value, self.args.redact_stderr.value
         enable_all = False
         if not patterns:
             if out or err:
                 get_console("err").print(
-                    "--scrub-patter was not passed, no secret scrubbing"
+                    "--redact-patter was not passed, no secret redactbing"
                 )
             return
         if not out and not err:
             enable_all = True
 
         if out or enable_all:
-            debug(f"Setting secret scrubbing in stdout with {patterns=}")
+            debug(f"Setting secret redactbing in stdout with {patterns=}")
             get_console("out").secret_patterns = patterns
         if err or enable_all:
-            debug(f"Setting secret scrubbing in stderr with {patterns=}")
+            debug(f"Setting secret redactbing in stderr with {patterns=}")
             get_console("err").secret_patterns = patterns
 
     def parse_core(self, argv: Optional[List[str]]) -> None:
@@ -183,23 +183,23 @@ class ToolkitProgram(Program):
                 help="Loads the internal invoke-toolkit collections",
             ),
             Argument(
-                names=("scrub_stdout", "So"),
+                names=("redact_stdout", "So"),
                 kind=bool,
                 default=False,
                 help="Prevents console to print secrets to [green]stdout[/green]",
             ),
             Argument(
-                names=("scrub_stderr", "Se"),
+                names=("redact_stderr", "Se"),
                 kind=bool,
                 default=False,
                 help="Prevents console to print secrets to [yellow]stderr[/yellow]",
             ),
             Argument(
-                names=("scrub_pattern", "Sp"),
+                names=("redact_pattern", "Sp"),
                 kind=list,
                 default=[],
-                help="Defines which patterns should be scrubbed, such as *_API*KEY or regexes. Settings this alone enables "
-                "scrubbing both for [green]stdout[/green] and [yellow]stderr[/yellow]",
+                help="Defines which patterns should be redactbed, such as *_API*KEY or regexes. Settings this alone enables "
+                "redactbing both for [green]stdout[/green] and [yellow]stderr[/yellow]",
             ),
         ]
         args.extend(toolkit_program_arguments)

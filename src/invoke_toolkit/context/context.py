@@ -128,17 +128,19 @@ class ToolkitContext(Context, ConfigProtocol):
         )
 
     @contextmanager
-    def scrub(
+    def redact(
         self,
         streams: Union[str, dict[str, list[str]]],
         patterns: Optional[list[str]] = None,
     ) -> Iterator[None]:
         """
-        This context manager will make the desired streams (out, err) to remove any
-        *"sensitive values"*.
+        This context manager will make the desired streams (out, err) replace
+        environment values with their environment name.
 
-        Sensitive information is any environment variable that matches either as a
-        `fnmatch` pattern or as a `regex`.
+        You must not change the local runner to keep this functionality.
+
+        Redaction works only on environment variables that matches either as a
+        `fnmatch` pattern or as a `regex` passed as `patterns`
 
         This can be used as for a specific stream
         ```python
@@ -148,7 +150,7 @@ class ToolkitContext(Context, ConfigProtocol):
 
         @task()
         def my_task(ctx: Context):
-            with ctx.scrub("out"):
+            with ctx.redact("out"):
                 ctx.print(os.environ["SECRET_KEY"])
         ```
 
@@ -161,15 +163,15 @@ class ToolkitContext(Context, ConfigProtocol):
 
         @task()
         def my_task(ctx: Context):
-            with ctx.scrub({"out": "*KEY"}):
+            with ctx.redact({"out": "*KEY"}):
                 ctx.print(os.environ["SECRET_KEY"])
         ```
 
-        Finally, if both streams need to be scrubbed, to avoid repeating the keys,
+        Finally, if both streams need to be redactbed, to avoid repeating the keys,
         there's a convenience argument called patterns, which can provide a list of
         patterns. By default assumes `*`
 
-        > If some scrubbing was already defined, the previous patterns
+        > If some redactbing was already defined, the previous patterns
         > will be replaced until the context manager is out of scope.
 
         """
@@ -183,14 +185,14 @@ class ToolkitContext(Context, ConfigProtocol):
             for stream_name in streams.split(","):
                 if stream_name not in valid_streams:
                     self.rich_exit(
-                        f"scrubbing can only work on out, err: given {streams}"
+                        f"redactbing can only work on out, err: given {streams}"
                     )
                 stream_dict_to_apply[stream_name] = patterns
 
         elif isinstance(streams, dict):
             invalid = set(streams.keys()) - valid_streams
             if invalid:
-                self.rich_exit(f"scrubbing of invalid stream: {' '.join(invalid)}")
+                self.rich_exit(f"redactbing of invalid stream: {' '.join(invalid)}")
             stream_dict_to_apply = streams
         for stream_name, pattern_list in stream_dict_to_apply.items():
             console = get_console(
