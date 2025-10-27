@@ -14,7 +14,7 @@ from rich.text import Text
 from invoke_toolkit.utils.singleton import singleton
 
 
-class SecretredactberConsole(Console):
+class SecretRedactorConsole(Console):
     """Console that automatically redacts secret values from output."""
 
     def __init__(
@@ -97,8 +97,8 @@ class SecretredactberConsole(Console):
         return False
 
     def _redact_text(self, text: str) -> str:
-        """Replace secret values with redactbed version."""
-        redactbed = text
+        """Replace secret values with redacted version."""
+        redacted = text
 
         # Sort by length (longest first) to avoid partial replacements
         sorted_secrets = sorted(
@@ -107,38 +107,38 @@ class SecretredactberConsole(Console):
 
         for key, value in sorted_secrets:
             if value:  # Skip empty values
-                # Create redactbed replacement (same length as secret)
+                # Create redacted replacement (same length as secret)
                 if len(self.substitution) == 1:
-                    redactbed_value = self.substitution * len(value)
+                    redacted_value = self.substitution * len(value)
                 else:
-                    redactbed_value = self.substitution.format(key)
-                redactbed = redactbed.replace(value, redactbed_value)
+                    redacted_value = self.substitution.format(key)
+                redacted = redacted.replace(value, redacted_value)
 
-        return redactbed
+        return redacted
 
     def print(self, *objects, **kwargs):
         """Override print to redact secrets before output."""
         # Process each object
-        redactbed_objects = []
+        redacted_objects = []
 
         for obj in objects:
             if isinstance(obj, str):
-                redactbed_objects.append(self._redact_text(obj))
+                redacted_objects.append(self._redact_text(obj))
             elif isinstance(obj, Text):
-                # Rebuild Text object with redactbed content
+                # Rebuild Text object with redacted content
                 new_text = Text()
 
                 for segment in obj._spans:  # pylint: disable=protected-access
                     start, end, style = segment
                     segment_text = obj.plain[start:end]
-                    redactbed_segment = self._redact_text(segment_text)
-                    new_text.append(redactbed_segment, style=style)
+                    redacted_segment = self._redact_text(segment_text)
+                    new_text.append(redacted_segment, style=style)
 
-                redactbed_objects.append(new_text)
+                redacted_objects.append(new_text)
             else:
-                redactbed_objects.append(obj)
+                redacted_objects.append(obj)
 
-        super().print(*redactbed_objects, **kwargs)
+        super().print(*redacted_objects, **kwargs)
 
     def __repr__(self) -> str:
         return (
@@ -157,9 +157,9 @@ class ConsoleManager:  # pylint: disable=too-few-public-methods
     def get_console(
         self,
         stream: Union[Literal["out"], Literal["err"], Literal["log"]] = "err",
-    ) -> Union[SecretredactberConsole]:
+    ) -> Union[SecretRedactorConsole]:
         """
-        Returns a Console object. If redact is on will return a SecretredactberConsole
+        Returns a Console object. If redact is on will return a SecretRedactorConsole
 
         The streams are cached, so you don't need to pass the redact or patterns arguments
         afterwards, they will have no effect.
@@ -175,7 +175,7 @@ class ConsoleManager:  # pylint: disable=too-few-public-methods
             elif stream == "out":
                 kwargs["stderr"] = False
 
-            self._consoles[stream] = SecretredactberConsole(**kwargs)
+            self._consoles[stream] = SecretRedactorConsole(**kwargs)
         else:
             debug(
                 f"Providing exiting console for  {stream=} {self._consoles[stream]=} "

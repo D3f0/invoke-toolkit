@@ -1,6 +1,7 @@
 """Package namespace imports"""
 
 from typing import Any, Optional, TYPE_CHECKING
+from invoke_toolkit.config.config import ToolkitConfig
 from invoke_toolkit.tasks import task
 from invoke_toolkit.context import ToolkitContext as Context
 from invoke_toolkit.scripts.loader import script
@@ -26,4 +27,5 @@ def run(command: str, **kwargs: Any) -> Optional["Result"]:
     > `~.Context.run` method, which in turn defaults to using a `.Local`
     > runner subclass for command execution.
     """
-    return Context().run(command, **kwargs)
+    no_stdin = ToolkitConfig(overrides={"run": {"in_stream": False}})
+    return Context(config=no_stdin).run(command, **kwargs)

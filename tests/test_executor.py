@@ -3,7 +3,7 @@ Tests that the executor uses autoprint
 """
 
 from invoke_toolkit.collections import ToolkitCollection
-from invoke_toolkit.program import ToolkitProgram
+from invoke_toolkit.testing import TestingToolkitProgram
 
 # from invoke_toolkit.executor import ToolkitExecutor
 from invoke_toolkit import task, Context
@@ -11,7 +11,7 @@ from invoke_toolkit import task, Context
 
 def test_auto_print_uses_rich(tmp_path, monkeypatch, capsys):
     ns = ToolkitCollection()
-    p = ToolkitProgram(
+    p = TestingToolkitProgram(
         version="test",
         namespace=ns,
         name="test",

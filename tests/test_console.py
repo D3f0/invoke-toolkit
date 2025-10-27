@@ -5,13 +5,13 @@ from invoke.util import debug
 
 from invoke_toolkit import Context, task
 from invoke_toolkit.collections import ToolkitCollection
-from invoke_toolkit.output import SecretredactberConsole, get_console
-from invoke_toolkit.program import ToolkitProgram
+from invoke_toolkit.output import SecretRedactorConsole, get_console
+from invoke_toolkit.testing import TestingToolkitProgram
 
 
 def test_console_object(monkeypatch):
     monkeypatch.setenv("SECRET", "12345")
-    console = SecretredactberConsole(secret_patterns=["*"], record=True)
+    console = SecretRedactorConsole(secret_patterns=["*"], record=True)
     console.print(f"{os.environ['SECRET']}")
     with console.capture() as capture:
         console.print("12345")
@@ -47,7 +47,7 @@ def test_console_stream_pattern_setup(
         # ctx.print(f"{os.environ['SUPER_SECRET']}")
         ...
 
-    p = ToolkitProgram(namespace=ToolkitCollection(nothing))
+    p = TestingToolkitProgram(namespace=ToolkitCollection(nothing))
     program_arguments = [""]
     for ptrn in pattern:
         program_arguments.extend(["--redact-pattern", ptrn])
@@ -64,7 +64,7 @@ def test_console_stream_pattern_setup(
     ), program_arguments
 
 
-def test_console_redactber(
+def test_console_redactor_print(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ):
     @task()
@@ -72,10 +72,29 @@ def test_console_redactber(
         ctx.print(f"{os.environ['SUPER_SECRET']}")
 
     monkeypatch.setenv("SUPER_SECRET", "dont_show")
-    p = ToolkitProgram(namespace=ToolkitCollection(leaker))
+    p = TestingToolkitProgram(namespace=ToolkitCollection(leaker))
     p.run(
         ["", "-d", "--redact-stdout", "--redact-pattern", "SUPER_SECRET", "leaker"],
         exit=False,
     )
     out, _err = capsys.readouterr()
     assert "dont_show" not in out
+
+
+@pytest.mark.skip(reason="Wip")
+def test_console_redactor_sub_command(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    @task()
+    def leaker(ctx: Context):
+        ctx.run("echo $SUPER_SECRET'", echo=True)
+
+    monkeypatch.setenv("SUPER_SECRET", "dont_show")
+    p = TestingToolkitProgram(namespace=ToolkitCollection(leaker))
+    p.run(
+        ["", "--redact-stdout", "--redact-pattern", "SUPER_SECRET", "leaker"],
+        exit=False,
+    )
+    out, err = capsys.readouterr()
+    assert "dont_show" not in out
+    assert "dont_show" not in err

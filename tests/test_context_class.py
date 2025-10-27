@@ -1,5 +1,5 @@
 from invoke_toolkit import task, Context
-from invoke_toolkit.program import ToolkitProgram
+from invoke_toolkit.testing import TestingToolkitProgram
 from invoke_toolkit.collections import ToolkitCollection
 
 
@@ -15,7 +15,7 @@ def test_context_class(capsys):
         with c.status("Entering status"):
             c.print("hello")
 
-    p = ToolkitProgram(namespace=ToolkitCollection(task_test))
+    p = TestingToolkitProgram(namespace=ToolkitCollection(task_test))
     p.run(["", "task-test"], exit=False)
     captured = capsys.readouterr()
     # TODO: capture status with custom console object
@@ -29,7 +29,7 @@ def test_context_class_pint_err(capsys):
         with c.status("Entering status"):
             c.print_err("hello")
 
-    p = ToolkitProgram(namespace=ToolkitCollection(task_test))
+    p = TestingToolkitProgram(namespace=ToolkitCollection(task_test))
     p.run(["", "task-test"], exit=False)
     captured = capsys.readouterr()
     # TODO: capture status with custom console object

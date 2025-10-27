@@ -5,7 +5,7 @@ from invoke.collection import Collection
 from invoke_toolkit import task
 from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.context.context import ToolkitContext
-from invoke_toolkit.program import ToolkitProgram
+from invoke_toolkit.testing import TestingToolkitProgram
 
 
 @task()
@@ -18,7 +18,7 @@ def boolean_flag(c: ToolkitContext, flag=True):
     [
         (Program, Collection),
         pytest.param(
-            ToolkitProgram,
+            TestingToolkitProgram,
             ToolkitCollection,
             marks=pytest.mark.skip(reason="TODO: Fix boolean flags set up to True"),
         ),
