@@ -1,3 +1,4 @@
+from typing import List, Optional
 from invoke_toolkit.config.config import ToolkitConfig
 from invoke_toolkit.program import ToolkitProgram
 
@@ -18,3 +19,6 @@ class TestingToolkitProgram(ToolkitProgram):
         args = super().core_args()
 
         return args
+
+    def run(self, argv: Optional[List[str]] = None, exit: bool = False) -> None:
+        return super().run(argv=argv, exit=exit)
