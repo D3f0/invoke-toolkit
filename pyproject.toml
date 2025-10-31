@@ -54,6 +54,7 @@ major_version_zero = true
 
 [project.scripts]
 it = "invoke_toolkit.program.main:program.run"
+intk = "invoke_toolkit.program.main:program.run"
 invoke-toolkit = "invoke_toolkit.program.main:program.run"
 
 
@@ -120,6 +121,7 @@ dev = [
     "pytest-html>=4.1.1",
     "pytest-picked>=0.5.1",
     "pytest-sugar>=1.1.1",
+    "ty>=0.0.1a25",
 ]
 doc = [
     "quartodoc>=0.11.1",
