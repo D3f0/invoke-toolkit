@@ -1,3 +1,4 @@
+from textwrap import dedent
 from pathlib import Path
 
 import pytest
@@ -48,3 +49,21 @@ def clean_consoles():
     from invoke_toolkit.output.console import manager  # pylint: disable=import-outside-toplevel
 
     manager._consoles = {}  # pylint: disable=protected-access
+
+
+@pytest.fixture
+def task_in_tmp_path(tmp_path: Path):
+    """Creates a tasks.py in tmp_path to run the Program"""
+    with open(tmp_path / "tasks.py", mode="w", encoding="utf-8") as fp:
+        fp.write(
+            dedent(
+                """
+                from invoke_toolkit import task, Context
+                
+                @task()
+                def a_task(ctx: Context):
+                    ctx.run("echo 'hello'")
+                   
+                """
+            )
+        )
