@@ -36,9 +36,12 @@ class ConfigProtocol(Protocol):
     console: "Console"
     status_stop: Callable
     status_update: Callable
-    # rich_exit: Callable[[str, Optional[int]], NoReturn]
-    rich_exit: Callable[[str, int], NoReturn]
     print: BoundPrintProtocol
+
+    def rich_exit(
+        self, message: str = "Exited", exit_code: Optional[int] = 1
+    ) -> NoReturn:
+        """Rich exit"""
 
 
 class ToolkitContext(Context, ConfigProtocol):
@@ -80,7 +83,9 @@ class ToolkitContext(Context, ConfigProtocol):
         """
         return self._status_helper.status_stop()
 
-    def rich_exit(self, message: str = "Exited", exit_code=1) -> NoReturn:
+    def rich_exit(
+        self, message: str = "Exited", exit_code: Optional[int] = 1
+    ) -> NoReturn:
         """An alternative to sys.exit that has rich output"""
         get_console().log(message)
         sys.exit(exit_code)
