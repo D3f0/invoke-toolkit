@@ -32,6 +32,7 @@ dependencies = [
     "appdirs",
     "tomlkit>=0.13.3",
     "pyyaml>=6.0.3",
+    "pdbpp[dev]>=0.11.7",
 ]
 
 # Git based versioning, uses git tags
@@ -53,7 +54,7 @@ update_changelog_on_bump = true
 major_version_zero = true
 
 [project.scripts]
-it = "invoke_toolkit.program.main:program.run"
+inv = "invoke_toolkit.program.main:program.run"
 intk = "invoke_toolkit.program.main:program.run"
 invoke-toolkit = "invoke_toolkit.program.main:program.run"
 
@@ -109,6 +110,11 @@ testdbg = "pytest -v --pdb {}"
 "**/{tests,docs}/*" = ["E402"]
 "src/invoke_toolkit/program/program.py" = ["E402"]
 
+[project.optional-dependencies]
+dev = [
+  "hunter>=3.7.0",
+  "pdbpp>=0.11.7",
+]
 
 [dependency-groups]
 dev = [

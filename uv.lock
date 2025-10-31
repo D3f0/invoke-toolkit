@@ -467,10 +467,17 @@ source = { editable = "." }
 dependencies = [
     { name = "appdirs" },
     { name = "invoke" },
+    { name = "pdbpp" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "tomlkit" },
     { name = "typing-extensions" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "hunter" },
+    { name = "pdbpp" },
 ]
 
 [package.dev-dependencies]
@@ -493,12 +500,16 @@ doc = [
 [package.metadata]
 requires-dist = [
     { name = "appdirs" },
+    { name = "hunter", marker = "extra == 'dev'", specifier = ">=3.7.0" },
     { name = "invoke", specifier = ">=2.2.1" },
+    { name = "pdbpp", marker = "extra == 'dev'", specifier = ">=0.11.7" },
+    { name = "pdbpp", extras = ["dev"], specifier = ">=0.11.7" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=14.2.0" },
     { name = "tomlkit", specifier = ">=0.13.3" },
     { name = "typing-extensions", specifier = ">=4.13.2" },
 ]
+provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
