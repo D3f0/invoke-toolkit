@@ -1,6 +1,6 @@
 from textwrap import dedent
 from pathlib import Path
-
+import logging
 import pytest
 
 # from invoke.context import Context
@@ -67,3 +67,18 @@ def task_in_tmp_path(tmp_path: Path):
                 """
             )
         )
+
+
+@pytest.fixture
+def suppress_stderr_logging():
+    """Remove logging handlers to prevent stderr output"""
+    logger = logging.getLogger()
+    handlers = logger.handlers[:]
+
+    for handler in handlers:
+        logger.removeHandler(handler)
+
+    yield
+
+    for handler in handlers:
+        logger.addHandler(handler)

@@ -36,3 +36,17 @@ def test_context_class_pint_err(capsys):
     out, err = captured.out, captured.err
     assert not out.strip()
     assert "hello" in err
+
+
+def test_context_print(capsys, suppress_stderr_logging):
+    @task()
+    def task_test(c: Context):
+        c.print("ls")
+
+    p = TestingToolkitProgram(namespace=ToolkitCollection(task_test))
+    p.run(["", "-e", "task-test"], exit=False)
+    captured = capsys.readouterr()
+    # TODO: capture status with custom console object
+    out, err = captured.out, captured.err
+    assert out.strip() == "ls"
+    assert not err

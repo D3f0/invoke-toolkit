@@ -3,6 +3,7 @@
 import importlib
 import pkgutil
 import sys
+from logging import getLogger
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Optional, Union, overload
@@ -10,9 +11,9 @@ from typing import Any, Callable, Dict, Optional, Union, overload
 from invoke.collection import Collection
 from invoke.tasks import Task
 from invoke.util import debug
+
 from invoke_toolkit.tasks import ToolkitTask
 from invoke_toolkit.utils.inspection import get_calling_file_path
-from logging import getLogger
 
 logger = getLogger("invoke")
 
@@ -174,7 +175,15 @@ class ToolkitCollection(Collection):
         """
         Creates a collection from a package and configures it
         """
-        ns = into or cls()
+
+        if into is None:
+            ns = cls()
+
+        elif isinstance(into, Collection):
+            ns = into
+        else:
+            raise ValueError("into parameter is a not a Collection")
+
         global_config: dict[str, str | dict[str, str]] = {}
         for name, module in import_submodules(package_path).items():
             config = getattr(module, "config", None)
