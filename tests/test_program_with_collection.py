@@ -6,20 +6,20 @@ import json
 
 
 @task()
-def test_task_1(ctx: Context):
-    ctx.run("echo test_task_1")
+def example_task_1(ctx: Context):
+    ctx.run("echo example_task_1")
 
 
 @task()
-def test_task_2(ctx: Context):
-    ctx.run("echo test_task_2")
+def example_task_2(ctx: Context):
+    ctx.run("echo example_task_2")
 
 
 def test_program_with_collection(capsys, suppress_stderr_logging):
     # verify that when the flag -x is passed, the extra collections are also listed
     coll = ToolkitCollection()
-    coll.add_task(test_task_1)
-    coll.add_task(test_task_2)
+    coll.add_task(example_task_1)
+    coll.add_task(example_task_2)
 
     p = TestingToolkitProgram(namespace=coll)
     p.run(["", "-xl", "--list-format", "json"])
