@@ -1,6 +1,7 @@
 from typing import List, Optional
 from invoke_toolkit.config.config import ToolkitConfig
 from invoke_toolkit.program import ToolkitProgram
+from invoke_toolkit.executor import ToolkitExecutor
 
 
 class NoStdinByDefaultConfig(
@@ -11,9 +12,27 @@ class NoStdinByDefaultConfig(
 class TestingToolkitProgram(ToolkitProgram):
     __test__ = False
 
-    def __init__(self, *args, **kwargs):
-        kwargs["config_class"] = NoStdinByDefaultConfig
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        version=None,
+        namespace=None,
+        name=None,
+        binary=None,
+        loader_class=None,
+        executor_class=ToolkitExecutor,
+        config_class=NoStdinByDefaultConfig,
+        binary_names=None,
+    ):
+        super().__init__(
+            version,
+            namespace,
+            name,
+            binary,
+            loader_class,
+            executor_class,
+            config_class,
+            binary_names,
+        )
 
     def core_args(self):
         args = super().core_args()
