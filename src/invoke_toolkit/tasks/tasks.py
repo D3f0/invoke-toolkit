@@ -3,7 +3,7 @@ Type annotated tasks and and overrides over invoke
 """
 
 from functools import wraps
-from typing import Any, Callable, Optional, Sequence, Type, TypeVar, cast
+from typing import Any, Callable, Optional, Sequence, Type, TypeVar, cast, overload
 
 from invoke import task as invoke_task
 from invoke.tasks import Call, Task
@@ -15,6 +15,46 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 class ToolkitTask(Task): ...
+
+
+@overload
+def task(
+    func: F,
+    *,
+    name: Optional[str] = None,
+    default: Optional[bool] = False,
+    aliases: Optional[Sequence[str]] = None,
+    positional: Optional[Sequence[str]] = None,
+    optional: Optional[Sequence[str]] = None,
+    iterable: Optional[Sequence[str]] = None,
+    incrementable: Optional[Sequence[str]] = None,
+    bool_flags: tuple[str, ...] = (),
+    autoprint: bool = False,
+    help: Optional[dict[str, str]] = None,
+    pre: Optional[list[Callable[..., Any]]] = None,
+    post: Optional[list[Callable[..., Any]]] = None,
+    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
+) -> F: ...
+
+
+@overload
+def task(
+    func: None = None,
+    *,
+    name: Optional[str] = None,
+    default: Optional[bool] = False,
+    aliases: Optional[Sequence[str]] = None,
+    positional: Optional[Sequence[str]] = None,
+    optional: Optional[Sequence[str]] = None,
+    iterable: Optional[Sequence[str]] = None,
+    incrementable: Optional[Sequence[str]] = None,
+    bool_flags: tuple[str, ...] = (),
+    autoprint: bool = False,
+    help: Optional[dict[str, str]] = None,
+    pre: Optional[list[Callable[..., Any]]] = None,
+    post: Optional[list[Callable[..., Any]]] = None,
+    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
+) -> Callable[[F], F]: ...
 
 
 def task(  # pylint: disable=too-many-arguments
@@ -33,7 +73,7 @@ def task(  # pylint: disable=too-many-arguments
     pre: Optional[list[Callable[..., Any]]] = None,
     post: Optional[list[Callable[..., Any]]] = None,
     klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
-) -> Callable[[F], F]:
+) -> Any:
     """
     Decorator for Invoke tasks that preserves type hints and Context annotation.
 

@@ -166,6 +166,7 @@ disable = [
 
 per-file-ignores = [
     "tasks.py:missing-function-docstring,missing-class-docstring,missing-module-docstring,invalid-name,too-many-branches",
+    "src/invoke_toolkit/tasks/tasks.py:too-many-arguments",
     "src/invoke_toolkit/program/program.py:ungrouped-imports,redefined-builtin,raise-missing-from,attribute-defined-outside-init,redefined-builtin,possibly-used-before-assignment,no-else-raise",
     "src/**/__init__.py:missing-module-docstring",
     "src/invoke_toolkit/scripts/loader.py:redefined-builtin",
@@ -186,5 +187,3 @@ per-file-ignores = [
 testpaths = ["tests"]
 addopts = "--cov=invoke_toolkit"
 filterwarnings = []
-
- 
