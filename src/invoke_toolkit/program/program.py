@@ -14,6 +14,7 @@ from logging import getLogger
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from rich.table import Table
+from rich.markup import escape
 
 from invoke_toolkit.log.logger import setup_rich_logging, setup_traceback_handler
 from invoke_toolkit.output import get_console
@@ -220,7 +221,9 @@ class ToolkitProgram(Program):
         for _ in range(col_count):
             grid.add_column()
         for tup in tuples:
-            grid.add_row(*tup)
+            # Escape Rich markup characters (e.g., square brackets) in tuple values
+            escaped_tup = tuple(escape(str(t)) for t in tup)
+            grid.add_row(*escaped_tup)
         print(grid)
 
     def print_task_help(self, name: str) -> None:
@@ -326,8 +329,8 @@ class ToolkitProgram(Program):
                 raise Exit(
                     (
                         "Can't find any collection named [red]{name!r}[/red].\n"
-                        "You can create a collection with [green]{cmd} -x[/green]\n"
-                        "You can get more information with[yellow]{cmd} -xl[/yellow]\n"
+                        "You can create a script with [yellow]{cmd} -x create.script --help[/yellow]\n"
+                        "You can create a script with [yellow]{cmd} -x create.package --help[/yellow]\n"
                     ).format(name=e.name, cmd=self.command_name)
                 )
             debug("No collection found, will checking for internal")
