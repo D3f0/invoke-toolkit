@@ -118,6 +118,7 @@ dev = [
     "pytest-html>=4.1.1",
     "pytest-picked>=0.5.1",
     "pytest-sugar>=1.1.1",
+    "pytest-xdist>=3.8.0",
     "ty>=0.0.1a25",
 ]
 doc = [
