@@ -32,7 +32,7 @@ dependencies = [
     "appdirs",
     "tomlkit>=0.13.3",
     "pyyaml>=6.0.3",
-    "pdbpp[dev]>=0.11.7",
+    "pdbpp >=0.11.7",
 ]
 
 # Git based versioning, uses git tags
@@ -89,20 +89,6 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 
-[tool.hatch.envs.dev]
-dependencies = [
-  # Invoke's original set of tasks
-  "pytest",
-  "pytest-virtualenv",
-  "coverage",
-  "pdbpp",
-]
-[tool.hatch.envs.dev.scripts]
-run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
-run = "run-coverage --no-cov"
-test = "pytest -v {}"
-testdbg = "pytest -v --pdb {}"
-
 
 [tool.ruff.lint.per-file-ignores]
 "*tasks*" = ["ARG001"]
@@ -120,6 +106,8 @@ dev = [
 dev = [
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",
+    "pre-commit>=4.3.0",
+    "pre-commit-uv>=4.2.0",
     "pylint>=3.2.7",
     "pylint-per-file-ignores>=1.0.0",
     "pytest>=8.3.5",
@@ -187,3 +175,6 @@ per-file-ignores = [
 testpaths = ["tests"]
 addopts = "--cov=invoke_toolkit"
 filterwarnings = []
+
+[tool.pyright]
+reportUnusedCallResult = false
