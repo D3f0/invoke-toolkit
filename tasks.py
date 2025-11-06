@@ -1,3 +1,5 @@
+# pyright: ignore[reportMissingParameterType]
+
 import re
 from shutil import which
 import subprocess
@@ -10,13 +12,15 @@ from invoke_toolkit import Context, task
 from invoke.util import debug
 
 try:
-    REPO_ROOT = Path(
+    _repo_root = Path(
         subprocess.check_output("git rev-parse --show-toplevel", shell=True)
         .strip()
         .decode()
     )
 except subprocess.SubprocessError:
-    REPO_ROOT = Path()
+    _repo_root = Path()
+
+REPO_ROOT: Path = _repo_root
 
 
 @task(default=True, autoprint=True, aliases=["v"])
@@ -186,7 +190,7 @@ def release(ctx: Context, skip_sync: bool = False) -> None:
         try:
             user_input = Prompt.ask(
                 f"New tag [blue]{next_tag_version}[/blue] "
-                "[bold]Ctrl-C[/bold]/[bold]Ctrl-D[/bold] to cancel? "
+                + "[bold]Ctrl-C[/bold]/[bold]Ctrl-D[/bold] to cancel? "
             )
         except EOFError:
             sys.exit("User cancelled")
@@ -319,13 +323,13 @@ def publish(ctx: Context):
     )
 
 
-@task()
-def env(ctx: Context, clear=False) -> None:
+@task(aliases=["env", "setup"])
+def venv(ctx: Context, clear: bool = False) -> None:
     """([green]re[/green])creates the virtual environment (with [red]uv[/red])"""
     args = ""
     if clear:
         args = f"{args} --clear"
-    ctx.run(f"uv venv {args}; uv sync --group dev", pty=True)
+    ctx.run(f"uv venv {args}; uv sync --all-extras --all-groups", pty=True)
 
 
 @task()

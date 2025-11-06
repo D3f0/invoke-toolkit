@@ -6,13 +6,13 @@ import sys
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, Optional, Union, overload
+from typing import Any, Callable, overload, override
 
 from invoke.collection import Collection
 from invoke.tasks import Task
 from invoke.util import debug
 
-from invoke_toolkit.tasks import ToolkitTask
+from invoke_toolkit.tasks.tasks import ToolkitTask
 from invoke_toolkit.utils.inspection import get_calling_file_path
 
 logger = getLogger("invoke")
@@ -28,7 +28,7 @@ class CollectionNotImportedError(CollectionError): ...
 class CollectionCantFindModulePathError(CollectionError): ...
 
 
-def import_submodules(package_name: str) -> Dict[str, ModuleType]:
+def import_submodules(package_name: str) -> dict[str, ModuleType]:
     """
     Import all submodules of a module from an imported module
     """
@@ -57,7 +57,7 @@ def import_submodules(package_name: str) -> Dict[str, ModuleType]:
 def clean_collection(collection: "ToolkitCollection") -> None:
     """Removes tasks that are imported from other modules or start with underscores"""
 
-    def user_facing_task(name: str, task: Task) -> bool:
+    def user_facing_task(name: str, task: "Task[Any]") -> bool:  # type: ignore[valid-type]
         if name.startswith("_"):
             debug(f"Not adding task {name=} because it starts with _")
             return False
@@ -69,12 +69,10 @@ def clean_collection(collection: "ToolkitCollection") -> None:
 
         return True
 
-    collection.tasks = {
-        name: task
-        for name, task in collection.tasks.items()
-        # if not name.startswith("_")
-        if user_facing_task(name, task)
-    }
+    for name in list(collection.tasks.keys()):
+        task = collection.tasks[name]
+        if task is not None and not user_facing_task(name, task):
+            del collection.tasks[name]
 
 
 class ToolkitCollection(Collection):
@@ -90,24 +88,32 @@ class ToolkitCollection(Collection):
     def __init__(
         self,
         name: str,
-        *args: Union[Task, ToolkitTask, Collection, "ToolkitCollection"],
+        *args: "Task[Any] | ToolkitTask | Collection | ToolkitCollection",  # type: ignore[valid-type]
         **kwargs,
     ) -> None: ...
 
     def __init__(
-        self, *args: Union[str, Task, ToolkitTask, Collection], **kwargs
+        self,
+        *args: "str | Task[Any] | ToolkitTask | Collection",
+        **kwargs,  # type: ignore[valid-type]
     ) -> None:
         debug(f"Instantiating collection with {args=} and {kwargs=}")
         super().__init__(*args, **kwargs)
 
-    def _add_object(self, obj: Any, name: Optional[str] = None) -> None:
-        method: Callable
+    @override
+    def _add_object(
+        self,
+        obj: "Task[Any] | ToolkitTask | Collection | ModuleType",  # type: ignore[valid-type]
+        name: str | None = None,
+    ) -> None:
+        method: Callable[..., None]
         if isinstance(obj, (Task, ToolkitTask)):
             method = self.add_task
         elif isinstance(obj, (ToolkitCollection, Collection, ModuleType)):
             method = self.add_collection
         else:
-            raise TypeError("No idea how to insert {!r}!".format(type(obj)))
+            msg = f"No idea how to insert {type(obj)!r}!"
+            raise TypeError(msg)
         method(obj, name=name)
 
     def add_collections_from_namespace(self, namespace: str):
@@ -131,7 +137,8 @@ class ToolkitCollection(Collection):
                 find_call_text=".add_collections_from_namespace("
             )
             debug(f"Adding {caller_path} in order to import {namespace}")
-            sys.path.append(caller_path)
+            if caller_path:
+                sys.path.append(caller_path)
             # This should work even if there's no __init__ alongside the
             # program main
             importlib.import_module(namespace)
@@ -148,13 +155,10 @@ class ToolkitCollection(Collection):
         add the plugin folder to the sys.path
         """
 
-    def load_directory(self, directory: Union[str, Path]) -> None:
+    def load_directory(self, directory: str | Path) -> None:
         """Loads tasks from a folder"""
         if isinstance(directory, str):
             path = Path(directory)
-        elif not isinstance(directory, Path):
-            msg = f"The directory to load plugins is not a str/Path: {directory}:{type(directory)}"
-            raise TypeError(msg)
         else:
             path = directory
 
@@ -163,10 +167,18 @@ class ToolkitCollection(Collection):
             sys.path.append(str(path))
 
     @classmethod
+    @override
     def from_module(
-        cls, module, name=None, config=None, loaded_from=None, auto_dash_names=None
+        cls,
+        module: ModuleType,
+        name: str | None = None,
+        config: dict[str, Any] | None = None,  # type: ignore[valid-type]
+        loaded_from: str | None = None,
+        auto_dash_names: bool | None = None,
     ) -> "ToolkitCollection":
-        return super().from_module(module, name, config, loaded_from, auto_dash_names)
+        result = super().from_module(module, name, config, loaded_from, auto_dash_names)
+        assert isinstance(result, ToolkitCollection)
+        return result
 
     @classmethod
     def from_package(
@@ -176,15 +188,11 @@ class ToolkitCollection(Collection):
         Creates a collection from a package and configures it
         """
 
-        if into is None:
-            ns = cls()
-
-        elif isinstance(into, Collection):
-            ns = into
-        else:
+        if not isinstance(into, Collection):
             raise ValueError("into parameter is a not a Collection")
+        ns = into
 
-        global_config: dict[str, str | dict[str, str]] = {}
+        global_config: dict[str, Any] = {}  # type: ignore[valid-type]
         for name, module in import_submodules(package_path).items():
             config = getattr(module, "config", None)
             collection: "ToolkitCollection" = ns.from_module(module)
@@ -207,6 +215,16 @@ class ToolkitCollection(Collection):
             )
 
         if global_config:
-            debug(f"Adding root collection configuration: {config}")
+            debug(f"Adding root collection configuration: {global_config}")
             ns.configure(global_config)
         return ns
+
+    @override
+    def add_task(
+        self,
+        task: "Task[Any] | ToolkitTask",  # type: ignore[valid-type]
+        name: str | None = None,
+        aliases: tuple[str, ...] | None = None,
+        default: bool | None = None,
+    ) -> None:
+        return super().add_task(task, name, aliases, default)

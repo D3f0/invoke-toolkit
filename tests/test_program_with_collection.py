@@ -28,4 +28,6 @@ def test_program_with_collection(capsys, suppress_stderr_logging):
     task_list: dict[str, Any] = json.loads(out)
     collections = task_list.get("collections")
     assert collections, "collections not found in -x"
-    assert set(c["name"] for c in collections).issubset(set(["coll", "config", "dist"]))
+    assert set(c["name"] for c in collections).issubset(
+        set(["create", "config", "dist"])
+    )
