@@ -103,6 +103,9 @@ dev = [
 ]
 
 [dependency-groups]
+ci = [
+    "nox>=2025.10.16",
+]
 dev = [
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",

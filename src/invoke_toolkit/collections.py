@@ -6,7 +6,12 @@ import sys
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, overload, override
+from typing import Any, Callable, overload
+
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
 
 from invoke.collection import Collection
 from invoke.tasks import Task
