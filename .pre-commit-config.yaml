@@ -19,15 +19,14 @@ repos:
         # when "--baseline" with "--use-all-plugins", pre-commit scan with all available plugins
         # add "--fail-on-unaudited" to fail pre-commit for unaudited potential secrets
         args: [--baseline, .secrets.baseline, --use-all-plugins]
-        
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.14.0
+    rev: v0.14.4
     hooks:
       # Run the linter.
       - id: ruff
-        args: [ --fix ]
+        args: [--fix]
       # Run the formatter.
       - id: ruff-format
 
@@ -38,36 +37,36 @@ repos:
         types_or: [python, rst, markdown, cython, c]
         additional_dependencies: [tomli]
         args: [--ignore-words-list=halp]
-      
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
-    -   id: trailing-whitespace
+      - id: trailing-whitespace
         exclude: 'docs/.*|\.*.lock|'
-    - id: check-ast
-    -   id: end-of-file-fixer
+      - id: check-ast
+      - id: end-of-file-fixer
         exclude_types:
           - svg
-        exclude: 'linux-native/.*'
-    -   id: check-yaml
-    -   id: debug-statements
+          - markdown
+        exclude: 'linux-native/.*|.*\.qmd'
+      - id: check-yaml
+      - id: debug-statements
     # TODO: Fix this
     # -   id: name-tests-test
   - repo: local
     hooks:
-    - id: pylint
-      name: pylint
-      entry: pylint
-      language: system
-      types: [python]
-      require_serial: true
-      args:
-        [
-          "-rn", # Only display messages
-          "-sn", # Don't display the score
-        ]
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        require_serial: true
+        args: [
+            "-rn", # Only display messages
+            "-sn", # Don't display the score
+          ]
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.8
     hooks:
       - id: actionlint
-        args: ['--config-file=.github/actionlint-config.yaml']
+        args: ["--config-file=.github/actionlint-config.yaml"]

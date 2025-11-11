@@ -3,16 +3,20 @@ name: Test, Release (if [release/bump]) and Publish
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [closed]
+    branches: [main]
 
 permissions:
   contents: write
-  
+
 jobs:
   test:
     uses: ./.github/workflows/tests.yaml
 
   release:
     uses: ./.github/workflows/releases.yaml
+    if: github.event.pull_request.merged == true || github.event_name == 'push'
 
   publish:
     needs: [test, release]
@@ -22,22 +26,22 @@ jobs:
 
     permissions:
       id-token: write
-    
+
     steps:
       - uses: actions/checkout@v4
         with:
           ref: v${{ needs.release.outputs.next-version }}
           fetch-depth: 0
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
-          python-version: '3.12'
+          python-version: "3.12"
           enable-cache: true
-      
+
       - name: Build package
-        run: uvx --with uv-dynamic-versioning hatchling build -d ./dist/ 
-      
+        run: uvx --with uv-dynamic-versioning hatchling build -d ./dist/
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

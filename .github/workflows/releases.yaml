@@ -4,16 +4,16 @@ on:
   workflow_call:
     outputs:
       should-release:
-        description: 'Whether to release'
+        description: "Whether to release"
         value: ${{ jobs.check-release.outputs.should-release }}
       bump-type:
-        description: 'Type of bump (major/minor/patch)'
+        description: "Type of bump (major/minor/patch)"
         value: ${{ jobs.check-release.outputs.bump-type }}
       current-version:
-        description: 'Current version'
+        description: "Current version"
         value: ${{ jobs.check-release.outputs.current-version }}
       next-version:
-        description: 'Next version'
+        description: "Next version"
         value: ${{ jobs.check-release.outputs.next-version }}
 
 jobs:
@@ -24,39 +24,48 @@ jobs:
       bump-type: ${{ steps.check.outputs.bump-type }}
       current-version: ${{ steps.version.outputs.current-version }}
       next-version: ${{ steps.version.outputs.next-version }}
-    
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Check for [release/bump] in commit message
         id: check
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "$COMMIT_MESSAGE" == *"[release major]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump major]"* ]]; then
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            MESSAGE="$PR_TITLE $PR_BODY"
+          else
+            MESSAGE="$COMMIT_MESSAGE"
+          fi
+
+          if [[ "$MESSAGE" == *"[release major]"* ]] || [[ "$MESSAGE" == *"[bump major]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "bump-type=major" >> $GITHUB_OUTPUT
-          elif [[ "$COMMIT_MESSAGE" == *"[release minor]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump minor]"* ]]; then
+          elif [[ "$MESSAGE" == *"[release minor]"* ]] || [[ "$MESSAGE" == *"[bump minor]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "bump-type=minor" >> $GITHUB_OUTPUT
-          elif [[ "$COMMIT_MESSAGE" == *"[release patch]"* ]] || [[ "$COMMIT_MESSAGE" == *"[bump patch]"* ]]; then
+          elif [[ "$MESSAGE" == *"[release patch]"* ]] || [[ "$MESSAGE" == *"[bump patch]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "bump-type=patch" >> $GITHUB_OUTPUT
           else
             echo "should-release=false" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Get version from latest tag
         id: version
         if: steps.check.outputs.should-release == 'true'
         run: |
           CURRENT=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0")
           echo "current-version=$CURRENT" >> $GITHUB_OUTPUT
-          
+
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          
+
           if [[ "${{ steps.check.outputs.bump-type }}" == "major" ]]; then
             NEXT="$((MAJOR + 1)).0.0"
           elif [[ "${{ steps.check.outputs.bump-type }}" == "minor" ]]; then
@@ -64,34 +73,34 @@ jobs:
           else
             NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
           fi
-          
+
           echo "next-version=$NEXT" >> $GITHUB_OUTPUT
 
   create-release:
     needs: check-release
     if: needs.check-release.outputs.should-release == 'true'
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write
-    
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Configure Git
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-      
+
       - name: Create Release Tag
         env:
           NEXT_VERSION: ${{ needs.check-release.outputs.next-version }}
         run: |
           git tag -a "v${NEXT_VERSION}" -m "Release v${NEXT_VERSION}"
           git push origin "v${NEXT_VERSION}"
-          
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
@@ -101,7 +110,7 @@ jobs:
           release_name: Release v${{ needs.check-release.outputs.next-version }}
           body: |
             Automated release: ${{ needs.check-release.outputs.bump-type }} bump
-            
+
             Previous version: ${{ needs.check-release.outputs.current-version }}
             New version: ${{ needs.check-release.outputs.next-version }}
           draft: false
