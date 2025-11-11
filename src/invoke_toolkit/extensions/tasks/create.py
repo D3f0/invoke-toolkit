@@ -3,11 +3,12 @@
 from pathlib import Path
 from textwrap import dedent
 
+
 from rich.syntax import Syntax
 
 from invoke_toolkit import Context, task
 
-TEMPLATE = r"""
+TEMPLATE = r"""\
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
@@ -62,6 +63,35 @@ def script(
             f"You can run it with `uv run {path}`. This file contains the following code"
         )
         ctx.print_err(code)
+
+
+@task(aliases=["x"])
+def add_shebang(ctx: Context, file_: str | Path = "tasks.py"):
+    """
+    Adds the uv shebang to scripts.
+
+    More info: https://akrabat.com/using-uv-as-your-shebang-line/
+    """
+    path = Path(file_)
+    if not path.is_file():
+        ctx.rich_exit(f"[red]{file_}[/red] doesn't exit")
+    ctx.print_err(f"Adding shebang to {path}")
+    # TODO: Make a backup
+    shebang = "#!/usr/bin/env -S uv run --script"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines:
+        lines = [
+            "",
+        ]
+    if lines[0] != shebang:
+        new_conetnt_lines = [shebang]
+        new_conetnt_lines.extend(lines)
+        if lines[-1].strip() != "":
+            new_conetnt_lines.append("")
+        new_content = "\n".join(new_conetnt_lines)
+        path.write_text(new_content, encoding="utf-8")
+    else:
+        ctx.print(f"{path} has already a shebang")
 
 
 @task(aliases=["p"])

@@ -182,3 +182,4 @@ filterwarnings = []
 
 [tool.pyright]
 reportUnusedCallResult = false
+pythonVersion = "3.10"

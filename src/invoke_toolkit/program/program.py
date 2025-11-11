@@ -8,13 +8,13 @@ __all__ = ["ToolkitProgram"]
 
 import inspect
 from pathlib import Path
+import re
 import sys
 from importlib import metadata
 from logging import getLogger
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from rich.table import Table
-from rich.markup import escape
 
 from invoke_toolkit.log.logger import setup_rich_logging, setup_traceback_handler
 from invoke_toolkit.output import get_console
@@ -216,13 +216,24 @@ class ToolkitProgram(Program):
 
     def print_columns(self, tuples, col_count: int | None = 2):
         print = get_console("out").print
+
+        def escape_bool_flags(match: re.Match) -> str:
+            prefix, suffix = match.groups()
+            return f"{prefix}\\{suffix}"
+
         col_count = col_count or max(len(t) for t in tuples)
         grid = Table.grid(expand=True, padding=(0, 4))  # noqa: F821
         for _ in range(col_count):
             grid.add_column()
         for tup in tuples:
             # Escape Rich markup characters (e.g., square brackets) in tuple values
-            escaped_tup = tuple(escape(str(t)) for t in tup)
+            first_part, *tail = tup
+
+            first_part = re.sub(r"(--)(\[[\w\s#\/-]+])", escape_bool_flags, first_part)
+            escaped_tup = [
+                first_part,
+            ] + tail
+            # escaped_tup = tuple(escape(str(t)) for t in tup)
             grid.add_row(*escaped_tup)
         print(grid)
 

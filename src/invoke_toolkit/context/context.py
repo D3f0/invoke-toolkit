@@ -12,7 +12,6 @@ from typing import (
     Optional,
     Protocol,
     TYPE_CHECKING,
-    Union,
 )
 from invoke.util import debug
 from invoke_toolkit.config import ToolkitConfig
@@ -114,7 +113,7 @@ class ToolkitContext(Context, ConfigProtocol):
         sort: bool = True,
         all_: bool = False,
         value: bool = True,
-        stream: Union[Literal["out"], Literal["err"]] = "err",
+        stream: Literal["out"] | Literal["err"] = "err",
     ):
         """Runs inspect on an object"""
         assert stream in {"out", "err"}
@@ -135,7 +134,7 @@ class ToolkitContext(Context, ConfigProtocol):
     @contextmanager
     def redact(
         self,
-        streams: Union[str, dict[str, list[str]]],
+        streams: str | dict[str, list[str]],
         patterns: Optional[list[str]] = None,
     ) -> Iterator[None]:
         """

@@ -39,3 +39,16 @@ def test_new_package(
     x.run(["", "-x", "coll.init", "--package", "--name", "foo"])
     # out, err = capsys.readouterr()
     # current_files = {p.name: p for p in tmp_path.glob("*.py")}
+
+
+def test_shebang_insertion(
+    ctx: ToolkitContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    tasks = tmp_path / "tasks.py"
+    tasks.write_text("")
+    x = TestingToolkitProgram()
+    x.run(["", "-x", "create.x", "--file", "tasks.py"])
+    text = tasks.read_text()
+    first_line, *_ = text.split("\n", maxsplit=1)
+    assert first_line == "#!/usr/bin/env -S uv run --script"
