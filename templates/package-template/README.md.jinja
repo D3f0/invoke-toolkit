@@ -1,0 +1,44 @@
+# {{ package_name }}
+
+{{ project_description }}
+
+## Installation
+
+```bash
+pip install {{ package_name }}
+```
+
+## Usage
+
+Once installed, the tasks from this package will be automatically available in invoke-toolkit:
+
+```bash
+intk -l
+```
+
+You should see a collection named `{{ collection_name }}` with the available tasks.
+
+### Available Tasks
+
+- `hello` - Say hello to someone
+
+Example:
+
+```bash
+intk {{ collection_name }}.hello --name "Alice"
+```
+
+## Development
+
+To set up the development environment:
+
+```bash
+git clone <repository-url>
+cd {{ package_name }}
+uv venv
+uv pip install -e .
+```
+
+## License
+
+MIT

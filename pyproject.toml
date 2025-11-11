@@ -33,6 +33,7 @@ dependencies = [
     "tomlkit>=0.13.3",
     "pyyaml>=6.0.3",
     "pdbpp >=0.11.7",
+    "copier>=9.10.3",
 ]
 
 # Git based versioning, uses git tags
@@ -42,6 +43,19 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/invoke_toolkit"]
+# Include template files in wheel distribution
+force-include = { "templates" = "invoke_toolkit/templates" }
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/invoke_toolkit",
+  "/templates",
+  "/tests",
+  "/MANIFEST.in",
+]
 
 
 
@@ -107,6 +121,7 @@ ci = [
     "nox>=2025.10.16",
 ]
 dev = [
+    "copier>=9.10.3",
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",
     "pre-commit>=4.3.0",

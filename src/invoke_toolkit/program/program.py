@@ -7,11 +7,11 @@ It allows three classes to be parametrized: Loader, Config and Executor
 __all__ = ["ToolkitProgram"]
 
 import inspect
-from pathlib import Path
 import re
 import sys
 from importlib import metadata
 from logging import getLogger
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from rich.table import Table
@@ -25,7 +25,8 @@ setup_rich_logging()
 # we force rich to be installed first
 
 
-from invoke.exceptions import CollectionNotFound, Exit
+from invoke.completion.complete import complete
+from invoke.exceptions import CollectionNotFound, Exit, ParseError, UnexpectedExit
 from invoke.parser import Argument
 from invoke.program import (
     Program,
@@ -34,8 +35,6 @@ from invoke.program import (
 from invoke.util import debug
 
 from invoke_toolkit.collections import ToolkitCollection
-from invoke.exceptions import ParseError, UnexpectedExit
-from invoke.completion.complete import complete
 
 # Overrides that need to be imported afterwards
 from invoke_toolkit.config import ToolkitConfig

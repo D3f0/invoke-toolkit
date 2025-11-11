@@ -3,6 +3,7 @@ Invoke toolkit (internal) configuration tasks
 """
 
 import json
+from typing import Any
 
 import yaml
 
@@ -12,7 +13,7 @@ config = {"format": "yaml"}
 SAFE_TYPES = (str, int, float, bool, type(None), list, dict, tuple)
 
 
-def _clean_dict_for_serialization(data):
+def _clean_dict_for_serialization(data: dict[str, Any]) -> dict[str, Any]:
     """Remove non-serializable values from dictionary.
 
     Keeps: str, int, float, bool, None, list, dict

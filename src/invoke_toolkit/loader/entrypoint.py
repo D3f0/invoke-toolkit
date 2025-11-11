@@ -2,8 +2,7 @@
 
 # Example: https://gist.github.com/moreati/44bce66fe0c4febc8d80e064532d4b49
 from importlib._abc import Loader
-from importlib.util import module_from_spec, spec_from_loader
-from types import ModuleType
+from importlib.util import spec_from_loader
 from typing import Any
 
 from invoke.loader import FilesystemLoader
@@ -58,29 +57,29 @@ class EntryPointLoader(FilesystemLoader):
         another = "another_package.tasks"
     """
 
-    def find(self, **kwargs: Any):  # noqa: F821
+    def find(self, name: str) -> Any:
         """
         Find and load a task collection from entry points.
 
         Args:
             name: Name of the collection to find
-            extra_system_paths: Additional system paths (unused for entry points)
 
         Returns:
             ModuleSpec with namespace aggregating all matching entry points
-
-        Raises:
-            NotFound: If no entry points are found
         """
         entry_points = self._load_entry_points()
-        # breakpoint()
 
         if not entry_points:
-            debug(f"No entrypoints found {COLLECTION_ENTRY_POINT}. Using filesystem")
+            debug(
+                f"No entrypoints found {COLLECTION_ENTRY_POINT}. "
+                "Falling back to filesystem loader"
+            )
+            # Fall back to parent class for filesystem loading
+            return super().find(name)
 
         # Create a namespace that aggregates all entry points
-        namespace = self._create_compound_module(entry_points)
-        return namespace
+        spec = self._create_compound_module(entry_points)
+        return spec
 
     def _load_entry_points(self):
         """
@@ -128,7 +127,7 @@ class EntryPointLoader(FilesystemLoader):
 
         return entry_points
 
-    def _create_compound_module(self, entry_points) -> "ModuleType":
+    def _create_compound_module(self, entry_points) -> Any:
         """
         Create an aggregated namespace from loaded entry points.
 
@@ -136,7 +135,7 @@ class EntryPointLoader(FilesystemLoader):
             entry_points: Dictionary of loaded collections
 
         Returns:
-            Invoke Collection with tasks from all entry points
+            ModuleSpec with Invoke Collection with tasks from all entry points
         """
 
         if not entry_points:
@@ -169,16 +168,11 @@ class EntryPointLoader(FilesystemLoader):
                         RuntimeWarning,
                     )
 
-        # return root if root.tasks or root.collections else None
+        # Create a module with the collection
         attributes = {
             "ns": root,
         }
         loader = CustomLoader(attributes)
-        spec = spec_from_loader("namespace", loader)
+        spec = spec_from_loader("entrypoints", loader)
 
-        # Create and execute the module
-        module = module_from_spec(spec)
-        assert module is not None
-        spec.loader.exec_module(module)
-
-        return module
+        return spec
