@@ -1,0 +1,56 @@
+_envops:
+  autoescape: false
+  block_end_string: "-%}"
+  block_start_string: "{%-"
+  comment_end_string: "%}"
+  comment_start_string: "{#"
+  keep_trailing_newline: true
+  variable_end_string: "}}"
+  variable_start_string: "{{"
+
+_preserve_paths:
+  - .gitignore
+
+_tasks:
+  - git init
+
+_answers_file: .copier-answers.yml
+_templates_suffix: ".jinja"
+
+# Trust settings to allow tasks and other features
+_unsafe: true
+
+package_name:
+  type: str
+  help: What is the Python package name?
+  default: my_tasks_package
+
+package_slug:
+  type: str
+  help: What is the Python package slug?
+  default: "{{ package_name.lower().replace('-', '_').replace(' ', '_') }}"
+
+collection_name:
+  type: str
+  help: What is the collection name to expose?
+  default: "{{ package_slug }}"
+
+author_name:
+  type: str
+  help: What is your name?
+  default: "Author Name"
+
+author_email:
+  type: str
+  help: What is your email?
+  default: "author@example.com"
+
+project_description:
+  type: str
+  help: Brief description of this task package
+  default: "A set of invoke-toolkit tasks"
+
+python_version:
+  type: str
+  help: Minimum Python version required
+  default: "3.10"

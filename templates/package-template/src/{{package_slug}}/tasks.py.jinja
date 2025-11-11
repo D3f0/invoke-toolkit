@@ -1,0 +1,20 @@
+"""{{ project_description }}"""
+
+from invoke_toolkit import Context, task
+from invoke_toolkit.collections import ToolkitCollection
+
+
+@task(
+    help={
+        "name": "Name to greet",
+    }
+)
+def hello(ctx: Context, name: str = "World"):
+    """
+    Say hello
+    """
+    ctx.print_success(f"Hello, {name}!")
+
+
+# Create a collection with the tasks
+ns = ToolkitCollection("{{ collection_name }}", hello)

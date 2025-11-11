@@ -33,6 +33,7 @@ dependencies = [
     "tomlkit>=0.13.3",
     "pyyaml>=6.0.3",
     "pdbpp >=0.11.7",
+    "copier>=9.10.3",
 ]
 
 # Git based versioning, uses git tags
@@ -107,6 +108,7 @@ ci = [
     "nox>=2025.10.16",
 ]
 dev = [
+    "copier>=9.10.3",
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",
     "pre-commit>=4.3.0",
