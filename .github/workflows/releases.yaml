@@ -94,6 +94,23 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
+      - name: Generate Release Notes
+        id: release-notes
+        env:
+          CURRENT_VERSION: ${{ needs.check-release.outputs.current-version }}
+        run: |
+          if [ "${{ needs.check-release.outputs.current-version }}" = "0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"%h - %s (%an)" HEAD)
+          else
+            COMMITS=$(git log "v${{ needs.check-release.outputs.current-version }}..HEAD" --pretty=format:"%h - %s (%an)")
+          fi
+
+          # Use delimiter for multiline output
+          COMMITS_ESCAPED=$(echo "$COMMITS" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/\\n/g' -e 's/"/\\"/g')
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create Release Tag
         env:
           NEXT_VERSION: ${{ needs.check-release.outputs.next-version }}
@@ -113,5 +130,9 @@ jobs:
 
             Previous version: ${{ needs.check-release.outputs.current-version }}
             New version: ${{ needs.check-release.outputs.next-version }}
+
+            ## Changes
+
+            ${{ steps.release-notes.outputs.commits }}
           draft: false
           prerelease: false
