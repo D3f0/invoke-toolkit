@@ -134,8 +134,24 @@ def package(
     try:
         import invoke_toolkit  # pylint: disable=import-outside-toplevel
 
-        pkg_root = Path(invoke_toolkit.__file__).parent.parent.parent
-        template_path = pkg_root / "templates" / "package-template"
+        # Try to find templates relative to the invoke_toolkit module
+        # This works for both development (repo root) and installed packages
+        invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+
+        # First try: templates in the same directory (development setup)
+        template_path = (
+            invoke_toolkit_path.parent.parent / "templates" / "package-template"
+        )
+
+        # Second try: templates in the package data directory (installed)
+        if not template_path.exists():
+            template_path = invoke_toolkit_path / "templates" / "package-template"
+
+        # Third try: check if we're in a site-packages installation
+        if not template_path.exists():
+            # Look for templates in the package root's share or data directory
+            site_packages_parent = invoke_toolkit_path.parent.parent.parent
+            template_path = site_packages_parent / "templates" / "package-template"
     except (ImportError, AttributeError) as exc:
         ctx.rich_exit(f"Could not find invoke-toolkit installation: {exc}")
 

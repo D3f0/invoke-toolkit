@@ -44,6 +44,19 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/invoke_toolkit"]
+# Include template files in wheel distribution
+force-include = { "templates" = "invoke_toolkit/templates" }
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/invoke_toolkit",
+  "/templates",
+  "/tests",
+  "/MANIFEST.in",
+]
+
 
 
 [tool.commitizen]
