@@ -1,0 +1,14 @@
+# Programs {#sec-prg}
+
+Using `invoke_toolkit.program.ToolkitProgram` for your script allows you to
+modify more settings than what the CLI normally provides. Programs live inside Python packages so you will have a top level `pyproject.toml`.
+
+An example program structure could be like as follows:
+
+```
+pyproject.toml
+src/my_program/main.py
+src/my_program/collections.py
+```
+
+When you write a program you can change the configuration file name.

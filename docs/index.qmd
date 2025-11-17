@@ -4,15 +4,25 @@
 <img alt="PyPI - Package Version" src="https://img.shields.io/pypi/v/invoke-toolkit">
 
 ::: {.callout-warning}
-This software is in early development. Expect API breakages until version `0.1.x` is 
+This software is in early development. Expect API breakages until version `0.1.x` is
 released.
 :::
 
 ::: {.callout-tip}
-It should work in spaces where `invoke` is used substituting the imports.
+`invoke-toolkit` extends [`invoke`](https://docs.pyinvoke.org/en/stable/) classes and functions prepending `ToolkitXXX`
+for each extended class.
+
+For compatiblity, when you do `from invoke_toolkit import task, Context` the names are preserved.
 :::
 
-Invoke Toolkit is a set of opinionated extensions to the popular [Python invoke library](https://pyinvoke.org).
+Invoke Toolkit is a set of opinionated extensions to the popular [Python invoke library](https://pyinvoke.org)
+that allow to create easy to use automation focuses scripts, with the ability to share them in different ways (packages, repos, etc).
+
+It takes advantage of some recent developments in the Python ecosystem such as [`inline scripting`](https://peps.python.org/pep-0723/),
+the [`rich`](https://rich.readthedocs.io/en/stable/introduction.html) and [`uv`](https://github.com/astral-sh/uv) pacakge manager.
+
+
+Among its core features it extends the `Context` class with status updates
 
 * <details>
   <summary>

@@ -6,24 +6,27 @@ website:
   navbar:
     background: primary
     search: true
-    left: 
+    left:
       - text: "Home"
         file: index.qmd
       - text: "Scripts"
         file: scripts.qmd
+      - text: "Packages"
+        file: packages.qmd
+      - text: "Programs"
+        file: programs.qmd
       - text: "Reference"
         file: reference/index.qmd
     tools:
       - icon: github
         menu:
           - text: Source Code
-            href:  https://github.com/D3f0/invoke-toolkit
+            href: https://github.com/D3f0/invoke-toolkit
           - text: Report a Bug
-            href:  https://github.com/D3f0/invoke-toolkit/issues/new
+            href: https://github.com/D3f0/invoke-toolkit/issues/new
   # sidebar:
   #   # style: ""
   #   search: true
-
 
 # tell quarto to read the generated sidebar
 metadata-files:
@@ -53,15 +56,14 @@ quartodoc:
         - program.ToolkitProgram
         - context.ToolkitContext
         - config.ToolkitConfig
-        
 
     - title: Builtin collections
       desc: >
         Collections that get enabled with `-x` that extend invoke functionality
       package: invoke_toolkit.extensions.tasks
       contents:
+        - create
         - config
-        - collections
 
     - title: More
       desc: Invoke reference
@@ -70,4 +72,3 @@ quartodoc:
         # the functions being documented in the package.
         # you can refer to anything: class methods, modules, etc..
         - tasks.task
-        

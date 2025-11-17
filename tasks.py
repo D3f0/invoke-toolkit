@@ -1,15 +1,15 @@
 # pyright: ignore[reportMissingParameterType]
 
 import re
-from shutil import which
 import subprocess
 import sys
 from pathlib import Path
+from shutil import which
 
+from invoke.util import debug
 from rich.prompt import Prompt
 
 from invoke_toolkit import Context, task
-from invoke.util import debug
 
 try:
     _repo_root = Path(
@@ -260,14 +260,15 @@ def docs_api_build(
 @task()
 def docs_api_watch_entr(ctx: Context, timeout: int = 5):
     """Uses entr to rebuild, when --watch doesn't detect changes. Requires entr CLI"""
-    if not which("entr"):
-        ctx.rich_exit("[bold]entr[/bold] not found in [green]$PATH[/green]")
-    ctx.run(
-        f"""
-        git ls-files **/*.py | entr -n {sys.argv[0]} -T {timeout} -e docs-api-build
-        """,
-        echo=True,
-    )
+    with ctx.cd(REPO_ROOT):
+        if not which("entr"):
+            ctx.rich_exit("[bold]entr[/bold] not found in [green]$PATH[/green]")
+        ctx.run(
+            f"""
+            git ls-files **/*.py | entr -n {sys.argv[0]} -T {timeout} -e docs-api-build
+            """,
+            echo=True,
+        )
 
 
 @task(aliases=["p"])
