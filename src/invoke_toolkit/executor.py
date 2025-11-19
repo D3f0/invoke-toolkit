@@ -137,7 +137,13 @@ class ToolkitExecutor(Executor):
             args = (context, *call.args)
             result = call.task(*args, **call.kwargs)
             if autoprint:
-                get_console("out").print(result)
+                # NOTE: Long strings will get wrapped when using autoprint in a console
+                #       we will use print for strings, for the case of piping output
+                #       and any non string type will be formatted by the console
+                if isinstance(result, str):
+                    print(result)
+                else:
+                    get_console("out").print(result)
                 # print(result)
             # TODO: handle the non-dedupe case / the same-task-different-args
             # case, wherein one task obj maps to >1 result.
