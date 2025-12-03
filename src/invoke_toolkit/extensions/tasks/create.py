@@ -12,7 +12,7 @@ try:
 except ImportError:
     run_copy = None  # type: ignore[assignment]
 
-TEMPLATE = r"""\
+TEMPLATE = r"""
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"

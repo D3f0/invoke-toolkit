@@ -13,7 +13,11 @@ from invoke_toolkit.output.utils import rich_exit
 from invoke_toolkit.program import ToolkitProgram
 
 
-def script(argv: Optional[List[str]] = None, exit: bool = True) -> None:
+def script(
+    argv: Optional[List[str]] = None,
+    exit: bool = True,
+    config_prefix: Optional[str] = None,
+) -> None:
     r"""Allows to call .py files directly without invoke-toolkit/it command.
 
     You can:
@@ -40,6 +44,13 @@ def script(argv: Optional[List[str]] = None, exit: bool = True) -> None:
 
     Then run the script with `uv run --with invoke-toolkit mytasks.py
 
+    Args:
+        argv: The arguments to execute. Optional list of strings.
+        exit: Whether to call sys.exit() after execution. Defaults to True.
+        config_prefix: Optional config prefix for finding config files. If provided,
+            ToolkitConfig will look for config files with this prefix
+            (e.g., prefix="myapp" looks for "myapp.yml", "myapp.yaml", etc.)
+            Default is "invoke" if not specified.
     """
     current_frame = inspect.currentframe()
     assert current_frame is not None
@@ -54,5 +65,20 @@ def script(argv: Optional[List[str]] = None, exit: bool = True) -> None:
     for _, obj in f_locals.items():
         if isinstance(obj, Task):
             c.add_task(obj)
-    p = ToolkitProgram(namespace=c)
+
+    # Create custom config class with the specified prefix if provided
+    if config_prefix:
+        from invoke_toolkit.config import (  # pylint: disable=import-outside-toplevel
+            ToolkitConfig,
+        )
+
+        CustomConfig = type(
+            "CustomConfig",
+            (ToolkitConfig,),
+            {},
+            prefix=config_prefix,
+        )
+        p = ToolkitProgram(namespace=c, config_class=CustomConfig)
+    else:
+        p = ToolkitProgram(namespace=c)
     return p.run(argv=argv, exit=exit)
