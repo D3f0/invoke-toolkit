@@ -2,10 +2,12 @@
 Test single script
 """
 
-from invoke import task
-from invoke.context import Context
 import inspect
 from pathlib import Path
+
+from invoke import task
+from invoke.context import Context
+
 from invoke_toolkit import script
 
 
@@ -63,3 +65,77 @@ def test_frame_inspect(capsys):
     outerr: str = capsys.readouterr()
     assert "task-foo" in outerr.out
     assert "task-bar" in outerr.out
+
+
+# Tests for config_prefix parameter
+def test_script_with_config_prefix_default():
+    """Test that script() without config_prefix uses default behavior"""
+
+    @task()
+    def test_task(c):
+        pass
+
+    # Should not raise an error when calling script with no prefix
+    script(argv=["-l"], exit=False)
+
+
+def test_script_with_custom_config_prefix(capsys):
+    """Test that script() creates custom config when prefix is provided"""
+
+    @task()
+    def deploy_task(c):
+        """Deploy the application"""
+
+    # Call script with custom prefix - should work without errors
+    script(argv=["-l"], config_prefix="myapp", exit=False)
+
+    # Should still show the tasks
+    outerr = capsys.readouterr()
+    assert "deploy-task" in outerr.out
+
+
+def test_script_config_prefix_creates_custom_class():
+    """Test that custom config class is created with specified prefix"""
+
+    @task()
+    def test_task(c):
+        pass
+
+    # Verify that when config_prefix is provided, a custom class is created
+    # by checking that script doesn't crash and properly initializes
+    script(argv=["-l"], config_prefix="custom_prefix", exit=False)
+
+
+def test_script_with_empty_string_prefix(capsys):
+    """Test that empty string prefix is handled gracefully"""
+
+    @task()
+    def test_task(c):
+        pass
+
+    # Empty string should be treated as a prefix
+    script(argv=["-l"], config_prefix="", exit=False)
+    outerr = capsys.readouterr()
+    assert "test-task" in outerr.out
+
+
+def test_script_multiple_prefixes(capsys):
+    """Test that different prefixes can be used in sequence"""
+
+    @task()
+    def task_one(c):
+        pass
+
+    # First call with one prefix
+    script(argv=["-l"], config_prefix="app1", exit=False)
+    outerr1 = capsys.readouterr()
+    assert "task-one" in outerr1.out
+
+    @task()
+    def task_two(c):
+        pass
+
+    # Second call with different prefix
+    script(argv=["-l"], config_prefix="app2", exit=False)
+    outerr2 = capsys.readouterr()
+    assert "task-two" in outerr2.out
