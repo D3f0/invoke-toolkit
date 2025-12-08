@@ -49,6 +49,9 @@ __version__ = metadata.version("invoke_toolkit")
 
 # __all__ = ["task", "Context", "run", "script"]
 
+# Global storage for the context instance
+_global_context_instance: Any = None
+
 
 def _config() -> "Config":
     """Creates a configuration suitable for top-level usage"""
@@ -58,6 +61,20 @@ def _config() -> "Config":
         overrides = {}
     config = Config(overrides=overrides)
     return config
+
+
+def global_context() -> "Context":
+    """
+    Exposes the global context for run and sudo, for REPL
+    Do not use this function in tasks, only for global access
+
+    Returns a singleton ToolkitContext instance, creating it on first call.
+    Subsequent calls return the same instance.
+    """
+    global _global_context_instance  # noqa: PLW0603
+    if _global_context_instance is None:
+        _global_context_instance = Context(config=_config())
+    return _global_context_instance
 
 
 def run(command: str, **kwargs: Any) -> "Result| None":
@@ -70,11 +87,11 @@ def run(command: str, **kwargs: Any) -> "Result| None":
     > This function is a convenience wrapper around Invoke's `.Context` and
     > `.Runner` APIs.
 
-    > Specifically, it creates an anonymous `.Context` instance and calls its
+    > Specifically, it uses the global context singleton and calls its
     > `~.Context.run` method, which in turn defaults to using a `.Local`
     > runner subclass for command execution.
     """
-    return Context(config=_config()).run(command, **kwargs)
+    return global_context().run(command, **kwargs)
 
 
 def sudo(command: str, **kwargs: Any) -> Result | None:
@@ -87,11 +104,11 @@ def sudo(command: str, **kwargs: Any) -> Result | None:
         This function is a convenience wrapper around Invoke's `.Context` and
         `.Runner` APIs.
 
-        Specifically, it creates an anonymous `.Context` instance and calls its
+        Specifically, it uses the global context singleton and calls its
         `~.Context.sudo` method, which in turn defaults to using a `.Local`
         runner subclass for command execution (plus sudo-related bits &
         pieces).
 
     .. versionadded:: 1.4
     """
-    return Context().sudo(command, **kwargs)
+    return global_context().sudo(command, **kwargs)
