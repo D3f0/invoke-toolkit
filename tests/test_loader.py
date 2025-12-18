@@ -1,13 +1,13 @@
-import pytest
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Union
 
+import pytest
+from invoke.runners import Result
 from pytest import TempPathFactory
 from tomlkit import TOMLDocument, dump, parse
 
 from invoke_toolkit import Context
-
 from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT
 
 
@@ -46,7 +46,7 @@ def test_loader_from_entrypoints(
             dedent(
                 """
                 from invoke_toolkit import task, Context
-                
+
                 @task()
                 def hello(ctx: Context):
                     ctx.run("echo hello")
@@ -68,3 +68,23 @@ def test_loader_from_entrypoints(
     assert result.ok, "Failed to install editable plugin package"
     res = ctx.run("it -l", pty=False, warn=True)
     assert res.ok, res.stderr
+
+
+def test_script_does_not_call_execute_again_when_called_from_entrypoint(
+    tmp_path: Path, ctx
+):
+    tasks_py = tmp_path / "tasks.py"
+    tasks_py.write_text(
+        dedent("""
+        from invoke_toolkit import Context, task, script
+
+        @task()
+        def foo(ctx: Context):
+            ctx.run("echo hello")
+
+        script()
+        """)
+    )
+    with ctx.cd(tmp_path):
+        result: Result = ctx.run("uv run intk foo 2>/dev/null", hide=True)
+        assert result.stdout.strip() == "hello"

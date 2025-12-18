@@ -3,10 +3,12 @@ Run scripts with https://peps.python.org/pep-0723/
 """
 
 import inspect
+import traceback
 from types import FrameType
 from typing import List, Optional
 
 from invoke.tasks import Task
+from invoke.util import debug
 
 from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.output.utils import rich_exit
@@ -52,6 +54,27 @@ def script(
             (e.g., prefix="myapp" looks for "myapp.yml", "myapp.yaml", etc.)
             Default is "invoke" if not specified.
     """
+    # Prevent double calls for simple task that call invoke_toolkit.script()
+    # at the module level without `if __name__ == "__main__"`
+    #
+    # from invoke_toolkit import task, Context, script
+    #
+    # @task()
+    # def foo(ctx: Context):
+    #     ctx.run("echo hello")
+    #
+    # script()
+
+    for i, frame_summary in enumerate(traceback.extract_stack()):
+        # rich.print(i)
+        # rich.inspect(frame_summary)
+        # breakpoint()
+        if frame_summary.name == "parse_collection":
+            debug(
+                "Skipping script() call to prevent double execution, in "
+                + f"frame {i}, {frame_summary}"
+            )
+            return None
     current_frame = inspect.currentframe()
     assert current_frame is not None
     if current_frame.f_back is not None:
@@ -59,7 +82,7 @@ def script(
     else:
         rich_exit("Inspection failed trying to get previous frame")
     f_locals = frame.f_locals
-    if f_locals is None:
+    if not f_locals:
         rich_exit(f"Can't inspect the {__file__} for tasks")
     c = ToolkitCollection()
     for _, obj in f_locals.items():
