@@ -1,11 +1,12 @@
-from textwrap import dedent
-from pathlib import Path
 import logging
+import sys
+from pathlib import Path
+from textwrap import dedent
+
 import pytest
 
 # from invoke.context import Context
 from invoke_toolkit import Context
-from typing import Generator
 
 
 @pytest.fixture
@@ -27,13 +28,13 @@ def git_root(ctx) -> str:
     ).stdout.strip()
 
 
-@pytest.fixture
-def venv(ctx, tmp_path: Path) -> Generator[Path, None, None]:
-    """A virtual environment in a temporary directory"""
+@pytest.fixture()
+def venv(ctx: Context, tmp_path: Path):
+    """Creates a virtual environment"""
+    version_info = sys.version_info
+    version = f"{version_info.major}.{version_info.minor}"
     with ctx.cd(tmp_path):
-        ctx.run(
-            "uv venv",
-        )
+        ctx.run(f"uv venv --python {version}")
         yield tmp_path
 
 
@@ -46,7 +47,9 @@ def package_in_venv(git_root, ctx: Context, venv: Path) -> None:
 @pytest.fixture(autouse=True)
 def clean_consoles():
     """Resets the console manager"""
-    from invoke_toolkit.output.console import manager  # pylint: disable=import-outside-toplevel
+    from invoke_toolkit.output.console import (
+        manager,  # pylint: disable=import-outside-toplevel
+    )
 
     manager._consoles = {}  # pylint: disable=protected-access
 
@@ -59,11 +62,11 @@ def task_in_tmp_path(tmp_path: Path):
             dedent(
                 """
                 from invoke_toolkit import task, Context
-                
+
                 @task()
                 def a_task(ctx: Context):
                     ctx.run("echo 'hello'")
-                   
+
                 """
             )
         )
