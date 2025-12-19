@@ -16,11 +16,11 @@ def sample_task(ctx):
     ctx.run("echo hello")
 
 
-def add_lines(file_to_update: Path, lines=str, sep="\n") -> None:
+def add_lines(file_to_update: Path, lines: str = "", sep: str = "\n") -> None:
     if not isinstance(file_to_update, Path):
         file_to_update = Path(file_to_update)
     previous_content: str = file_to_update.read_text(encoding="utf-8")
-    new_contents = sep.join([previous_content, lines])
+    new_contents: str = sep.join([previous_content, lines])
     file_to_update.write_text(new_contents, encoding="utf-8")
 
 

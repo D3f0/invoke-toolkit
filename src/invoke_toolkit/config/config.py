@@ -130,7 +130,7 @@ def _navigate_config_path(config: "ToolkitConfig", path: str) -> tuple[Any, bool
         Tuple of (value, found) where found is True if the path exists
     """
     keys = path.split(".")
-    current = dict(config)
+    current = dict(config)  # type: ignore[arg-type]
 
     for key in keys:
         if _is_dict_like(current) and key in current:
@@ -332,7 +332,7 @@ def get_config_value(  # pylint: disable=inconsistent-return-statements
         final_exit_code = 1  # Default for exit_message-only case
 
     # Navigate through the nested config
-    value, found = _navigate_config_path(ctx.config, path)
+    value, found = _navigate_config_path(ctx.config, path)  # type: ignore[arg-type]
 
     # If found, return the value (even if it's falsy like False, 0, "", None)
     if found:

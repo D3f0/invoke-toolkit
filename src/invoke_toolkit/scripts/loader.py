@@ -95,12 +95,9 @@ def script(
             ToolkitConfig,
         )
 
-        CustomConfig = type(
-            "CustomConfig",
-            (ToolkitConfig,),
-            {},
-            prefix=config_prefix,
-        )
+        class CustomConfig(ToolkitConfig):  # type: ignore[misc]
+            prefix = config_prefix
+
         p = ToolkitProgram(namespace=c, config_class=CustomConfig)
     else:
         p = ToolkitProgram(namespace=c)

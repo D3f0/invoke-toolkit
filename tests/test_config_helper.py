@@ -1,6 +1,9 @@
 """Tests for config helper functions"""
 
+from typing import cast
+
 import pytest
+
 from invoke_toolkit import Context
 from invoke_toolkit.config import ToolkitConfig, get_config_value
 
@@ -105,7 +108,7 @@ def test_get_config_value_required_with_exit_code_missing(ctx):
     """Test that required value with exit_code exits when missing"""
     with pytest.raises(SystemExit) as exc_info:
         get_config_value(ctx, "missing.required", exit_code=2)
-    assert exc_info.value.code == 2
+    assert cast(SystemExit, exc_info.value).code == 2
 
 
 def test_get_config_value_required_with_exit_code_found(ctx):
@@ -124,7 +127,7 @@ def test_get_config_value_required_with_exit_message(ctx):
             exit_message="Custom error message",
             exit_code=3,
         )
-    assert exc_info.value.code == 3
+    assert cast(SystemExit, exc_info.value).code == 3
 
 
 def test_get_config_value_required_with_exit_message_found(ctx):
@@ -143,14 +146,14 @@ def test_get_config_value_required_true_exits(ctx):
     """Test that required=True triggers exit with code 1"""
     with pytest.raises(SystemExit) as exc_info:
         get_config_value(ctx, "missing.key", required=True)
-    assert exc_info.value.code == 1
+    assert cast(SystemExit, exc_info.value).code == 1
 
 
 def test_get_config_value_required_with_exit_code_default_code(ctx):
     """Test that default exit_code is 1 when exit_code not specified"""
     with pytest.raises(SystemExit) as exc_info:
         get_config_value(ctx, "missing.value", exit_message="Error")
-    assert exc_info.value.code == 1
+    assert cast(SystemExit, exc_info.value).code == 1
 
 
 # Edge cases
@@ -193,7 +196,7 @@ def test_get_config_value_exit_code_without_message(ctx):
     """Test that exit_code without message auto-generates message"""
     with pytest.raises(SystemExit) as exc_info:
         get_config_value(ctx, "missing.config", exit_code=5)
-    assert exc_info.value.code == 5
+    assert cast(SystemExit, exc_info.value).code == 5
 
 
 # Tests for canary value handling
@@ -263,7 +266,7 @@ def test_get_config_value_required_true_with_default_ignored(ctx):
         get_config_value(
             ctx, "missing.key", required=True, default="should_not_be_used"
         )
-    assert exc_info.value.code == 1
+    assert cast(SystemExit, exc_info.value).code == 1
 
 
 # Tests for argument name detection
@@ -287,7 +290,7 @@ def test_get_config_value_auto_detected_name_in_error():
     # When a value is not found with exit_code, should get auto-detected message
     with pytest.raises(SystemExit) as exc_info:
         get_config_value(ctx, "database.host", exit_code=1)
-    assert exc_info.value.code == 1
+    assert cast(SystemExit, exc_info.value).code == 1
 
 
 def test_get_config_value_handles_path_with_multiple_components():

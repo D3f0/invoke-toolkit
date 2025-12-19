@@ -18,7 +18,7 @@ def add_entrypoint(pth: Union[str, Path], name: str, value: Any) -> None:
             toml: TOMLDocument = parse(fp.read())
     else:
         raise ValueError(pth)
-    entry_points = toml["project"].setdefault("entry-points", {})
+    entry_points = toml["project"].setdefault("entry-points", {})  # type: ignore[union-attr]
     entry_points[name] = value
     with open(pth, mode="w", encoding="utf-8") as fp:
         dump(toml, fp)

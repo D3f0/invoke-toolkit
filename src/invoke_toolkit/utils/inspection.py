@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Optional
 
 from invoke.util import debug
-from invoke_toolkit.output import get_console
 
+from invoke_toolkit.output import get_console
 
 # def print_call_stack():
 #     """Prints the current call stack."""
@@ -40,5 +40,7 @@ def get_calling_file_path(find_call_text: str) -> Optional[str]:
     if not found:
         return None
     # Get the module object of the caller
+    if frame is None or frame.filename is None:
+        return None
     containing_directory = str(Path(frame.filename).parent.parent)
     return containing_directory

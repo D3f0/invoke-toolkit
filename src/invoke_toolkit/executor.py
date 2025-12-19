@@ -164,6 +164,7 @@ class ToolkitExecutor(Executor):
         calls = []
         for task in tasks:
             name: Optional[str]
+            kwargs: dict[str, Any]
             if isinstance(task, str):
                 name = task
                 kwargs = {}
@@ -171,7 +172,7 @@ class ToolkitExecutor(Executor):
                 name = task.name
                 kwargs = task.as_kwargs
             else:
-                name, kwargs = task
+                name, kwargs = task  # type: ignore[misc]
             c = ToolkitCall(self.collection[name], kwargs=kwargs, called_as=name)
             calls.append(c)
         if not tasks and self.collection.default is not None:

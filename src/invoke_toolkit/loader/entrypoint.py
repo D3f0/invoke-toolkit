@@ -106,7 +106,7 @@ class EntryPointLoader(FilesystemLoader):
         except (ImportError, AttributeError):
             # Fallback to pkg_resources for older Python versions
             try:
-                import pkg_resources
+                import pkg_resources  # type: ignore[import-not-found]
 
                 group = pkg_resources.iter_entry_points(COLLECTION_ENTRY_POINT)
             except ImportError:

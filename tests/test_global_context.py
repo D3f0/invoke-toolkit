@@ -1,8 +1,9 @@
 """Tests for the global_context singleton functionality"""
 
 import pytest
-from invoke_toolkit import global_context, run, Context
+
 import invoke_toolkit
+from invoke_toolkit import Context, global_context, run
 
 
 @pytest.fixture(autouse=True)
@@ -169,6 +170,7 @@ def test_run_output_consistency():
     """Test that run produces consistent output"""
     result1 = run("echo 'test'", hide=True)
     result2 = run("echo 'test'", hide=True)
+    assert result1 is not None and result2 is not None
     assert result1.stdout == result2.stdout
 
 
@@ -184,6 +186,7 @@ def test_global_context_state_isolation():
     result1 = run("echo 'first'", hide=True)
     result2 = run("echo 'second'", hide=True)
 
+    assert result1 is not None and result2 is not None
     assert "first" in result1.stdout
     assert "second" in result2.stdout
     assert "second" not in result1.stdout

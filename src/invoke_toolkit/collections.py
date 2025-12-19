@@ -9,9 +9,9 @@ from types import ModuleType
 from typing import Any, Callable, overload
 
 try:
-    from typing import override
+    from typing import override  # type: ignore[attr-defined]
 except ImportError:
-    from typing_extensions import override
+    from typing_extensions import override  # type: ignore[import-not-found]
 
 from invoke.collection import Collection
 from invoke.tasks import Task
