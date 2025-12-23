@@ -93,6 +93,7 @@ class ToolkitConfig(Config):
 
         ret["runners"]["local"] = NoStdoutRunner
         ret["run"]["echo_format"] = "[bold]{command}[/bold]"
+        ret["disable_status"] = False
 
         return ret
 

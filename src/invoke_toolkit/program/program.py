@@ -176,6 +176,11 @@ class ToolkitProgram(Program):
         debug("Finished parsing core args")
         self.setup_consoles()
 
+        # Update config with disable_status flag from CLI
+        if self.args["disable_status"].value:
+            debug("Disabling status context manager via CLI flag")
+            self.config["disable_status"] = True
+
         # Set interpreter bytecode-writing flag
         sys.dont_write_bytecode = not self.args["write-pyc"].value
 
@@ -303,6 +308,12 @@ class ToolkitProgram(Program):
                 default=[],
                 help="Defines which patterns should be redactbed, such as *_API*KEY or regexes. Settings this alone enables "
                 "redactbing both for [green]stdout[/green] and [yellow]stderr[/yellow]",
+            ),
+            Argument(
+                names=("disable_status",),
+                kind=bool,
+                default=False,
+                help="Disables the rich status context manager for debugging (useful when debugging breakpoints or using REPL)",
             ),
         ]
         args.extend(toolkit_program_arguments)

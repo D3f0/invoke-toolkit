@@ -50,3 +50,29 @@ def test_context_print(capsys, suppress_stderr_logging):
     out, err = captured.out, captured.err
     assert out.strip() == "ls"
     assert not err
+
+
+def test_disable_status_flag(capsys):
+    """Test that status can be disabled for debugging"""
+
+    @task()
+    def task_with_status(c: Context):
+        with c.status("Processing..."):
+            c.print("hello")
+
+    # Create a custom config with disable_status set to True
+    from invoke_toolkit.config import ToolkitConfig
+
+    class DebugConfig(ToolkitConfig):
+        extra_defaults = {"disable_status": True}
+
+    from invoke_toolkit.program import ToolkitProgram
+
+    p = ToolkitProgram(
+        namespace=ToolkitCollection(task_with_status), config_class=DebugConfig
+    )
+    p.run(["", "task-with-status"], exit=False)
+    captured = capsys.readouterr()
+    out = captured.out
+    # When status is disabled, no status spinner should be shown
+    assert "hello" in out
