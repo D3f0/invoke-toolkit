@@ -23,6 +23,7 @@ This extends the Collection from Invoke so it can create automatically collectio
 
 - Task discovery by namespace for extendable/composable CLIs
 - Discovery to *plain old* tasks.py (or any other name)
+- Local tasks discovery from `local_tasks.py` in the current directory
 - Integration with stand alone binaries for specific tasks
 - **Future** Download binaries
 
@@ -43,6 +44,29 @@ If you have...
 ```console
 pip install invoke-toolkit
 ```
+
+## Quick Start
+
+### Using Local Tasks
+
+Create a `local_tasks.py` file in your project directory with your tasks:
+
+```python
+from invoke_toolkit import task
+
+@task()
+def my_task(ctx):
+    """Do something useful"""
+    print("Hello from local tasks!")
+```
+
+Then run it with:
+
+```console
+intk local.my-task
+```
+
+Local tasks are automatically discovered and added to the `local` namespace, allowing you to keep project-specific tasks separate from your main task collection.
 
 ## Development
 
