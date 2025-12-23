@@ -1,6 +1,7 @@
 """Extended collection with package inspection"""
 
 import importlib
+import importlib.util
 import pkgutil
 import sys
 from logging import getLogger
@@ -170,6 +171,58 @@ class ToolkitCollection(Collection):
         existing_paths = {pth for pth in sys.path if Path(pth).is_dir()}
         if path not in existing_paths:
             sys.path.append(str(path))
+
+    def load_local_tasks(self, search_path: str | Path | None = None) -> None:
+        """
+        Loads tasks from local_tasks.py if it exists and adds them to a 'local' collection.
+
+        Args:
+            search_path: Directory to search for local_tasks.py. If None, searches in current directory.
+        """
+        if search_path is None:
+            search_path = Path.cwd()
+        elif isinstance(search_path, str):
+            search_path = Path(search_path)
+
+        local_tasks_file = search_path / "local_tasks.py"
+
+        if not local_tasks_file.exists():
+            debug(f"No local_tasks.py found at {local_tasks_file}")
+            return
+
+        debug(f"Loading local tasks from {local_tasks_file}")
+
+        # Add the search path to sys.path if not already there
+        search_path_str = str(search_path)
+        if search_path_str not in sys.path:
+            sys.path.insert(0, search_path_str)
+
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "local_tasks", local_tasks_file
+            )
+            if spec and spec.loader:
+                local_tasks_module = importlib.util.module_from_spec(spec)
+                sys.modules["local_tasks"] = local_tasks_module
+                spec.loader.exec_module(local_tasks_module)
+
+                # Create a collection from the local_tasks module
+                local_collection = ToolkitCollection.from_module(
+                    local_tasks_module, name="local"
+                )
+                # For local tasks, keep all tasks that don't start with underscore
+                for name in list(local_collection.tasks.keys()):
+                    if name.startswith("_"):
+                        del local_collection.tasks[name]
+                # Add the local collection to this collection
+                self.add_collection(local_collection, name="local")
+                debug("Successfully loaded local tasks collection")
+            else:
+                logger.warning(f"Could not create spec for {local_tasks_file}")
+        except (ImportError, SyntaxError) as e:
+            logger.exception(
+                f"Error loading local_tasks.py from {local_tasks_file}: {e}"
+            )
 
     @classmethod
     @override

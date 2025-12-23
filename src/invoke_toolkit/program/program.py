@@ -345,17 +345,29 @@ class ToolkitProgram(Program):
                 loaded_from=parent,
                 auto_dash_names=self.config.tasks.auto_dash_names,
             )
+            # Load local tasks if they exist
+            self.collection.load_local_tasks(search_path=parent)
         except CollectionNotFound as e:
-            if not self.args["internal-col"].value:
-                raise Exit(
-                    (
-                        "Can't find any collection named [red]{name!r}[/red].\n"
-                        "You can create a script with [yellow]{cmd} -x create.script --help[/yellow]\n"
-                        "You can create a script with [yellow]{cmd} -x create.package --help[/yellow]\n"
-                    ).format(name=e.name, cmd=self.command_name)
-                )
-            debug("No collection found, will checking for internal")
+            start = self.args["search-root"].value or "."
+            # Check if local_tasks.py exists before raising error
+            if not (Path(start) / "local_tasks.py").exists():
+                if not self.args["internal-col"].value:
+                    raise Exit(
+                        (
+                            "Can't find any collection named [red]{name!r}[/red].\n"
+                            "You can create a script with [yellow]{cmd} -x create.script --help[/yellow]\n"
+                            "You can create a script with [yellow]{cmd} -x create.package --help[/yellow]\n"
+                        ).format(name=e.name, cmd=self.command_name)
+                    )
+                debug("No collection found, will checking for internal")
+            else:
+                debug("No tasks.py found, but local_tasks.py exists, continuing...")
+            start = self.args["search-root"].value
+            self.config.set_project_location(start)
+            self.config.load_project()
             self.collection = ToolkitCollection(EMPTY_COLLECTION_NAME)
+            # Try to load local tasks if they exist
+            self.collection.load_local_tasks(search_path=start)
 
         # if self.collection.name == EMPTY_COLLECTION_NAME:
         #     debug("Setting the list flag, as the desired collection name was not found")
