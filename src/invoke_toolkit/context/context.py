@@ -54,7 +54,13 @@ class ToolkitContext(Context, ConfigProtocol):
     def __init__(self, config: Optional[ToolkitConfig] = None) -> None:
         super().__init__(config)
         self._set("_console", get_console())
-        self._set("_status_helper", StatusHelper(console=self._console))
+        # Check if status is disabled in the config
+        disabled = False
+        if config and hasattr(config, "get"):
+            disabled = config.get("disable_status", False)
+        self._set(
+            "_status_helper", StatusHelper(console=self._console, disabled=disabled)
+        )
 
     @property
     def console(self) -> "Console":

@@ -6,10 +6,46 @@ from contextlib import contextmanager
 from typing import Generator, Optional
 
 from rich.console import Console, RenderableType
-from rich.style import StyleType
 from rich.status import Status
+from rich.style import StyleType
 
 from invoke_toolkit.output import get_console
+
+
+class NoOpStatus:
+    """A no-op status object that prints messages on enter and exit"""
+
+    def __init__(
+        self,
+        status: Optional[RenderableType] = None,
+        console: Optional[Console] = None,
+    ):
+        self.status = status
+        self.console = console or get_console()
+
+    def __enter__(self) -> "NoOpStatus":
+        """Print status message on enter"""
+        if self.status:
+            self.console.print(f"[bold blue]→[/bold blue] {self.status}")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Print status message on exit"""
+        if self.status:
+            self.console.print(f"[bold green]✓[/bold green] {self.status}")
+
+    def update(
+        self,
+        status: Optional[RenderableType] = None,
+        *,
+        spinner: Optional[str] = None,
+        spinner_style: Optional[StyleType] = None,
+        speed: Optional[float] = None,
+    ) -> None:
+        """No-op update"""
+
+    def stop(self) -> None:
+        """No-op stop"""
 
 
 class StatusHelper:
@@ -19,10 +55,12 @@ class StatusHelper:
     """
 
     _current_status: Optional[Status]
+    _disabled: bool
 
-    def __init__(self, console: Console):
+    def __init__(self, console: Console, disabled: bool = False):
         self.console = console or get_console()
         self._current_status = None
+        self._disabled = disabled
 
     @contextmanager
     def status(
@@ -35,6 +73,12 @@ class StatusHelper:
         refresh_per_second: float = 12.5,
     ) -> Generator[Status, None, None]:
         """Context manager for status management"""
+        if self._disabled:
+            # When disabled, yield a no-op status object that prints messages
+            with NoOpStatus(status=status, console=self.console) as noop:
+                yield noop
+            return
+
         if self._current_status is not None:
             self._current_status.update(
                 status, spinner=spinner, spinner_style=spinner_style, speed=speed
@@ -60,6 +104,9 @@ class StatusHelper:
         speed: Optional[float] = None,
     ) -> None:
         """Wrapper on Status.update"""
+        if self._disabled:
+            return
+
         if self._current_status:
             self._current_status.update(
                 status, spinner=spinner, spinner_style=spinner_style, speed=speed
@@ -67,5 +114,8 @@ class StatusHelper:
 
     def status_stop(self) -> None:
         """Cancels the status. This will allow to use the REPL in debugging breakpoints"""
+        if self._disabled:
+            return
+
         if self._current_status:
             self._current_status.stop()
