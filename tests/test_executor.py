@@ -58,3 +58,34 @@ def test_auto_print_long_strings(
     p.run(["", "test-task"])
     output = capsys.readouterr()
     assert output.out.strip() == expectation
+
+
+def test_auto_print_long_strings_single_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Test that long strings remain as a single line when piped to wc -l"""
+    ns = ToolkitCollection()
+    p = TestingToolkitProgram(
+        version="test",
+        namespace=ns,
+        name="test",
+    )
+
+    # Create a string longer than typical terminal width (80+ chars)
+    long_string = "B" * 500
+
+    @task(autoprint=True)
+    def test_task(ctx: Context):
+        """A test function that returns a very long string"""
+        return long_string
+
+    ns.add_task(test_task)
+    p.run(["", "test-task"])
+    output = capsys.readouterr()
+
+    # Count the number of lines in the output
+    # When piped to wc -l, a single line without trailing newline would be counted as 0,
+    # but with a trailing newline it's 1
+    lines = output.out.splitlines()
+    assert len(lines) == 1, f"Expected 1 line but got {len(lines)} lines"
+    assert lines[0] == long_string
