@@ -7,6 +7,7 @@ It allows three classes to be parametrized: Loader, Config and Executor
 __all__ = ["ToolkitProgram"]
 
 import inspect
+import os
 import re
 import sys
 from importlib import metadata
@@ -181,6 +182,18 @@ class ToolkitProgram(Program):
             debug("Disabling status context manager via CLI flag")
             self.config["disable_status"] = True
 
+        # Update config with init_shell flag from CLI
+        if self.args["init_shell"].value:
+            debug("Initializing shell for runner via CLI flag")
+            self.config["init_shell"] = True
+            # Set shell from $SHELL environment variable
+            shell = os.environ.get("SHELL")
+            if shell:
+                debug(f"Setting shell to {shell} from $SHELL environment variable")
+                self.config["run"]["shell"] = shell
+            else:
+                debug("$SHELL environment variable not set, using default shell")
+
         # Set interpreter bytecode-writing flag
         sys.dont_write_bytecode = not self.args["write-pyc"].value
 
@@ -310,10 +323,16 @@ class ToolkitProgram(Program):
                 "redactbing both for [green]stdout[/green] and [yellow]stderr[/yellow]",
             ),
             Argument(
-                names=("disable_status",),
+                names=("disable_status", "ds"),
                 kind=bool,
                 default=False,
                 help="Disables the rich status context manager for debugging (useful when debugging breakpoints or using REPL)",
+            ),
+            Argument(
+                names=("init_shell",),
+                kind=bool,
+                default=False,
+                help="Initialize the shell for the runner using the $SHELL environment variable",
             ),
         ]
         args.extend(toolkit_program_arguments)
