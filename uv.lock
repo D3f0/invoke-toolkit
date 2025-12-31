@@ -648,7 +648,7 @@ requires-dist = [
     { name = "pdbpp", specifier = ">=0.11.7" },
     { name = "pdbpp", marker = "extra == 'dev'", specifier = ">=0.11.7" },
     { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "rich", specifier = ">=14.2.0" },
+    { name = "rich", specifier = ">=13" },
     { name = "tomlkit", specifier = ">=0.13.3" },
     { name = "typing-extensions", specifier = ">=4.13.2" },
 ]
