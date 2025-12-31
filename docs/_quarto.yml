@@ -9,12 +9,14 @@ website:
     left:
       - text: "Home"
         file: index.qmd
+      - text: "Collections"
+        file: collections.qmd
       - text: "Scripts"
         file: scripts.qmd
-      - text: "Packages"
-        file: packages.qmd
       - text: "Programs"
         file: programs.qmd
+      - text: "Plugins"
+        file: plugins.qmd
       - text: "Reference"
         file: reference/index.qmd
     tools:

@@ -1,0 +1,6 @@
+# Plugins
+
+A `invoke-toolkit` plugins is a Python package that is installed
+in the same environment where invoke-toolkit resied.
+
+It can be created with the built-int collections.

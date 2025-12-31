@@ -1,0 +1,25 @@
+# Collections
+
+
+::: {.callout-tip}
+`invoke-toolkit` extends [`invoke`](https://docs.pyinvoke.org/en/stable/) classes and functions prepending `ToolkitXXX`
+for each extended class.
+
+For compatiblity, when you do `from invoke_toolkit import task, Context` the names are preserved.
+:::
+
+
+`invoke-toolkit` comes with a set of built-in collections. These
+collections are visible with the `-x` flag, and listed with `-l`, like:
+
+```shell
+$ uvx invoke-toolkit -xl
+
+Available tasks:
+
+config.show (config)             Shows the contents of the configuration in the context
+create.add-shebang (create.x)    Adds the uv shebang to scripts.
+create.package (create.p)        Creates a package for tasks using the invoke-toolkit copier
+                                 template.
+create.script (create.s)         Creates a new script
+```

@@ -8,18 +8,53 @@ This software is in early development. Expect API breakages until version `0.1.x
 released.
 :::
 
-::: {.callout-tip}
-`invoke-toolkit` extends [`invoke`](https://docs.pyinvoke.org/en/stable/) classes and functions prepending `ToolkitXXX`
-for each extended class.
 
-For compatiblity, when you do `from invoke_toolkit import task, Context` the names are preserved.
-:::
+`invoke-toolkit` is a opinionated set of enhancements to the popular [Python invoke library](https://pyinvoke.org)
+task runner library. The current set of features on top of invoke that are more visibile
+are:
+ - `rich` for print/inspect available in the task context object for quick access.
+ - also `status()` for showing proggress on long task to the user.
+ - add a `script()` method for running the tasks as inline python scripts
 
-Invoke Toolkit is a set of opinionated extensions to the popular [Python invoke library](https://pyinvoke.org)
-that allow to create easy to use automation focuses scripts, with the ability to share them in different ways (packages, repos, etc).
+
+
+
+## Creating tasks
+
+This is the *classic* approach, like the original library invoke. The only change is
+the import statement.
+
+```python
+from invoke_toolkit import task, Context
+
+@task()
+def git_issues(ctx: Context):
+  with ctx.status("Getting github issues"):
+    ctx.run("gh issue list --state open --assignee @me")
+
+@task()
+def test(ctx: Context, debug=False):
+  pytest_args = ""
+  if debug:
+    pytest_args = f"{pytest_args} --pdb"
+  ctx.run(f"uv run pytest {pytest_args}", pty=True)
+
+```
+
+
+### Simple way
+
+  - as a `tasks.py`
+    - run with `intk` or `invoke-toolkit`
+    - ...or run as a Python inline script with `uv run tasks.py` or even `./tasks.py ...`
+  - as a Python packge with some markers in its pyproject.toml
+
+
 
 It takes advantage of some recent developments in the Python ecosystem such as [`inline scripting`](https://peps.python.org/pep-0723/),
 the [`rich`](https://rich.readthedocs.io/en/stable/introduction.html) and [`uv`](https://github.com/astral-sh/uv) pacakge manager.
+
+
 
 
 Among its core features it extends the `Context` class with status updates
