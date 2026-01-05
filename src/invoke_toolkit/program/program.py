@@ -406,6 +406,19 @@ class ToolkitProgram(Program):
         """Flat arguments"""
         return {name: arg.value for name, arg in self.args.items()}
 
+    def _has_internal_col_flag_in_completion(self) -> bool:
+        """
+        Check if -x or --internal-col flag is present in the completion context.
+
+        When completion is triggered, we need to check if the command being
+        completed includes the -x flag, so we can load internal collections
+        for proper completion suggestions.
+        """
+        # Check if -x or --internal-col is in the argv (the command being completed)
+        if hasattr(self, "argv") and self.argv:
+            return "-x" in self.argv or "--internal-col" in self.argv
+        return False
+
     def parse_cleanup(self) -> None:
         """
         Post-parsing, pre-execution steps such as --help, --list, etc.
@@ -452,6 +465,19 @@ class ToolkitProgram(Program):
 
         # Print completion helpers if necessary
         if self.args.complete.value:
+            # Check if -x flag is in the completion context and load internal collections
+            # This ensures completions for internal tasks work when -x is passed
+            if self._has_internal_col_flag_in_completion():
+                debug(
+                    "Detected -x flag in completion context, loading internal collections"
+                )
+                if not self.args["internal-col"].value:
+                    # Load internal collections for completion context
+                    ToolkitCollection.from_package(  # pylint: disable=unexpected-keyword-arg
+                        "invoke_toolkit.extensions.tasks",
+                        self.collection,  # type: ignore
+                    )
+
             complete(
                 names=self.binary_names,
                 core=self.core,
