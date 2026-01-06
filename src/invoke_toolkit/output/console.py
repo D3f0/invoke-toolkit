@@ -116,6 +116,10 @@ class SecretRedactorConsole(Console):
 
         return redacted
 
+    def redact(self, text: str) -> str:
+        """Public method to redact text using configured secret patterns."""
+        return self._redact_text(text)
+
     def print(self, *objects, **kwargs):
         """Override print to redact secrets before output."""
         # Process each object

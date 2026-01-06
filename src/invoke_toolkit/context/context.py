@@ -1,9 +1,9 @@
 """Context object for invoke_toolkit tasks"""
 
-from contextlib import contextmanager
 import sys
-from invoke.context import Context
+from contextlib import contextmanager
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Generator,
     Iterator,
@@ -11,16 +11,17 @@ from typing import (
     NoReturn,
     Optional,
     Protocol,
-    TYPE_CHECKING,
 )
+
+from invoke.context import Context
 from invoke.util import debug
+from rich import inspect
+
 from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.config.status_helper import StatusHelper
 from invoke_toolkit.output.console import get_console
+
 from .types import BoundPrintProtocol, ContextRunProtocol
-
-
-from rich import inspect
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -189,8 +190,9 @@ class ToolkitContext(Context, ConfigProtocol):
         stream_dict_backup = {}
         stream_dict_to_apply = {}
         if isinstance(streams, str):
+            # Default to all environment variables if no patterns provided
             if not patterns:
-                self.rich_exit("patterns are empty")
+                patterns = ["*"]
 
             for stream_name in streams.split(","):
                 if stream_name not in valid_streams:
@@ -211,7 +213,7 @@ class ToolkitContext(Context, ConfigProtocol):
             if console.secret_patterns:
                 stream_dict_backup[stream_name] = console.secret_patterns
                 debug(f"Backing up {stream_name=} {console.secret_patterns=}")
-                console.secret_patterns = pattern_list
+            console.secret_patterns = pattern_list
         yield
         for stream_name, pattern_list in stream_dict_backup.items():
             console = get_console(
