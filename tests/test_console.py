@@ -108,7 +108,7 @@ def test_context_redact_single_stream_print(
 
     @task()
     def my_task(ctx: Context):
-        with ctx.redact("out"):
+        with ctx.redact("out", patterns=["SECRET_KEY"]):
             ctx.print(f"{os.environ['SECRET_KEY']}")
 
     p = TestingToolkitProgram(namespace=ToolkitCollection(my_task))
