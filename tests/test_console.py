@@ -126,7 +126,7 @@ def test_context_redact_dict_pattern(
 
     @task()
     def my_task(ctx: Context):
-        with ctx.redact({"out": "SECRET_KEY"}):
+        with ctx.redact({"out": ["SECRET_KEY"]}):
             ctx.print(f"{os.environ['SECRET_KEY']}")
 
     p = TestingToolkitProgram(namespace=ToolkitCollection(my_task))
