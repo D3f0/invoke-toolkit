@@ -5,30 +5,45 @@ from textwrap import dedent
 
 from rich.syntax import Syntax
 
-from invoke_toolkit import Context, task
+from invoke_toolkit import Context, __version__, task
 
 try:
     from copier import run_copy
 except ImportError:
     run_copy = None  # type: ignore[assignment]
 
-TEMPLATE = r"""
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#     "invoke-toolkit==0.0.26",
-# ]
-# ///
 
-from invoke_toolkit import task, Context, script
+def _get_template() -> str:
+    """Generate template with current invoke-toolkit version"""
+    # For development versions with suffixes (.dev, .post, etc.),
+    # use >= specifier. For release versions, use exact pin.
+    version_clean = __version__.split("+")[0]  # Remove local version
+    if ".dev" in version_clean or ".post" in version_clean:
+        # Development version - use flexible specifier
+        version_specifier = f">={version_clean}"
+    else:
+        # Release version - use exact pin
+        version_specifier = f"=={version_clean}"
+    version_for_template = version_specifier
+    script_template = dedent(rf"""
+    #!/usr/bin/env -S uv run --script
+    # /// script
+    # requires-python = ">=3.10"
+    # dependencies = [
+    #     "invoke-toolkit{version_for_template}",
+    # ]
+    # ///
 
-@task()
-def hello_world(ctx: Context):
-    ctx.run("echo 'hello world'")
+    from invoke_toolkit import task, Context, script
 
-script()
-"""
+    @task()
+    def hello_world(ctx: Context):
+        ctx.run("echo 'hello world'")
+
+    script()
+    """)
+
+    return script_template.lstrip("\n")
 
 
 @task(
@@ -59,7 +74,8 @@ def script(
             ctx.rich_exit(
                 "For scripts, you need to add the [bold].py[/bold] suffix to the names"
             )
-        _ = path.write_text(TEMPLATE, encoding="utf-8")
+        template_content = _get_template()
+        _ = path.write_text(template_content, encoding="utf-8")
         content = path.read_text(encoding="utf-8")
         code = Syntax(content, lexer="python")
         ctx.print_err(f"Created script named path {path}")
@@ -114,7 +130,7 @@ def package(
     if run_copy is None:
         ctx.rich_exit(
             "copier is required to create packages. "
-            "Install it with: uv pip install copier"
+            "Install it with: uv pip install invoke-toolkit[copier]"
         )
 
     base = Path(location)
@@ -176,6 +192,7 @@ def package(
             "package_name": name,
             "package_slug": package_slug,
             "collection_name": package_slug,
+            "python_version": "3.10",
         }
 
         run_copy(
@@ -186,6 +203,7 @@ def package(
             unsafe=True,
             defaults=True,
             skip_tasks=True,
+            overwrite=True,
         )
         ctx.print_err(f"[green]✓ Package created at[/green] [bold]{target_path}[/bold]")
         ctx.print_err(

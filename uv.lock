@@ -600,7 +600,6 @@ name = "invoke-toolkit"
 source = { editable = "." }
 dependencies = [
     { name = "appdirs" },
-    { name = "copier" },
     { name = "invoke" },
     { name = "pdbpp" },
     { name = "pyyaml" },
@@ -610,9 +609,20 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
+copier = [
+    { name = "copier" },
+]
+debug = [
     { name = "hunter" },
     { name = "pdbpp" },
+]
+full = [
+    { name = "copier" },
+    { name = "hunter" },
+    { name = "pdbpp" },
+]
+templating = [
+    { name = "copier" },
 ]
 
 [package.dev-dependencies]
@@ -642,17 +652,21 @@ doc = [
 [package.metadata]
 requires-dist = [
     { name = "appdirs" },
-    { name = "copier", specifier = ">=9.10.3" },
-    { name = "hunter", marker = "extra == 'dev'", specifier = ">=3.7.0" },
+    { name = "copier", marker = "extra == 'copier'", specifier = ">=9.10.3" },
+    { name = "copier", marker = "extra == 'full'", specifier = ">=9.10.3" },
+    { name = "copier", marker = "extra == 'templating'", specifier = ">=9.10.3" },
+    { name = "hunter", marker = "extra == 'debug'", specifier = ">=3.7.0" },
+    { name = "hunter", marker = "extra == 'full'", specifier = ">=3.7.0" },
     { name = "invoke", specifier = ">=2.2.1" },
     { name = "pdbpp", specifier = ">=0.11.7" },
-    { name = "pdbpp", marker = "extra == 'dev'", specifier = ">=0.11.7" },
+    { name = "pdbpp", marker = "extra == 'debug'", specifier = ">=0.11.7" },
+    { name = "pdbpp", marker = "extra == 'full'", specifier = ">=0.11.7" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=13" },
     { name = "tomlkit", specifier = ">=0.13.3" },
     { name = "typing-extensions", specifier = ">=4.13.2" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["copier", "debug", "full", "templating"]
 
 [package.metadata.requires-dev]
 ci = [{ name = "nox", specifier = ">=2025.10.16" }]
