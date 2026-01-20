@@ -202,7 +202,7 @@ per-file-ignores = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=invoke_toolkit"
+addopts = "--cov=invoke_toolkit --html=report.html --self-contained-html"
 filterwarnings = []
 
 [tool.pyright]

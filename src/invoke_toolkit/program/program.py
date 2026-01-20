@@ -6,6 +6,7 @@ It allows three classes to be parametrized: Loader, Config and Executor
 
 __all__ = ["ToolkitProgram"]
 
+import ast
 import inspect
 import os
 import re
@@ -20,7 +21,18 @@ from rich.table import Table
 from invoke_toolkit.log.logger import setup_rich_logging, setup_traceback_handler
 from invoke_toolkit.output import get_console
 
-setup_traceback_handler()
+
+def env_enabled(value) -> bool:
+    """Check if environment variable value evaluates to True."""
+    try:
+        evaluated = ast.literal_eval(value)
+        return bool(evaluated)
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False
+
+
+if not env_enabled(os.getenv("DISABLE_RICH_TRACEBACK", "0")):
+    setup_traceback_handler()
 setup_rich_logging()
 # To override the built-in logging settings from invoke
 # we force rich to be installed first
@@ -338,6 +350,55 @@ class ToolkitProgram(Program):
         args.extend(toolkit_program_arguments)
         return args
 
+    def _load_entry_points_collection(self, start: str) -> "ToolkitCollection | None":
+        """
+        Load task collections from entry points.
+
+        Args:
+            start: Starting directory for entry point discovery
+
+        Returns:
+            ToolkitCollection with entry point tasks, or None if no entry points found
+        """
+        try:
+            # pylint: disable=import-outside-toplevel
+            from importlib.util import module_from_spec
+
+            from invoke_toolkit.loader.entrypoint import EntryPointLoader
+
+            ep_loader = EntryPointLoader(config=self.config, start=start)
+            spec = ep_loader.find(EMPTY_COLLECTION_NAME)
+            if spec is not None and spec.loader is not None:
+                debug("Loading collections from entry points")
+                # Load the module from the spec
+                ep_module = module_from_spec(spec)
+                sys.modules[spec.name] = ep_module
+                spec.loader.exec_module(ep_module)
+
+                # For virtual modules (from entry points), use start dir
+                # For real files, calculate parent like FilesystemLoader.load() does
+                if spec.origin is not None:
+                    source_file = Path(spec.origin)
+                    enclosing_dir = source_file.parent
+                    module_parent = enclosing_dir
+                    if spec.parent:  # it's a package
+                        module_parent = module_parent.parent
+                    loaded_from = str(module_parent)
+                else:
+                    # Virtual module from entry points
+                    loaded_from = start
+
+                ep_collection = ToolkitCollection.from_module(
+                    ep_module,
+                    loaded_from=loaded_from,
+                    auto_dash_names=self.config.tasks.auto_dash_names,
+                )
+                return ep_collection
+        except Exception as ep_err:  # pylint: disable=broad-exception-caught
+            debug(f"Could not load entry points: {ep_err}")
+
+        return None
+
     def load_collection(self) -> None:
         """
         Load a task collection based on parsed core args, or die trying.
@@ -366,27 +427,39 @@ class ToolkitProgram(Program):
             )
             # Load local tasks if they exist
             self.collection.load_local_tasks(search_path=parent)
+            # Also try to load entry points (merge with tasks.py)
+            ep_collection = self._load_entry_points_collection(start)
+            if ep_collection is not None:
+                debug("Merging entry point collections with tasks.py")
+                for name, collection in ep_collection.collections.items():
+                    self.collection.add_collection(collection, name=name)
         except CollectionNotFound as e:
             start = self.args["search-root"].value or "."
-            # Check if local_tasks.py exists before raising error
-            if not (Path(start) / "local_tasks.py").exists():
-                if not self.args["internal-col"].value:
-                    raise Exit(
-                        (
-                            "Can't find any collection named [red]{name!r}[/red].\n"
-                            "You can create a script with [yellow]{cmd} -x create.script --help[/yellow]\n"
-                            "You can create a script with [yellow]{cmd} -x create.package --help[/yellow]\n"
-                        ).format(name=e.name, cmd=self.command_name)
-                    )
-                debug("No collection found, will checking for internal")
+            # First try to load entry points (for packages without tasks.py)
+            ep_collection = self._load_entry_points_collection(start)
+            if ep_collection is not None:
+                debug("Loading collections from entry points")
+                self.collection = ep_collection
             else:
-                debug("No tasks.py found, but local_tasks.py exists, continuing...")
-            start = self.args["search-root"].value
-            self.config.set_project_location(start)
-            self.config.load_project()
-            self.collection = ToolkitCollection(EMPTY_COLLECTION_NAME)
-            # Try to load local tasks if they exist
-            self.collection.load_local_tasks(search_path=start)
+                # If entry points weren't found, try local_tasks or fail
+                if not (Path(start) / "local_tasks.py").exists():
+                    if not self.args["internal-col"].value:
+                        raise Exit(
+                            (
+                                "Can't find any collection named [red]{name!r}[/red].\n"
+                                "You can create a script with [yellow]{cmd} -x create.script --help[/yellow]\n"
+                                "You can create a script with [yellow]{cmd} -x create.package --help[/yellow]\n"
+                            ).format(name=e.name, cmd=self.command_name)
+                        )
+                    debug("No collection found, will checking for internal")
+                else:
+                    debug("No tasks.py found, but local_tasks.py exists, continuing...")
+                start = self.args["search-root"].value
+                self.config.set_project_location(start)
+                self.config.load_project()
+                self.collection = ToolkitCollection(EMPTY_COLLECTION_NAME)
+                # Try to load local tasks if they exist
+                self.collection.load_local_tasks(search_path=start)
 
         # if self.collection.name == EMPTY_COLLECTION_NAME:
         #     debug("Setting the list flag, as the desired collection name was not found")

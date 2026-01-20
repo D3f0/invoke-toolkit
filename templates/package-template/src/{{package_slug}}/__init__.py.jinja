@@ -4,6 +4,10 @@ __version__ = "0.1.0"
 __author__ = "{{ author_name }}"
 __email__ = "{{ author_email }}"
 
-from .tasks import ns  # noqa: F401
+from invoke_toolkit.collections import ToolkitCollection
 
-__all__ = ["ns"]
+# Create a collection that auto-discovers all task modules in this package
+collection = ToolkitCollection("{{ collection_name }}")
+collection.add_collections_from_namespace("{{ package_slug }}")
+
+__all__ = ["collection"]

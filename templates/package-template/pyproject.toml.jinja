@@ -22,11 +22,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "invoke-toolkit>=0.0.26",
+    "invoke-toolkit",  # Requires invoke-toolkit, any version
 ]
 
 [project.entry-points."invoke_toolkit.collection"]
-{{ collection_name }} = "{{ package_slug }}.tasks:ns"
+{{ collection_name }} = "{{ package_slug }}:collection"
 
 [tool.hatch.version]
 path = "src/{{ package_slug }}/__init__.py"
