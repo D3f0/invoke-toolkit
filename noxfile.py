@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING
 
-import nox  # pylint: disable=import-error
+import nox  # type: ignore[import-untyped]  # pylint: disable=import-error
 
 if TYPE_CHECKING:
-    from nox.sessions import Session
+    from nox.sessions import Session  # type: ignore[import-untyped]
 # uv will handle any missing python versions
 python_versions = ["3.10", "3.11", "3.12", "3.13"]
 

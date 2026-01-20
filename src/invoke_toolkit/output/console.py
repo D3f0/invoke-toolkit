@@ -6,11 +6,12 @@ import os
 import re
 from fnmatch import fnmatch
 from typing import List, Literal, Pattern, Union
-from typing_extensions import Annotated
-from invoke.util import debug
 
+from invoke.util import debug
 from rich.console import Console
 from rich.text import Text
+from typing_extensions import Annotated
+
 from invoke_toolkit.utils.singleton import singleton
 
 
@@ -36,7 +37,7 @@ class SecretRedactorConsole(Console):
             redact_char: Character to replace secrets with (default: "*")
         """
         super().__init__(*args, **kwargs)
-        self._compiled_patterns: List[Pattern] = []
+        self._compiled_patterns: List[Union[Pattern[str], str]] = []
         self._secret_map: dict = {}
         self.secret_patterns = secret_patterns or []
         self.substitution = substitution
@@ -69,7 +70,7 @@ class SecretRedactorConsole(Console):
                 self._compiled_patterns.append(re.compile(pattern))
             except re.error:
                 # Not a regex, treat as fnmatch pattern
-                self._compiled_patterns.append(pattern)
+                self._compiled_patterns.append(pattern)  # type: ignore[arg-type]
 
         # Build secret map: key -> value
         self._build_secret_map()
@@ -156,12 +157,12 @@ class ConsoleManager:  # pylint: disable=too-few-public-methods
     """Manages console instantiation"""
 
     def __init__(self):
-        self._consoles: dict[str, Console] = {}
+        self._consoles: dict[str, SecretRedactorConsole] = {}
 
     def get_console(
         self,
         stream: Union[Literal["out"], Literal["err"], Literal["log"]] = "err",
-    ) -> Union[SecretRedactorConsole]:
+    ) -> SecretRedactorConsole:
         """
         Returns a Console object. If redact is on will return a SecretRedactorConsole
 

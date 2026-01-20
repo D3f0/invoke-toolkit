@@ -126,16 +126,16 @@ class ToolkitExecutor(Executor):
             # (collection & shell env)
             # TODO: load_collection needs to be skipped if task is anonymous
             # (Fabric 2 or other subclassing libs only)
-            collection_config = self.collection.configuration(call.called_as)
+            collection_config = self.collection.configuration(call.called_as)  # type: ignore[attr-defined]
             config.load_collection(collection_config)
             config.load_shell_env()
             debug("Finished loading collection & shell env configs")
             # Get final context from the Call (which will know how to generate
             # an appropriate one; e.g. subclasses might use extra data from
             # being parameterized), handing in this config for use there.
-            context = call.make_context(config)
-            args = (context, *call.args)
-            result = call.task(*args, **call.kwargs)
+            context = call.make_context(config)  # type: ignore[attr-defined]
+            args = (context, *call.args)  # type: ignore[attr-defined]
+            result = call.task(*args, **call.kwargs)  # type: ignore[attr-defined]
             if autoprint:
                 # NOTE: Long strings will get wrapped when using autoprint in a console
                 #       we will use print for strings, for the case of piping output
@@ -147,7 +147,7 @@ class ToolkitExecutor(Executor):
                 # print(result)
             # TODO: handle the non-dedupe case / the same-task-different-args
             # case, wherein one task obj maps to >1 result.
-            results[call.task] = result
+            results[call.task] = result  # type: ignore[attr-defined]
         return results
 
     def normalize(
@@ -179,7 +179,7 @@ class ToolkitExecutor(Executor):
             calls = [ToolkitCall(self.collection[self.collection.default])]
         return calls
 
-    def dedupe(self, calls: List["ToolkitTask"]) -> List["ToolkitTask"]:
+    def dedupe(self, calls: List["ToolkitCall"]) -> List["ToolkitCall"]:
         """
         Deduplicate a list of `tasks <.Call>`.
 

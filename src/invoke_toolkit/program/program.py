@@ -192,12 +192,12 @@ class ToolkitProgram(Program):
         # Update config with disable_status flag from CLI
         if self.args["disable_status"].value:
             debug("Disabling status context manager via CLI flag")
-            self.config["disable_status"] = True
+            self.config["disable_status"] = True  # type: ignore[index]
 
         # Update config with init_shell flag from CLI
         if self.args["init_shell"].value:
             debug("Initializing shell for runner via CLI flag")
-            self.config["init_shell"] = True
+            self.config["init_shell"] = True  # type: ignore[index]
             # Set shell from $SHELL environment variable
             shell = os.environ.get("SHELL")
             if shell:

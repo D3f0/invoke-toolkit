@@ -65,8 +65,25 @@ repos:
             "-rn", # Only display messages
             "-sn", # Don't display the score
           ]
+
+      - id: ty-check
+        name: ty-check
+        entry: ty
+        language: system
+        types: [python]
+        require_serial: true
+        args: [
+            "check", # Only display messages
+          ]
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.8
     hooks:
       - id: actionlint
         args: ["--config-file=.github/actionlint-config.yaml"]
+
+  # - repo: https://github.com/allganize/ty-pre-commit
+  #   # Ty version.
+  #   rev: v0.0.12
+  #   hooks:
+  #     # Run the type checker.
+  #     - id: ty-check

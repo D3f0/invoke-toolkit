@@ -10,7 +10,6 @@ from invoke.tasks import Call, Task
 
 from invoke_toolkit.context import ToolkitContext
 
-
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -131,7 +130,7 @@ def task(  # pylint: disable=too-many-arguments
         task_decorated = invoke_task(wrapper, **task_kwargs)
 
         # Store reference to original function
-        task_decorated.__wrapped__ = f
+        task_decorated.__wrapped__ = f  # type: ignore[attr-defined]
 
         return cast(F, task_decorated)
 
