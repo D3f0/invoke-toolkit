@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-import nox
+import nox  # pylint: disable=import-error
 
 if TYPE_CHECKING:
     from nox.sessions import Session
@@ -19,6 +19,10 @@ def tests(session: "Session"):
 
     # session.run("uv", "run", "python", "-c", "import invoke_toolkit")
 
+    # Generate version-specific HTML report filename
+    python_version = session.python
+    html_report = f".nox/python-{python_version}-report.html"
+
     # Run pytest with common options
     session.run(
         "pytest",
@@ -29,5 +33,7 @@ def tests(session: "Session"):
         "--strict-markers",  # treat unregistered markers as errors
         "-n",
         "auto",  # parallel testing
+        f"--html={html_report}",  # generate HTML report with version in name
+        "--self-contained-html",  # make HTML report self-contained
         *session.posargs,  # allows passing additional pytest args from command line
     )
