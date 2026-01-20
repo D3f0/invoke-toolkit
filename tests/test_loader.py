@@ -1,27 +1,13 @@
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Union
 
 import pytest
 from invoke.runners import Result
 from pytest import TempPathFactory
-from tomlkit import TOMLDocument, dump, parse
 
 from invoke_toolkit import Context
 from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT
-
-
-def add_entrypoint(pth: Union[str, Path], name: str, value: Any) -> None:
-    """Adds an entry-point to a pyproject.toml file defined by pth"""
-    if isinstance(pth, (str, Path)):
-        with open(pth, encoding="utf-8") as fp:
-            toml: TOMLDocument = parse(fp.read())
-    else:
-        raise ValueError(pth)
-    entry_points = toml["project"].setdefault("entry-points", {})  # type: ignore[union-attr]
-    entry_points[name] = value
-    with open(pth, mode="w", encoding="utf-8") as fp:
-        dump(toml, fp)
+from tests.conftest import add_entrypoint
 
 
 @pytest.mark.skip(reason="API not yet defined")

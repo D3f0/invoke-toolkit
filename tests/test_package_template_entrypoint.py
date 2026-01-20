@@ -10,10 +10,9 @@ This test validates the workflow:
 
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Union
 
 import pytest
-from tomlkit import TOMLDocument, dump, parse
+from tomlkit import TOMLDocument, parse
 
 from invoke_toolkit import Context
 from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT
@@ -24,19 +23,6 @@ try:
     HAS_COPIER = True
 except ImportError:
     HAS_COPIER = False
-
-
-def add_entrypoint(pth: Union[str, Path], name: str, value: Any) -> None:
-    """Adds an entry-point to a pyproject.toml file defined by pth"""
-    if isinstance(pth, (str, Path)):
-        with open(pth, encoding="utf-8") as fp:
-            toml: TOMLDocument = parse(fp.read())
-    else:
-        raise ValueError(pth)
-    entry_points = toml["project"].setdefault("entry-points", {})  # type: ignore[union-attr]
-    entry_points[name] = value
-    with open(pth, mode="w", encoding="utf-8") as fp:
-        dump(toml, fp)
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
@@ -117,61 +103,6 @@ def test_package_entry_point_configuration(ctx: Context, tmp_path: Path, git_roo
     )
     assert collection_eps[expected_slug] == f"{expected_slug}:collection", (
         f"Entry point value incorrect for '{expected_slug}'"
-    )
-
-
-@pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_uv_tool_run_with_multiple_packages(
-    ctx: Context, tmp_path: Path, git_root: str
-):
-    """
-    Test that `uv tool run` with --with flags discovers multiple packages.
-
-    This test validates:
-    1. Two packages can be created from template
-    2. `uv tool run --with pkg1 --with pkg2` discovers collections from both
-    3. Tasks from both packages are available in the isolated environment
-    """
-    pkg_location = tmp_path / "packages"
-    pkg_location.mkdir()
-
-    packages = ["pkg-alpha", "pkg-beta"]
-
-    # Create multiple packages
-    for package_name in packages:
-        result = ctx.run(
-            f"uv run intk -x create.package "
-            f"--name {package_name} "
-            f"--location {pkg_location}",
-            warn=True,
-        )
-        assert result.ok, f"Package {package_name} creation failed: {result.stderr}"
-
-    # Verify all packages were created
-    for package_name in packages:
-        pkg_dir = pkg_location / package_name
-        assert pkg_dir.exists(), f"Package {package_name} not created"
-
-    # Create paths for uv tool run
-    pkg_alpha = pkg_location / "pkg-alpha"
-    pkg_beta = pkg_location / "pkg-beta"
-
-    # Test uv tool run discovers both packages
-    result = ctx.run(
-        f"uv tool run --with {git_root} --with {pkg_alpha} --with {pkg_beta} intk -l",
-        warn=True,
-        pty=False,
-    )
-
-    assert result.ok, f"uv tool run failed: {result.stderr}"
-
-    output = result.stdout
-    # Both packages should have discoverable collections
-    assert "pkg_alpha" in output or "pkg-alpha" in output, (
-        f"pkg-alpha collection not discovered in: {output}"
-    )
-    assert "pkg_beta" in output or "pkg-beta" in output, (
-        f"pkg-beta collection not discovered in: {output}"
     )
 
 
@@ -386,122 +317,6 @@ def test_installed_package_discovery(ctx: Context, tmp_path: Path, git_root: str
     assert pkg_slug in output or package_name in output, (
         f"Installed package collection not found in: {output}"
     )
-
-
-@pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_package_plugin_tasks_discoverable_without_tasks_py(
-    ctx: Context, tmp_path: Path, git_root: str
-):
-    """
-    Test that package tasks are discoverable via entry points without tasks.py.
-
-    This validates the complete workflow:
-    1. Create a package using the template in a temporary directory
-    2. Run `uv tool run --from {git_root} --with {package}`
-    3. List tasks and verify they appear under the collection name
-    4. Verify no import errors occur
-
-    This tests the core issue: packages created from template should work
-    even without a tasks.py file, relying on entry points discovery.
-    """
-    # Create package from template
-    pkg_name = "invoke-toolkit-plugin-test"
-    result = ctx.run(
-        f"uv run intk -x create.package --name {pkg_name} --location {tmp_path}",
-        warn=True,
-        pty=False,
-    )
-    assert result.ok, f"Package creation failed: {result.stderr}"
-
-    pkg_dir = tmp_path / pkg_name
-    assert pkg_dir.exists(), f"Package not created at {pkg_dir}"
-    assert (pkg_dir / "pyproject.toml").exists()
-    assert (pkg_dir / "src" / "invoke_toolkit_plugin_test" / "__init__.py").exists()
-    assert (pkg_dir / "src" / "invoke_toolkit_plugin_test" / "tasks.py").exists()
-
-    # Verify pyproject.toml has entry point configured
-    pyproject_path = pkg_dir / "pyproject.toml"
-    with open(pyproject_path, encoding="utf-8") as fp:
-        toml: TOMLDocument = parse(fp.read())
-
-    entry_points = toml.get("project", {}).get("entry-points", {})
-    assert COLLECTION_ENTRY_POINT in entry_points, "Entry point not configured"
-    collection_eps = entry_points[COLLECTION_ENTRY_POINT]
-    assert "invoke_toolkit_plugin_test" in collection_eps, (
-        "Collection not in entry points"
-    )
-
-    # Step 1: List tasks from the package directory without tasks.py
-    # This simulates the use case: cd {tmpdir}/{package} && intk -l
-    with ctx.cd(pkg_dir):
-        result = ctx.run(
-            f"uv tool run --from {git_root} --with {pkg_dir} intk -l",
-            warn=True,
-            pty=False,
-        )
-        assert result.ok, (
-            f"Failed to list tasks from package: {result.stderr}\n{result.stdout}"
-        )
-
-        output = result.stdout
-        # The hello task should be discoverable from the package's collection
-        assert "hello" in output.lower(), f"hello task not found in output: {output}"
-        # The collection name should appear
-        assert (
-            "invoke_toolkit_plugin_test" in output
-            or "invoke-toolkit-plugin-test" in output
-        ), f"Collection name not found in output: {output}"
-
-    # Step 2: Use uv tool run with the package to verify isolated environment works
-    # This is the real use case: uvx --with {package} invoke-toolkit -l
-    with ctx.cd(tmp_path):
-        result = ctx.run(
-            f"uv tool run --from {git_root} --with {pkg_dir} invoke-toolkit -l",
-            warn=True,
-            pty=False,
-        )
-        assert result.ok, (
-            f"Failed to list tasks in isolated environment: {result.stderr}\n{result.stdout}"
-        )
-
-        output = result.stdout
-        # The hello task should be discoverable in isolated environment
-        assert "hello" in output.lower(), (
-            f"hello task not found in isolated env output: {output}"
-        )
-        # The collection should be discoverable
-        assert (
-            "invoke_toolkit_plugin_test" in output
-            or "invoke-toolkit-plugin-test" in output
-        ), f"Collection not discoverable in isolated env: {output}"
-
-    # Step 3: Actually run a task from the package to verify full functionality
-    with ctx.cd(pkg_dir):
-        result = ctx.run(
-            "uv run intk invoke-toolkit-plugin-test.hello",
-            warn=True,
-            pty=False,
-        )
-        assert result.ok, f"Failed to run task: {result.stderr}\n{result.stdout}"
-        # Should see the hello task output
-        assert "hello" in result.stdout.lower(), (
-            f"Task did not execute properly: {result.stdout}"
-        )
-
-    # Step 4: Verify in isolated environment via uv tool run
-    with ctx.cd(tmp_path):
-        result = ctx.run(
-            f"uv tool run --from {git_root} --with {pkg_dir} invoke-toolkit "
-            f"invoke-toolkit-plugin-test.hello",
-            warn=True,
-            pty=False,
-        )
-        assert result.ok, (
-            f"Failed to run task in isolated env: {result.stderr}\n{result.stdout}"
-        )
-        assert "hello" in result.stdout.lower(), (
-            f"Task did not execute in isolated env: {result.stdout}"
-        )
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")

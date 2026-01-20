@@ -5,10 +5,11 @@ import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
-from typing import Protocol
+from typing import Any, Protocol, Union
 
 import attrs
 import pytest
+from tomlkit import TOMLDocument, dump, parse
 
 # from invoke.context import Context
 from invoke_toolkit import Context
@@ -48,6 +49,19 @@ def venv(ctx: Context, tmp_path: Path):
 def package_in_venv(git_root, ctx: Context, venv: Path) -> None:
     """A virtual environment in a temporary directory with the package"""
     ctx.run(f"uv pip install --editable {git_root}")
+
+
+def add_entrypoint(pth: Union[str, Path], name: str, value: Any) -> None:
+    """Adds an entry-point to a pyproject.toml file defined by pth"""
+    if isinstance(pth, (str, Path)):
+        with open(pth, encoding="utf-8") as fp:
+            toml: TOMLDocument = parse(fp.read())
+    else:
+        raise ValueError(pth)
+    entry_points = toml["project"].setdefault("entry-points", {})  # type: ignore[union-attr]
+    entry_points[name] = value
+    with open(pth, mode="w", encoding="utf-8") as fp:
+        dump(toml, fp)
 
 
 @pytest.fixture(autouse=True)
