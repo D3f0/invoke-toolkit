@@ -65,7 +65,8 @@ class EntryPointLoader(FilesystemLoader):
             name: Name of the collection to find
 
         Returns:
-            ModuleSpec with namespace aggregating all matching entry points
+            ModuleSpec with namespace aggregating all matching entry points,
+            or falls back to filesystem loader if no entry points found
         """
         entry_points = self._load_entry_points()
 
@@ -79,6 +80,13 @@ class EntryPointLoader(FilesystemLoader):
 
         # Create a namespace that aggregates all entry points
         spec = self._create_compound_module(entry_points)
+        if spec is None:
+            debug(
+                "Could not create compound module from entry points. "
+                "Falling back to filesystem loader"
+            )
+            # Fall back to parent class for filesystem loading
+            return super().find(name)
         return spec
 
     def _load_entry_points(self):
@@ -135,7 +143,8 @@ class EntryPointLoader(FilesystemLoader):
             entry_points: Dictionary of loaded collections
 
         Returns:
-            ModuleSpec with Invoke Collection with tasks from all entry points
+            ModuleSpec with Invoke Collection with tasks from all entry points,
+            or None if no valid entry points were found
         """
 
         if not entry_points:
@@ -143,17 +152,47 @@ class EntryPointLoader(FilesystemLoader):
 
         # Create root collection
         root = ToolkitCollection()
+        any_loaded = False
 
         # Add each loaded collection as a sub-collection
         for name, collection in entry_points.items():
             if isinstance(collection, ToolkitCollection):
                 # It's already a Collection, add it
                 root.add_collection(collection, name=name)
-            elif hasattr(collection, "__dict__") and hasattr(collection, "tasks"):
-                # It's a module with tasks, wrap it in a Collection
-                root.add_collection(
-                    ToolkitCollection.from_module(collection), name=name
-                )
+                any_loaded = True
+            elif hasattr(collection, "__dict__"):
+                # It's a module - try to auto-detect ToolkitCollection instances
+                toolkit_collections = [
+                    obj
+                    for attr_name in dir(collection)
+                    if not attr_name.startswith("_")
+                    for obj in [getattr(collection, attr_name, None)]
+                    if isinstance(obj, ToolkitCollection)
+                ]
+
+                if toolkit_collections:
+                    # Found ToolkitCollection instance(s), use the first one
+                    root.add_collection(toolkit_collections[0], name=name)
+                    any_loaded = True
+                elif hasattr(collection, "tasks"):
+                    # It's a module with tasks, wrap it in a Collection
+                    root.add_collection(
+                        ToolkitCollection.from_module(collection), name=name
+                    )
+                    any_loaded = True
+                else:
+                    # Try to treat it as a module
+                    try:
+                        root.add_collection(
+                            ToolkitCollection.from_module(collection), name=name
+                        )
+                    except Exception as e:
+                        import warnings
+
+                        warnings.warn(
+                            f"Could not add collection from entry point '{name}': {e}",
+                            RuntimeWarning,
+                        )
             else:
                 # Try to treat it as a module
                 try:
@@ -167,6 +206,10 @@ class EntryPointLoader(FilesystemLoader):
                         f"Could not add collection from entry point '{name}': {e}",
                         RuntimeWarning,
                     )
+
+        # Return None if we didn't manage to load any collections
+        if not any_loaded:
+            return None
 
         # Create a module with the collection
         attributes = {

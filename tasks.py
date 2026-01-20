@@ -1,5 +1,6 @@
 # pyright: ignore[reportMissingParameterType]
 
+import json
 import re
 import subprocess
 import sys
@@ -351,3 +352,21 @@ def type_check(ctx: Context, all_files=False):
         """,
         pty=True,  # Colors 🎨
     )
+
+
+@task()
+def plugin_clean(ctx: Context):
+    """Cleans up packages used as plugins"""
+    with ctx.cd(REPO_ROOT):
+        packages: list[dict[str, str]] = json.loads(
+            ctx.run("uv pip list --format json", hide=not ctx.config.run.echo).stdout
+        )
+        editables = [
+            package_info
+            for package_info in packages
+            if "editable_project_location" in package_info
+            and not package_info["editable_project_location"] == str(REPO_ROOT)
+        ]
+        for pkg in editables:
+            name = pkg["name"]
+            ctx.run(f"uv pip uninstall {name}")

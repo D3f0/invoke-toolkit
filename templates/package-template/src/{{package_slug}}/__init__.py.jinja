@@ -4,6 +4,25 @@ __version__ = "0.1.0"
 __author__ = "{{ author_name }}"
 __email__ = "{{ author_email }}"
 
-from .tasks import ns  # noqa: F401
+from invoke_toolkit.collections import ToolkitCollection
 
-__all__ = ["ns"]
+# Create a collection that auto-discovers all tasks from submodules in a flat structure.
+# This means all @task decorated functions from all modules (tasks.py, utils.py, etc.)
+# will be directly accessible under the collection name without the module prefix.
+#
+# Example usage:
+#   intk {{ collection_name }}.hello           # From tasks.py
+#   intk {{ collection_name }}.my_task         # From utils.py or any other module
+#
+# NOT:
+#   intk {{ collection_name }}.tasks.hello     # (old nested structure)
+#   intk {{ collection_name }}.utils.my_task
+#
+# If you prefer the nested structure (tasks grouped by module), replace the line below with:
+#   collection.add_collections_from_namespace("{{ package_slug }}")
+# This will preserve the module names in the namespace.
+
+collection = ToolkitCollection("{{ collection_name }}")
+collection.add_flat_tasks_from_namespace("{{ package_slug }}")
+
+__all__ = ["collection"]

@@ -33,7 +33,6 @@ dependencies = [
     "tomlkit>=0.13.3",
     "pyyaml>=6.0.3",
     "pdbpp >=0.11.7",
-    "copier>=9.10.3",
 ]
 
 # Git based versioning, uses git tags
@@ -111,7 +110,18 @@ exclude_lines = [
 "src/invoke_toolkit/program/program.py" = ["E402"]
 
 [project.optional-dependencies]
-dev = [
+copier = [
+  "copier>=9.10.3",
+]
+templating = [
+  "copier>=9.10.3",
+]
+debug = [
+  "hunter>=3.7.0",
+  "pdbpp>=0.11.7",
+]
+full = [
+  "copier>=9.10.3",
   "hunter>=3.7.0",
   "pdbpp>=0.11.7",
 ]
@@ -121,6 +131,7 @@ ci = [
     "nox>=2025.10.16",
 ]
 dev = [
+    "attrs>=24.1.0",
     "copier>=9.10.3",
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",
@@ -192,7 +203,7 @@ per-file-ignores = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=invoke_toolkit"
+addopts = "--cov=invoke_toolkit --html=report.html --self-contained-html"
 filterwarnings = []
 
 [tool.pyright]
