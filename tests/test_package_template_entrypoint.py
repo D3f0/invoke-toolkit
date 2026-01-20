@@ -18,7 +18,6 @@ from tomlkit import TOMLDocument, dump, parse
 from invoke_toolkit import Context
 from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT
 
-
 # Check if copier is installed
 try:
     __import__("copier")
@@ -212,11 +211,22 @@ def test_generated_collection_module_structure(
         assert f'collection = ToolkitCollection("{pkg_slug}")' in init_content, (
             "Collection not created with correct name"
         )
-        assert "collection.add_collections_from_namespace" in init_content, (
-            "Collection does not auto-discover tasks"
+        assert "collection.add_flat_tasks_from_namespace" in init_content, (
+            "Collection does not auto-discover tasks in flat structure"
         )
         assert "collection" in init_content and "__all__" in init_content, (
             "Collection not properly exported"
+        )
+        # Verify documentation about flat vs namespace discovery
+        assert "flat" in init_content.lower(), (
+            "Documentation about flat task discovery is missing"
+        )
+        assert "add_collections_from_namespace" in init_content, (
+            "Documentation about nested namespace discovery option is missing"
+        )
+        # Verify examples in documentation show correct namespace structure
+        assert pkg_slug in init_content, (
+            "Collection name not shown in documentation examples"
         )
 
     # Check tasks.py has at least one sample task

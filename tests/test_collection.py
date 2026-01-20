@@ -45,6 +45,60 @@ def test_collection_load_submodules(monkeypatch, tmp_path: Path):
     assert set(found_collections.keys()) == {"mod1", "mod2"}
 
 
+def test_flat_task_discovery_from_namespace(monkeypatch, tmp_path: Path):
+    """
+    Test that add_flat_tasks_from_namespace flattens all tasks from submodules
+    into the collection without module hierarchy, while keeping the collection name.
+    """
+    ns = ToolkitCollection("test_pkg")
+    code_module_for_tasks = dedent(
+        """
+        from invoke_toolkit import task
+
+        @task()
+        def a_task(ctx):
+            ...
+        """
+    )
+
+    def create_module(folder: Path, name: str, code=code_module_for_tasks):
+        file_to_write_to = folder / name
+        file_to_write_to.write_text(code)
+        return file_to_write_to
+
+    # Simulate modules
+    to_import_p: Path = tmp_path / "to_import_flat"
+    to_import_p.mkdir()
+    tasks_p: Path = to_import_p / "tasks"
+    tasks_p.mkdir()
+    # Create the package manager for to_import.tasks (the __init__.py)
+    (tasks_p / "__init__.py").write_text("")
+    create_module(
+        tasks_p, "mod1.py", code_module_for_tasks.replace("a_task", "task_one")
+    )
+    create_module(
+        tasks_p, "mod2.py", code_module_for_tasks.replace("a_task", "task_two")
+    )
+
+    sys.path.append(str(tmp_path))
+
+    # Use flat discovery instead of nested collections
+    ns.add_flat_tasks_from_namespace("to_import_flat.tasks")
+
+    # Tasks should be directly in collection, not in module subcollections
+    found_tasks = ns.tasks
+    assert "task-one" in found_tasks, (
+        f"task-one not found in tasks: {found_tasks.keys()}"
+    )
+    assert "task-two" in found_tasks, (
+        f"task-two not found in tasks: {found_tasks.keys()}"
+    )
+    # Verify no subcollections were created (tasks are flattened into this collection)
+    assert len(ns.collections) == 0, (
+        f"Unexpected collections found: {ns.collections.keys()}"
+    )
+
+
 def test_load_local_tasks(tmp_path: Path):
     """
     Test loading local_tasks.py from a directory

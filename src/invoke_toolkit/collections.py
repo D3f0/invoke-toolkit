@@ -155,6 +155,59 @@ class ToolkitCollection(Collection):
             #       collection.configure(config)
             self.add_collection(coll=coll, name=name)
 
+    def add_flat_tasks_from_namespace(self, namespace: str) -> None:
+        """
+        Imports all submodules from a namespace and adds all their tasks
+        to this collection with a flattened structure (no module hierarchy).
+
+        This flattens the module structure into the current collection.
+        For example, if this collection is named 'mypackage', tasks in
+        'mypackage.tasks' and 'mypackage.utils' modules will be accessible
+        as 'mypackage.task_name' instead of 'mypackage.tasks.task_name' or
+        'mypackage.utils.task_name'.
+
+        Args:
+            namespace: The package namespace to import (e.g., 'mypackage')
+
+        Example:
+            collection = ToolkitCollection("mypackage")
+            collection.add_flat_tasks_from_namespace("mypackage")
+            # Now you can access: intk mypackage.hello
+            # Instead of: intk mypackage.tasks.hello
+        """
+        # Attempt simple import
+        ok = False
+        if namespace not in sys.modules:
+            debug(f"Attempting simple import of {namespace}")
+            try:
+                importlib.import_module(namespace)
+                ok = True
+            except ImportError:
+                logger.warning(f"Failed to import {namespace}")
+
+        if not ok:
+            debug("Starting stack inspection to find module")
+            # Trying to import relative to caller's script
+            caller_path = get_calling_file_path(
+                # We're going to get the path of the file where this call
+                # was made
+                find_call_text=".add_flat_tasks_from_namespace("
+            )
+            debug(f"Adding {caller_path} in order to import {namespace}")
+            if caller_path:
+                sys.path.append(caller_path)
+            # This should work even if there's no __init__ alongside the
+            # program main
+            importlib.import_module(namespace)
+
+        # Import all submodules and add their tasks directly to this collection
+        for _module_name, module in import_submodules(namespace).items():
+            coll = ToolkitCollection.from_module(module)
+            # Add tasks from this module directly to this collection
+            for task_name, task in coll.tasks.items():
+                if task is not None:
+                    self.add_task(task, name=task_name)
+
     def load_plugins(self):
         """
         This will call to .add_collections_from_namespace but will ensure to
