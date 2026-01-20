@@ -630,6 +630,7 @@ ci = [
     { name = "nox" },
 ]
 dev = [
+    { name = "attrs" },
     { name = "copier" },
     { name = "hunter" },
     { name = "pdbpp" },
@@ -671,6 +672,7 @@ provides-extras = ["copier", "debug", "full", "templating"]
 [package.metadata.requires-dev]
 ci = [{ name = "nox", specifier = ">=2025.10.16" }]
 dev = [
+    { name = "attrs", specifier = ">=24.1.0" },
     { name = "copier", specifier = ">=9.10.3" },
     { name = "hunter", specifier = ">=3.7.0" },
     { name = "pdbpp", specifier = ">=0.11.7" },
