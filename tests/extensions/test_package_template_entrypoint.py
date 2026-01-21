@@ -40,13 +40,14 @@ def test_create_package_via_intk_command(ctx: Context, tmp_path: Path, git_root:
     pkg_location.mkdir()
 
     # Create package from template
-    result = ctx.run(
-        f"uv run intk -x create.package "
-        f"--name invoke-toolkit-pkg1 "
-        f"--location {pkg_location}",
-        warn=True,
-    )
-    assert result.ok, f"Package creation failed: {result.stderr}"
+    with ctx.cd(tmp_path):
+        result = ctx.run(
+            f"uv run intk -x create.package "
+            f"--name invoke-toolkit-pkg1 "
+            f"--location {pkg_location}",
+            warn=True,
+        )
+        assert result.ok, f"Package creation failed: {result.stderr}"
 
     # Verify package directory structure
     pkg_dir = pkg_location / "invoke-toolkit-pkg1"
@@ -78,11 +79,12 @@ def test_package_entry_point_configuration(ctx: Context, tmp_path: Path, git_roo
     pkg_location.mkdir()
 
     # Create package
-    result = ctx.run(
-        f"uv run intk -x create.package --name my-test-package --location {pkg_location}",
-        warn=True,
-    )
-    assert result.ok, f"Package creation failed: {result.stderr}"
+    with ctx.cd(tmp_path):
+        result = ctx.run(
+            f"uv run intk -x create.package --name my-test-package --location {pkg_location}",
+            warn=True,
+        )
+        assert result.ok, f"Package creation failed: {result.stderr}"
 
     pkg_dir = pkg_location / "my-test-package"
     pyproject_path = pkg_dir / "pyproject.toml"
@@ -123,11 +125,12 @@ def test_generated_collection_module_structure(
 
     package_name = "test-pkg"
 
-    result = ctx.run(
-        f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
-        warn=True,
-    )
-    assert result.ok, f"Package creation failed: {result.stderr}"
+    with ctx.cd(tmp_path):
+        result = ctx.run(
+            f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
+            warn=True,
+        )
+        assert result.ok, f"Package creation failed: {result.stderr}"
 
     pkg_dir = pkg_location / package_name
     pkg_slug = package_name.replace("-", "_")
@@ -187,11 +190,12 @@ def test_package_with_custom_collection_name(
 
     package_name = "my-custom-pkg"
 
-    result = ctx.run(
-        f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
-        warn=True,
-    )
-    assert result.ok, f"Package creation failed: {result.stderr}"
+    with ctx.cd(tmp_path):
+        result = ctx.run(
+            f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
+            warn=True,
+        )
+        assert result.ok, f"Package creation failed: {result.stderr}"
 
     pkg_dir = pkg_location / package_name
     pkg_slug = package_name.replace("-", "_")
@@ -234,11 +238,12 @@ def test_toolkit_machinery_over_invoke_errors(
     package_name = "error-test-pkg"
 
     # Create package
-    result = ctx.run(
-        f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
-        warn=True,
-    )
-    assert result.ok, f"Package creation failed: {result.stderr}"
+    with ctx.cd(tmp_path):
+        result = ctx.run(
+            f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
+            warn=True,
+        )
+        assert result.ok, f"Package creation failed: {result.stderr}"
 
     pkg_dir = pkg_location / package_name
     pkg_slug = package_name.replace("-", "_")
@@ -265,11 +270,12 @@ def test_toolkit_machinery_over_invoke_errors(
     tasks_file.write_text(failing_task_code, encoding="utf-8")
 
     # Try to run the failing task via uv tool run
-    result = ctx.run(
-        f"uv tool run --with {git_root} --with {pkg_dir} intk failing-task",
-        warn=True,
-        pty=False,
-    )
+    with ctx.cd(tmp_path):
+        result = ctx.run(
+            f"uv tool run --with {git_root} --with {pkg_dir} intk failing-task",
+            warn=True,
+            pty=False,
+        )
 
     # The task should fail, but error should be handled by invoke-toolkit
     assert not result.ok, "Task should have failed"
@@ -294,11 +300,12 @@ def test_installed_package_discovery(ctx: Context, tmp_path: Path, git_root: str
     package_name = "installed-test-pkg"
 
     # Create package
-    result = ctx.run(
-        f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
-        warn=True,
-    )
-    assert result.ok, f"Package creation failed: {result.stderr}"
+    with ctx.cd(tmp_path):
+        result = ctx.run(
+            f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
+            warn=True,
+        )
+        assert result.ok, f"Package creation failed: {result.stderr}"
 
     pkg_dir = pkg_location / package_name
 
@@ -308,8 +315,9 @@ def test_installed_package_discovery(ctx: Context, tmp_path: Path, git_root: str
         assert result.ok, f"Failed to install package: {result.stderr}"
 
     # List tasks should now include the installed package collection
-    result = ctx.run("uv run intk -l", warn=True, pty=False)
-    assert result.ok, f"Failed to list tasks: {result.stderr}"
+    with ctx.cd(tmp_path):
+        result = ctx.run("uv run intk -l", warn=True, pty=False)
+        assert result.ok, f"Failed to list tasks: {result.stderr}"
 
     # The installed collection should be discoverable
     pkg_slug = package_name.replace("-", "_")

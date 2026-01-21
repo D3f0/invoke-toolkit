@@ -500,12 +500,15 @@ def test_create_package_create_venv_install_intk_and_package_and_list(
     package_name = "invoke-toolkit-extra-pkg"
     tmp_pkg_loc = tmp_path_factory.mktemp("pkg")
     tmp_pkg_path = tmp_pkg_loc / package_name
+    # Create package in temporary directory
+    tmp_work_dir = tmp_path_factory.mktemp("work")
     subprocess.run(
         f"invoke-toolkit -x create.package --name {package_name} --location {tmp_pkg_loc}",
         shell=True,
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        cwd=tmp_work_dir,
     )
     # First we add invoke-toolkit
     temp_venv.add_package(git_root)
