@@ -23,17 +23,22 @@ _unsafe: true
 package_name:
   type: str
   help: What is the Python package name?
-  default: my_tasks_package
+  default: invoke-toolkit-extension
 
 package_slug:
   type: str
   help: What is the Python package slug?
   default: "{{ package_name.lower().replace('-', '_').replace(' ', '_') }}"
 
+extension_short_name:
+  type: str
+  help: Short name for the extension (e.g., 'ext' for 'invoke-toolkit-ext')?
+  default: "{{ package_slug }}"
+
 collection_name:
   type: str
   help: What is the collection name to expose?
-  default: "{{ package_slug }}"
+  default: "{{ extension_short_name }}"
 
 author_name:
   type: str

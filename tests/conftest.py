@@ -13,6 +13,7 @@ from tomlkit import TOMLDocument, dump, parse
 
 # from invoke.context import Context
 from invoke_toolkit import Context
+from invoke_toolkit.output.console import manager
 
 
 @pytest.fixture
@@ -67,10 +68,6 @@ def add_entrypoint(pth: Union[str, Path], name: str, value: Any) -> None:
 @pytest.fixture(autouse=True)
 def clean_consoles():
     """Resets the console manager"""
-    from invoke_toolkit.output.console import (
-        manager,  # pylint: disable=import-outside-toplevel
-    )
-
     manager._consoles = {}  # pylint: disable=protected-access
 
 

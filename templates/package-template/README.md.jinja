@@ -28,6 +28,17 @@ Example:
 intk {{ collection_name }}.hello --name "Alice"
 ```
 
+## Running Standalone
+
+You can also run this package standalone without installing it system-wide, using `uvx`:
+
+```bash
+cd path/to/{{ package_slug }}
+uvx --from . invoke-toolkit -l
+```
+
+This allows you to test and use the package's tasks in an isolated environment without affecting your system Python installation.
+
 ## Development
 
 To set up the development environment:

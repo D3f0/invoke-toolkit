@@ -2,8 +2,21 @@
 Type annotated tasks and and overrides over invoke
 """
 
+import inspect
 from functools import wraps
-from typing import Any, Callable, Optional, Sequence, Type, TypeVar, cast, overload
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Optional,
+    Sequence,
+    Type,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+    overload,
+)
 
 from invoke import task as invoke_task
 from invoke.tasks import Call, Task
@@ -11,6 +24,48 @@ from invoke.tasks import Call, Task
 from invoke_toolkit.context import ToolkitContext
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _extract_annotated_help(func: Any) -> dict[str, str]:
+    """
+    Extract parameter documentation from Annotated types in function signature.
+
+    Scans the function's parameters for Annotated types and extracts their
+    documentation strings. This allows parameters to be self-documenting
+    without requiring a separate help dict.
+
+    Skips the 'ctx' or 'c' parameter (Invoke Context) which Invoke doesn't allow help for.
+
+    Args:
+        func: The function to extract documentation from
+
+    Returns:
+        Dictionary mapping parameter names to their documentation strings from Annotated types
+    """
+    help_dict: dict[str, str] = {}
+
+    try:
+        sig = inspect.signature(func)
+        for param_name, param in sig.parameters.items():
+            # Skip 'self', 'ctx', 'c' and other special parameters
+            if param_name.startswith("_") or param_name in ("ctx", "c"):
+                continue
+
+            annotation = param.annotation
+            if annotation == inspect.Parameter.empty:
+                continue
+
+            # Check if it's an Annotated type
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+                # Annotated[type, doc, ...] - doc is the second argument
+                if len(args) > 1 and isinstance(args[1], str):
+                    help_dict[param_name] = args[1]
+    except (ValueError, TypeError):
+        # If we can't extract, just return empty dict
+        pass
+
+    return help_dict
 
 
 class ToolkitTask(Task): ...
@@ -56,7 +111,7 @@ def task(
 ) -> Callable[[F], F]: ...
 
 
-def task(  # pylint: disable=too-many-arguments
+def task(  # pylint: disable=too-many-arguments,too-many-branches
     func: Optional[F] = None,
     *,
     name: Optional[str] = None,
@@ -78,6 +133,9 @@ def task(  # pylint: disable=too-many-arguments
 
     Supports all @task parameters while maintaining IDE/type checker support.
 
+    Automatically merges parameter documentation from Annotated types with explicit help dict.
+    Explicit help dict takes precedence over Annotated documentation.
+
     Usage:
         @task
         def my_task(c: Context, name: str, count: int = 5) -> None:
@@ -87,6 +145,24 @@ def task(  # pylint: disable=too-many-arguments
         @task(autoprint=True, help={"name": "The target name"})
         def another_task(c: Context, name: str) -> None:
             return "result"
+
+        # Using Annotated for self-documenting parameters
+        @task
+        def documented_task(
+            ctx: Context,
+            name: Annotated[str, "The target name"],
+            count: Annotated[int, "Number of iterations"] = 5,
+        ) -> None:
+            '''Task with Annotated parameter documentation.'''
+            pass
+
+        # Explicit help dict overrides Annotated documentation
+        @task(help={"name": "Override annotation doc"})
+        def override_task(
+            ctx: Context,
+            name: Annotated[str, "Original annotation doc"],
+        ) -> None:
+            pass
     """
 
     def decorator(f: F) -> F:
@@ -97,6 +173,15 @@ def task(  # pylint: disable=too-many-arguments
 
         # Preserve the type hints on the wrapper
         wrapper.__annotations__ = f.__annotations__
+
+        # Extract documentation from Annotated types
+        annotated_help = _extract_annotated_help(f)
+
+        # Merge explicit help with Annotated documentation
+        # Explicit help takes precedence
+        merged_help = annotated_help.copy()
+        if help is not None:
+            merged_help.update(help)
 
         # Build task decorator kwargs
         task_kwargs: dict[str, Any] = {}
@@ -117,8 +202,8 @@ def task(  # pylint: disable=too-many-arguments
             task_kwargs["bool_flags"] = bool_flags
         if autoprint:
             task_kwargs["autoprint"] = autoprint
-        if help is not None:
-            task_kwargs["help"] = help
+        if merged_help:
+            task_kwargs["help"] = merged_help
         if pre is not None:
             task_kwargs["pre"] = pre
         if post is not None:

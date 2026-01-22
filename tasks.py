@@ -6,7 +6,9 @@ import subprocess
 import sys
 from pathlib import Path
 from shutil import which
+from typing import Annotated, Any
 
+from invoke.runners import Result
 from invoke.util import debug
 from rich.prompt import Prompt
 
@@ -37,14 +39,12 @@ def version(
             ).stdout.strip()
 
 
-@task(
-    help={
-        "target_": "Target format",
-        "output": "Output directory, by default is ./dist/",
-    },
-    autoprint=True,
-)
-def build(ctx: Context, target_=[], output="./dist/"):  # pylint: disable=dangerous-default-value
+@task(autoprint=True)
+def build(
+    ctx: Context,
+    target_: Annotated[list, "Target format"] = [],  # pylint: disable=dangerous-default-value
+    output: Annotated[str, "Output directory, by default is ./dist/"] = "./dist/",
+):
     """Builds distributable package"""
     with ctx.cd(REPO_ROOT):
         args = ""
@@ -82,26 +82,19 @@ def show_package_files(ctx: Context, file_type="whl"):
         ctx.run(f"tar tvf {newest_pkg}")
 
 
-@task(
-    aliases=["t"],
-    help={
-        "debug": "Uses [green]pdb[pp][/green] to debug tests, use [bold]sticky[/bold]",
-        "verbose": "Run in verbose mode, shows output to stdout",
-        "capture_output": "Do not capture output",
-        "picked": "Run only changed tests in git",
-        "fzf": "Uses fuzzy finder to select which tests to run",
-    },
-)
+@task(aliases=["t"])
 def test(
     ctx: Context,
-    debug_=False,
-    verbose=False,
-    capture_output=True,
-    picked=False,
-    keyword: list[str] = [],
-    last_failed: bool = False,
-    fzf: bool = False,
-    html: bool = False,
+    debug_: Annotated[
+        bool, "Uses [green]pdb[pp][/green] to debug tests, use [bold]sticky[/bold]"
+    ] = False,
+    verbose: Annotated[bool, "Run in verbose mode, shows output to stdout"] = False,
+    capture_output: Annotated[bool, "Do not capture output"] = True,
+    picked: Annotated[bool, "Run only changed tests in git"] = False,
+    keyword: Annotated[list[str], ""] = [],  # pylint: disable=dangerous-default-value
+    last_failed: Annotated[bool, ""] = False,
+    fzf: Annotated[bool, "Uses fuzzy finder to select which tests to run"] = False,
+    html: Annotated[bool, ""] = False,
 ):
     """Runs [green]pytest[/green] and exposes some commonly used flags"""
     with ctx.cd(REPO_ROOT):
@@ -281,21 +274,47 @@ def docs_preview(ctx: Context):
         ctx.run("quarto preview")
 
 
+@task(autoprint=True)
+def find_container_tool(ctx: Context) -> str:
+    """Checks witch container tool is available (docker, podman, nerdctl)"""
+    known_tools = ["docker", "podman", "nerdctl", "nerdctl.lima"]
+    results: dict[str, Any] = {}
+    for tool in known_tools:
+        promise: Any = ctx.run(
+            f"which {tool} && {tool} ps", asynchronous=True, warn=True
+        )
+        results[tool] = promise
+    for tool, promise in results.items():
+        result: Result = promise.join()
+        debug(tool, result)
+
+        if result.ok:
+            return tool
+    return ctx.rich_exit("No container tool found")
+
+
 @task()
 def run_in_container(
     ctx: Context,
-    image="ghcr.io/astral-sh/uv:trixie",
-    container_tool: str = "",
-    command: str = "it -l",
-    rm: bool = True,
-    interactive: bool = True,
+    image: Annotated[
+        str, "Base image, should contain uv"
+    ] = "ghcr.io/astral-sh/uv:trixie",
+    container_tool: Annotated[str, "docker, podman, nerdctl or nerdctl.lima"] = "",
+    command: Annotated[str, "The command to run, e.g. bash"] = "intk -l",
+    rm: Annotated[bool, "Delete container at exit"] = True,
+    interactive: Annotated[bool, "Run interactively"] = True,
+    volumes: Annotated[list[str], "Extra list of volumes"] = [],  # pyright: ignore[reportCallInDefaultInitializer]
     tty: bool = True,
+    workdir: Annotated[str, "Working directory"] = "/foo",
+    with_: Annotated[list[str], "Extra packages to install with uv"] = [],  # pyright: ignore[reportCallInDefaultInitializer]
 ):
     """
     Runs [green]invoke-toolkit[/green] in a container.
+
+    The command will be run with [bold]uv tool run --from /repo[/] [green]{command}[/green]
     """
-    container_tool = "podman"
-    volumes = "--volume $PWD:/repo:ro --volume $PWD/tasks.py:/tasks.py"
+    container_tool = container_tool or find_container_tool(ctx)
+    volumes = ["$PWD:/repo:ro", "$PWD/tasks.py:/tasks.py"]
     flags = ""
     if rm:
         flags = f"{flags} --rm"
@@ -303,11 +322,22 @@ def run_in_container(
         flags = f"{flags} -i"
     if tty:
         flags = f"{flags} -t"
+    if workdir:
+        flags = f"{flags} -w {workdir}"
+    if volumes:
+        vols = [f"-v {vol}" for vol in volumes]
+        flags = f"{flags}  {vols}"
+
+    uv_tool_flags = ""
+    if with_:
+        with_args = [f"--with {pkg}" for pkg in with_]
+        uv_tool_flags = f"{uv_tool_flags} {' '.join(with_args)}"
+
     ctx.run(
-        f"""
-        {container_tool} run {flags} -ti {volumes} {image} uv tool run --from /repo/ {command}
-        """,
-        pty=ctx.config.run.pty,
+        f"{container_tool} run {flags} -ti {volumes} {image} "
+        + f"uv tool run {uv_tool_flags} --from /repo/ {command}",
+        # pty=ctx.config.run.pty,
+        pty=True,
     )
 
 

@@ -44,6 +44,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+report.html
 
 # Environments
 .env
@@ -53,14 +54,44 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.uv/
 
-# IDEs
+# IDEs and editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+*.sublime-workspace
+*.sublime-project
+.vim/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# ruff
+.ruff_cache/
+
+# pyright
+pyrightconfig.json
+
+# direnv
+.direnv/
+.envrc
 
 # copier
 .copier-answers.yml
+
+# uv
+.uv/
+uv.lock
+
+# Local development
+*.log
+.pytest_cache/

@@ -199,8 +199,10 @@ def test_package_collection_discovery(
     )
 
     collection_slug = "discovery_test_pkg"
-    assert f'{collection_slug} = "{collection_slug}:collection"' in pyproject_content, (
-        f"Entry-point '{collection_slug}' not found in pyproject.toml"
+    # For non-prefixed packages, short name defaults to slug (with underscores)
+    short_name = "discovery_test_pkg"
+    assert f'"{short_name}" = "{collection_slug}:collection"' in pyproject_content, (
+        f"Entry-point '{short_name}' not found in pyproject.toml"
     )
 
     # Verify the package structure is complete for entry-point discovery

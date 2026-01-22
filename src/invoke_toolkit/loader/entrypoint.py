@@ -1,7 +1,9 @@
 """Load collections from entrypoints"""
 
 # Example: https://gist.github.com/moreati/44bce66fe0c4febc8d80e064532d4b49
+import warnings
 from importlib._abc import Loader
+from importlib.metadata import entry_points as get_entry_points
 from importlib.util import spec_from_loader
 from typing import Any
 
@@ -11,6 +13,28 @@ from invoke.util import debug
 from invoke_toolkit.collections import ToolkitCollection
 
 COLLECTION_ENTRY_POINT = "invoke_toolkit.collection"
+PLUGIN_PREFIX = "invoke-toolkit-"
+
+
+def extract_plugin_short_name(entry_point_name: str) -> str:
+    """
+    Extract short name from plugin package name.
+
+    If the entry point name follows the pattern 'invoke-toolkit-xxx',
+    extract and return 'xxx' as the short name. Otherwise, return the
+    original name.
+
+    Args:
+        entry_point_name: The entry point name (e.g., 'invoke-toolkit-ext')
+
+    Returns:
+        The short name (e.g., 'ext') or the original name if pattern doesn't match
+    """
+    if entry_point_name.startswith(PLUGIN_PREFIX):
+        short_name = entry_point_name[len(PLUGIN_PREFIX) :]
+        if short_name:  # Ensure it's not empty after removing prefix
+            return short_name
+    return entry_point_name
 
 
 class CollectionLoadError(Exception): ...
@@ -73,7 +97,7 @@ class EntryPointLoader(FilesystemLoader):
         if not entry_points:
             debug(
                 f"No entrypoints found {COLLECTION_ENTRY_POINT}. "
-                "Falling back to filesystem loader"
+                + "Falling back to filesystem loader"
             )
             # Fall back to parent class for filesystem loading
             return super().find(name)
@@ -83,7 +107,7 @@ class EntryPointLoader(FilesystemLoader):
         if spec is None:
             debug(
                 "Could not create compound module from entry points. "
-                "Falling back to filesystem loader"
+                + "Falling back to filesystem loader"
             )
             # Fall back to parent class for filesystem loading
             return super().find(name)
@@ -98,36 +122,16 @@ class EntryPointLoader(FilesystemLoader):
         """
         entry_points = {}
 
-        # Handle both Python 3.10+ (importlib.metadata.entry_points)
-        # and older versions (pkg_resources or importlib_metadata)
-        try:
-            from importlib.metadata import entry_points as get_entry_points
-
-            # Python 3.10+
-            eps = get_entry_points()
-            if hasattr(eps, "select"):
-                # Python 3.10+
-                group = eps.select(group=COLLECTION_ENTRY_POINT)
-            else:
-                # Python 3.9
-                group = eps.get(COLLECTION_ENTRY_POINT, [])
-        except (ImportError, AttributeError):
-            # Fallback to pkg_resources for older Python versions
-            try:
-                import pkg_resources  # type: ignore[import-not-found]
-
-                group = pkg_resources.iter_entry_points(COLLECTION_ENTRY_POINT)
-            except ImportError:
-                return entry_points
+        # Python 3.10+
+        eps = get_entry_points()
+        # In Python 3.10+, entry_points() returns EntryPoints with select() method
+        group = eps.select(group=COLLECTION_ENTRY_POINT)
 
         for ep in group:
             try:
                 collection = ep.load()
                 entry_points[ep.name] = collection
             except Exception as e:
-                # Log but continue loading other entry points
-                import warnings
-
                 warnings.warn(
                     f"Failed to load entry point '{ep.name}' from {ep.value}: {e}",
                     RuntimeWarning,
@@ -153,12 +157,28 @@ class EntryPointLoader(FilesystemLoader):
         # Create root collection
         root = ToolkitCollection()
         any_loaded = False
+        collection_names_used = {}  # Track which entry points use which collection names
 
         # Add each loaded collection as a sub-collection
         for name, collection in entry_points.items():
+            # Extract short name from plugin packages (e.g., invoke-toolkit-ext -> ext)
+            collection_name = extract_plugin_short_name(name)
+
+            # Check for duplicate collection names
+            if collection_name in collection_names_used:
+                warnings.warn(
+                    f"Duplicate collection name '{collection_name}' found. "
+                    f"Entry point '{name}' conflicts with '{collection_names_used[collection_name]}'. "
+                    f"Only the first one will be loaded.",
+                    RuntimeWarning,
+                )
+                continue
+
+            collection_names_used[collection_name] = name
+
             if isinstance(collection, ToolkitCollection):
                 # It's already a Collection, add it
-                root.add_collection(collection, name=name)
+                root.add_collection(collection, name=collection_name)
                 any_loaded = True
             elif hasattr(collection, "__dict__"):
                 # It's a module - try to auto-detect ToolkitCollection instances
@@ -172,23 +192,22 @@ class EntryPointLoader(FilesystemLoader):
 
                 if toolkit_collections:
                     # Found ToolkitCollection instance(s), use the first one
-                    root.add_collection(toolkit_collections[0], name=name)
+                    root.add_collection(toolkit_collections[0], name=collection_name)
                     any_loaded = True
                 elif hasattr(collection, "tasks"):
                     # It's a module with tasks, wrap it in a Collection
                     root.add_collection(
-                        ToolkitCollection.from_module(collection), name=name
+                        ToolkitCollection.from_module(collection), name=collection_name
                     )
                     any_loaded = True
                 else:
                     # Try to treat it as a module
                     try:
                         root.add_collection(
-                            ToolkitCollection.from_module(collection), name=name
+                            ToolkitCollection.from_module(collection),
+                            name=collection_name,
                         )
                     except Exception as e:
-                        import warnings
-
                         warnings.warn(
                             f"Could not add collection from entry point '{name}': {e}",
                             RuntimeWarning,
@@ -197,11 +216,9 @@ class EntryPointLoader(FilesystemLoader):
                 # Try to treat it as a module
                 try:
                     root.add_collection(
-                        ToolkitCollection.from_module(collection), name=name
+                        ToolkitCollection.from_module(collection), name=collection_name
                     )
                 except Exception as e:
-                    import warnings
-
                     warnings.warn(
                         f"Could not add collection from entry point '{name}': {e}",
                         RuntimeWarning,

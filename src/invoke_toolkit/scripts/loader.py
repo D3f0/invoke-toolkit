@@ -11,6 +11,7 @@ from invoke.tasks import Task
 from invoke.util import debug
 
 from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.output.utils import rich_exit
 from invoke_toolkit.program import ToolkitProgram
 
@@ -91,9 +92,6 @@ def script(
 
     # Create custom config class with the specified prefix if provided
     if config_prefix:
-        from invoke_toolkit.config import (  # pylint: disable=import-outside-toplevel
-            ToolkitConfig,
-        )
 
         class CustomConfig(ToolkitConfig):  # type: ignore[misc]
             prefix = config_prefix

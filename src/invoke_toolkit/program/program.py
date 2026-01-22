@@ -12,6 +12,7 @@ import os
 import re
 import sys
 from importlib import metadata
+from importlib.util import module_from_spec
 from logging import getLogger
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
@@ -52,6 +53,7 @@ from invoke_toolkit.collections import ToolkitCollection
 # Overrides that need to be imported afterwards
 from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.executor import ToolkitExecutor
+from invoke_toolkit.loader.entrypoint import EntryPointLoader
 
 EMPTY_COLLECTION_NAME = "_empty"
 
@@ -361,11 +363,6 @@ class ToolkitProgram(Program):
             ToolkitCollection with entry point tasks, or None if no entry points found
         """
         try:
-            # pylint: disable=import-outside-toplevel
-            from importlib.util import module_from_spec
-
-            from invoke_toolkit.loader.entrypoint import EntryPointLoader
-
             ep_loader = EntryPointLoader(config=self.config, start=start)
             spec = ep_loader.find(EMPTY_COLLECTION_NAME)
             if spec is not None and spec.loader is not None:

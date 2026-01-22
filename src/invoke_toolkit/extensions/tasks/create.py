@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.syntax import Syntax
 from rich.table import Table
 
+import invoke_toolkit
 from invoke_toolkit import Context, __version__, task
 from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT
 
@@ -153,8 +154,6 @@ def package(
 
     # Find the copier template in the invoke-toolkit package
     try:
-        import invoke_toolkit  # pylint: disable=import-outside-toplevel
-
         # Try to find templates relative to the invoke_toolkit module
         # This works for both development (repo root) and installed packages
         invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
