@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 from shutil import which
 from textwrap import dedent
@@ -12,6 +13,7 @@ import platformdirs
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.table import Table
+from typing_extensions import Annotated
 
 import invoke_toolkit
 from invoke_toolkit import Context, __version__, task
@@ -58,7 +60,10 @@ def _get_template() -> str:
     ],
 )
 def script(
-    ctx: Context, name: str = "tasks", location: str = ".", runnable=False
+    ctx: Context,
+    name: Annotated[str, "Script name"] = "tasks",
+    location: Annotated[str, "Location to create the script"] = ".",
+    runnable=False,
 ) -> None:
     """
     Creates a new script
@@ -92,7 +97,10 @@ def script(
 
 
 @task(aliases=["x"])
-def add_shebang(ctx: Context, file_: str | Path = "tasks.py"):
+def add_shebang(
+    ctx: Context,
+    file_: Annotated[str | Path, "Path to the file to add shebang to"] = "tasks.py",
+):
     """
     Adds the uv shebang to scripts.
 
@@ -123,8 +131,12 @@ def add_shebang(ctx: Context, file_: str | Path = "tasks.py"):
 @task(aliases=["p"])
 def package(
     ctx: Context,
-    name: str = "my-tasks-package",
-    location: str = ".",
+    name: Annotated[str, "The package name"] = "my-tasks-package",
+    location: Annotated[str, "The location to create the package"] = ".",
+    ext_name: Annotated[
+        str,
+        "Optional short name for the extension. If provided, the full package name will be prefixed with 'invoke-toolkit-'",
+    ] = "",
 ) -> None:
     """
     Creates a package for tasks using the invoke-toolkit copier template.
@@ -140,7 +152,35 @@ def package(
         )
 
     base = Path(location)
-    target_path = base / name
+
+    # Check if the location is inside a git repository
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(base), "rev-parse", "--git-dir"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0:
+            ctx.rich_exit(
+                dedent(
+                    f"""
+                    Can't create package: {base} is inside a git repository.
+                    Please choose a location outside of any git repository.
+                    """
+                ).strip()
+            )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        # If git is not available or times out, continue anyway
+        pass
+
+    # Determine the actual package name
+    if ext_name:
+        actual_name = f"invoke-toolkit-{ext_name}"
+    else:
+        actual_name = name
+
+    target_path = base / actual_name
 
     if target_path.exists():
         ctx.rich_exit(
@@ -186,14 +226,14 @@ def package(
         )
 
     ctx.print_err(
-        f"[blue]Creating package[/blue] [bold]{name}[/bold] [blue]from template...[/blue]"
+        f"[blue]Creating package[/blue] [bold]{actual_name}[/bold] [blue]from template...[/blue]"
     )
 
     try:
         # Prepare data for template rendering
-        package_slug = name.lower().replace("-", "_").replace(" ", "_")
+        package_slug = actual_name.lower().replace("-", "_").replace(" ", "_")
         template_data = {
-            "package_name": name,
+            "package_name": actual_name,
             "package_slug": package_slug,
             "collection_name": package_slug,
             "python_version": "3.10",
@@ -214,7 +254,7 @@ def package(
             dedent(
                 f"""
                 [yellow]Next steps:[/yellow]
-                  cd {target_path}
+                  cd {actual_name}
                   uv sync
                   uv pip install -e .
                 """
@@ -227,15 +267,13 @@ def package(
 @task(aliases=["debug-ep", "d"])
 def debug_entrypoints(
     ctx: Context,
-    format_: str = "table",
-    output: str = "",
+    format_: Annotated[str, "Output format (table or json)"] = "table",
+    output: Annotated[
+        str, "Output file path (optional). If provided, JSON output is written to file."
+    ] = "",
 ) -> None:
     """
     Show invoke-toolkit entry points.
-
-    Args:
-        format_: Output format (table or json). Default: table
-        output: Output file path (optional). If provided, JSON output is written to file.
 
     Examples:
         intk create.debug-entrypoints
@@ -300,7 +338,10 @@ def debug_entrypoints(
 
 
 @task()
-def script_env(ctx: Context, script_file: str = "") -> str:
+def script_env(
+    ctx: Context,
+    script_file: Annotated[str, "Path to the script file"] = "",
+) -> str:
     """
     Create a [bold]venv[/] for a script to be used with text editor/IDE.
 
