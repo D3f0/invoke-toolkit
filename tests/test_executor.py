@@ -89,3 +89,32 @@ def test_auto_print_long_strings_single_line(
     lines = output.out.splitlines()
     assert len(lines) == 1, f"Expected 1 line but got {len(lines)} lines"
     assert lines[0] == long_string
+
+
+def test_auto_print_path_objects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Test that Path objects are printed as single line without unwanted newlines"""
+    ns = ToolkitCollection()
+    p = TestingToolkitProgram(
+        version="test",
+        namespace=ns,
+        name="test",
+    )
+
+    # Create a Path object
+    test_path = tmp_path / "test_file.txt"
+
+    @task(autoprint=True)
+    def test_task(ctx: Context):
+        """A test function that returns a Path object"""
+        return test_path
+
+    ns.add_task(test_task)
+    p.run(["", "test-task"])
+    output = capsys.readouterr()
+
+    # The output should contain exactly one line with the path
+    lines = output.out.splitlines()
+    assert len(lines) == 1, f"Expected 1 line but got {len(lines)} lines"
+    assert lines[0] == str(test_path)
