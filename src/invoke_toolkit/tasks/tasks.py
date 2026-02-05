@@ -3,6 +3,7 @@ Type annotated tasks and and overrides over invoke
 """
 
 import inspect
+from enum import Enum
 from functools import wraps
 from typing import (
     Annotated,
@@ -66,6 +67,45 @@ def _extract_annotated_help(func: Any) -> dict[str, str]:
         pass
 
     return help_dict
+
+
+def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
+    """
+    Extract enum type parameters from function signature.
+
+    Args:
+        func: The function to extract enum parameters from
+
+    Returns:
+        Dictionary mapping parameter names to their enum classes
+    """
+    enum_params: dict[str, Type[Enum]] = {}
+
+    try:
+        sig = inspect.signature(func)
+        for param_name, param in sig.parameters.items():
+            if param_name.startswith("_") or param_name in ("ctx", "c"):
+                continue
+
+            annotation = param.annotation
+            if annotation == inspect.Parameter.empty:
+                continue
+
+            try:
+                if isinstance(annotation, type) and issubclass(annotation, Enum):
+                    enum_params[param_name] = annotation
+            except TypeError:
+                pass
+    except (ValueError, TypeError):
+        pass
+
+    return enum_params
+
+
+def _enum_choices_help(enum_class: Type[Enum]) -> str:
+    """Generate help text from enum values."""
+    values = ", ".join(str(member.value) for member in enum_class)
+    return f"Choose from: {values}"
 
 
 class ToolkitTask(Task): ...
@@ -136,6 +176,8 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
     Automatically merges parameter documentation from Annotated types with explicit help dict.
     Explicit help dict takes precedence over Annotated documentation.
 
+    Enum parameters are auto-discovered and their choices added to help text.
+
     Usage:
         @task
         def my_task(c: Context, name: str, count: int = 5) -> None:
@@ -146,40 +188,58 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         def another_task(c: Context, name: str) -> None:
             return "result"
 
-        # Using Annotated for self-documenting parameters
-        @task
-        def documented_task(
-            ctx: Context,
-            name: Annotated[str, "The target name"],
-            count: Annotated[int, "Number of iterations"] = 5,
-        ) -> None:
-            '''Task with Annotated parameter documentation.'''
-            pass
+        # Using enums for parameter choices
+        from enum import Enum
 
-        # Explicit help dict overrides Annotated documentation
-        @task(help={"name": "Override annotation doc"})
-        def override_task(
-            ctx: Context,
-            name: Annotated[str, "Original annotation doc"],
-        ) -> None:
-            pass
+        class Color(str, Enum):
+            RED = "red"
+            GREEN = "green"
+
+        @task
+        def color_task(ctx: Context, color: Color) -> None:
+            '''Choices auto-discovered from enum.'''
+            print(f"Selected: {color.value}")
     """
 
     def decorator(f: F) -> F:
+        # Extract enum params early for wrapper
+        enum_params = _extract_enum_params(f)
+        param_names = list(inspect.signature(f).parameters.keys())
+
         # Create a wrapper that Invoke can work with
         @wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            # Convert string enum values to enum instances
+            if enum_params:
+                # Convert positional args
+                args_list = list(args)
+                for i, arg in enumerate(args_list):
+                    if i < len(param_names):
+                        param_name = param_names[i]
+                        if param_name in enum_params and isinstance(arg, str):
+                            args_list[i] = enum_params[param_name](arg)
+                args = tuple(args_list)
+
+                # Convert kwargs
+                for param_name, enum_class in enum_params.items():
+                    if param_name in kwargs and isinstance(kwargs[param_name], str):
+                        kwargs[param_name] = enum_class(kwargs[param_name])
+
             return f(*args, **kwargs)
 
         # Preserve the type hints on the wrapper
         wrapper.__annotations__ = f.__annotations__
 
-        # Extract documentation from Annotated types
+        # Extract all help sources
         annotated_help = _extract_annotated_help(f)
+        enum_help = {
+            name: _enum_choices_help(enum_class)
+            for name, enum_class in enum_params.items()
+        }
 
-        # Merge explicit help with Annotated documentation
-        # Explicit help takes precedence
-        merged_help = annotated_help.copy()
+        # Merge help: enums < annotated < explicit (explicit wins)
+        merged_help = enum_help.copy()
+        merged_help.update(annotated_help)
         if help is not None:
             merged_help.update(help)
 
@@ -212,14 +272,14 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
             task_kwargs["default"] = default
 
         # Apply the Invoke @task decorator
-        task_decorated = invoke_task(wrapper, **task_kwargs)
+        task_decorated = invoke_task(wrapper, klass=klass, **task_kwargs)
 
         # Store reference to original function
         task_decorated.__wrapped__ = f  # type: ignore[attr-defined]
 
         return cast(F, task_decorated)
 
-    # Support both @typed_task and @typed_task(...) syntax
+    # Support both @task and @task(...) syntax
     if func is not None:
         return decorator(func)
     return decorator
