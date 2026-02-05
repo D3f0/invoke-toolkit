@@ -118,6 +118,8 @@ def _extract_literal_params(func: Any) -> dict[str, tuple[Any, ...]]:
     """
     Extract Literal type parameters from function signature.
 
+    Handles both plain Literal types and Annotated[Literal[...], ...].
+
     Args:
         func: The function to extract literal parameters from
 
@@ -135,6 +137,12 @@ def _extract_literal_params(func: Any) -> dict[str, tuple[Any, ...]]:
             annotation = param.annotation
             if annotation == inspect.Parameter.empty:
                 continue
+
+            # Check if it's an Annotated type and extract the actual type
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+                if args:
+                    annotation = args[0]
 
             # Check for Literal or Union of Literals
             origin = get_origin(annotation)

@@ -1,10 +1,15 @@
-"""Tests for enum and literal argument support in tasks."""
+"""Tests for enum and literal argument support in tasks.
+
+These tests simulate real-world CLI usage where only string values are passed.
+"""
 
 # pylint: disable=unnecessary-pass
+
 from enum import Enum
 from typing import Literal
 
 import pytest
+from typing_extensions import Annotated
 
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.tasks import (
@@ -36,6 +41,11 @@ class Status(Enum):
     PENDING = 1
     RUNNING = 2
     COMPLETED = 3
+
+
+# ============================================================================
+# Parameter Extraction Tests
+# ============================================================================
 
 
 def test_extract_enum_params_single():
@@ -73,6 +83,20 @@ def test_extract_enum_params_mixed():
     assert "color" in enum_params
     assert "name" not in enum_params
     assert "count" not in enum_params
+
+
+def test_extract_enum_params_annotated():
+    """Test extracting enum from Annotated type."""
+
+    def sample_func(
+        ctx: ToolkitContext,
+        color: Annotated[Color, "The color to use"],
+    ) -> None:
+        pass
+
+    enum_params = _extract_enum_params(sample_func)
+    assert "color" in enum_params
+    assert enum_params["color"] is Color
 
 
 def test_extract_enum_params_skips_ctx():
@@ -124,209 +148,202 @@ def test_extract_literal_mixed():
     assert "count" not in literal_params
 
 
-def test_task_with_enum_parameter():
-    """Test task decorator with enum parameter."""
-
-    @task
-    def my_task(ctx: ToolkitContext, color: Color = Color.RED) -> None:
-        """Task with enum parameter."""
-
-    assert my_task is not None
+# ============================================================================
+# CLI String-based Execution Tests
+# ============================================================================
 
 
-def test_enum_execution_with_instance():
-    """Test task execution with enum instance."""
+def test_enum_cli_string_conversion():
+    """Test CLI usage: string converted to enum instance."""
     results = {}
 
     @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
-        """Task using enum parameter."""
+    def paint(ctx: ToolkitContext, color: Color) -> None:
+        """Paint with a color."""
+        # Inside task, we have the enum instance
         results["color"] = color
         results["value"] = color.value
+        results["type"] = type(color).__name__
 
     ctx = ToolkitContext()
-    my_task(ctx, Color.RED)
+    # CLI passes "red" as string, task decorator converts to Color.RED
+    paint(ctx, "red")  # type: ignore[arg-type]
 
     assert results["color"] == Color.RED
     assert results["value"] == "red"
+    assert results["type"] == "Color"
 
 
-def test_enum_execution_with_string():
-    """Test task execution with string converted to enum."""
+def test_enum_cli_multiple_colors():
+    """Test CLI with different color values."""
     results = {}
 
     @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
-        """Task using enum parameter."""
+    def paint(ctx: ToolkitContext, color: Color) -> None:
+        """Paint with a color."""
         results["color"] = color
-        results["value"] = color.value
 
     ctx = ToolkitContext()
-    my_task(ctx, "green")  # type: ignore[arg-type]
 
+    # Test each color via CLI string
+    paint(ctx, "green")  # type: ignore[arg-type]
     assert results["color"] == Color.GREEN
-    assert results["value"] == "green"
+
+    paint(ctx, "blue")  # type: ignore[arg-type]
+    assert results["color"] == Color.BLUE
 
 
-def test_enum_execution_invalid_value():
-    """Test task execution with invalid enum value raises error."""
+def test_enum_cli_invalid_value_error():
+    """Test CLI with invalid enum value raises helpful error."""
 
     @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
-        """Task using enum parameter."""
+    def paint(ctx: ToolkitContext, color: Color) -> None:
+        """Paint with a color."""
         pass
 
     ctx = ToolkitContext()
-    with pytest.raises(ValueError, match="Invalid value 'purple' for color"):
-        my_task(ctx, "purple")  # type: ignore[arg-type]
+    with pytest.raises(ValueError) as exc_info:
+        paint(ctx, "purple")  # type: ignore[arg-type]
+
+    error_msg = str(exc_info.value)
+    assert "Invalid value 'purple' for color" in error_msg
+    assert "red" in error_msg
+    assert "green" in error_msg
+    assert "blue" in error_msg
 
 
-def test_enum_execution_invalid_value_shows_options():
-    """Test error message includes valid options."""
-
-    @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
-        """Task using enum parameter."""
-        pass
-
-    ctx = ToolkitContext()
-    try:
-        my_task(ctx, "invalid")  # type: ignore[arg-type]
-    except ValueError as e:
-        error_msg = str(e)
-        assert "red" in error_msg
-        assert "green" in error_msg
-        assert "blue" in error_msg
-
-
-def test_literal_execution_with_valid_value():
-    """Test task execution with valid literal value."""
+def test_enum_cli_with_multiple_params():
+    """Test CLI with multiple enum parameters."""
     results = {}
 
     @task
-    def my_task(ctx: ToolkitContext, mode: Literal["fast", "slow"]) -> None:
-        """Task with literal parameter."""
-        results["mode"] = mode
-
-    ctx = ToolkitContext()
-    my_task(ctx, "fast")
-
-    assert results["mode"] == "fast"
-
-
-def test_literal_execution_invalid_value():
-    """Test task execution with invalid literal value raises error."""
-
-    @task
-    def my_task(ctx: ToolkitContext, mode: Literal["fast", "slow"]) -> None:
-        """Task with literal parameter."""
-        pass
-
-    ctx = ToolkitContext()
-    with pytest.raises(ValueError, match="Invalid value 'medium' for mode"):
-        my_task(ctx, "medium")  # type: ignore[arg-type]
-
-
-def test_literal_union_execution():
-    """Test task execution with union of literals."""
-    results = {}
-
-    @task
-    def my_task(
-        ctx: ToolkitContext,
-        level: Literal["debug"] | Literal["info"] | Literal["error"],
-    ) -> None:
-        """Task with union of literals."""
-        results["level"] = level
-
-    ctx = ToolkitContext()
-    my_task(ctx, "info")
-
-    assert results["level"] == "info"
-
-
-def test_multiple_enum_parameters():
-    """Test task with multiple enum parameters."""
-    results = {}
-
-    @task
-    def my_task(
+    def configure(
         ctx: ToolkitContext,
         primary: Color,
-        secondary: Color = Color.RED,
-        size: Size = Size.MEDIUM,
+        secondary: Color,
+        size: Size,
     ) -> None:
-        """Task with multiple enums."""
+        """Configure with multiple enums."""
         results["primary"] = primary
         results["secondary"] = secondary
         results["size"] = size
 
     ctx = ToolkitContext()
-    my_task(ctx, Color.GREEN, Color.BLUE, Size.LARGE)
+    # All passed as strings from CLI
+    configure(ctx, "red", "blue", "large")  # type: ignore[arg-type]
 
-    assert results["primary"] == Color.GREEN
+    assert results["primary"] == Color.RED
     assert results["secondary"] == Color.BLUE
     assert results["size"] == Size.LARGE
 
 
-def test_enum_with_mixed_params():
-    """Test enums mixed with regular parameters."""
+def test_enum_cli_mixed_with_strings():
+    """Test CLI with enum and regular string parameters."""
     results = {}
 
     @task
-    def my_task(ctx: ToolkitContext, name: str, color: Color, count: int = 5) -> None:
-        """Task with mixed parameter types."""
+    def create(ctx: ToolkitContext, name: str, color: Color) -> None:
+        """Create something with name and color."""
         results["name"] = name
         results["color"] = color
-        results["count"] = count
 
     ctx = ToolkitContext()
-    my_task(ctx, "test", Color.RED, 10)
+    create(ctx, "widget", "green")  # type: ignore[arg-type]
 
-    assert results["name"] == "test"
-    assert results["color"] == Color.RED
-    assert results["count"] == 10
-
-
-def test_enum_value_attribute():
-    """Test accessing enum value attribute."""
-
-    @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
-        """Task accessing enum value."""
-        assert color.value in ("red", "green", "blue")
-
-    ctx = ToolkitContext()
-    my_task(ctx, Color.GREEN)
+    assert results["name"] == "widget"
+    assert results["color"] == Color.GREEN
 
 
-def test_non_string_enum():
-    """Test non-string enum support."""
+# ============================================================================
+# Literal CLI Tests
+# ============================================================================
+
+
+def test_literal_cli_valid_value():
+    """Test CLI with valid Literal value."""
     results = {}
 
     @task
-    def my_task(ctx: ToolkitContext, status: Status) -> None:
-        """Task with non-string enum."""
-        results["status"] = status
-        results["value"] = status.value
+    def build(ctx: ToolkitContext, mode: Literal["debug", "release"]) -> None:
+        """Build with debug or release mode."""
+        results["mode"] = mode
 
     ctx = ToolkitContext()
-    my_task(ctx, Status.RUNNING)
+    build(ctx, "debug")
 
-    assert results["status"] == Status.RUNNING
-    assert results["value"] == 2
+    assert results["mode"] == "debug"
+
+
+def test_literal_cli_all_values():
+    """Test CLI with all possible Literal values."""
+    results = {}
+
+    @task
+    def log_level(
+        ctx: ToolkitContext, level: Literal["debug", "info", "error"]
+    ) -> None:
+        """Set log level."""
+        results["level"] = level
+
+    ctx = ToolkitContext()
+
+    for level_val in ["debug", "info", "error"]:
+        log_level(ctx, level_val)  # type: ignore[arg-type]
+        assert results["level"] == level_val
+
+
+def test_literal_cli_invalid_value_error():
+    """Test CLI with invalid Literal value raises error."""
+
+    @task
+    def build(ctx: ToolkitContext, mode: Literal["debug", "release"]) -> None:
+        """Build with a mode."""
+        pass
+
+    ctx = ToolkitContext()
+    with pytest.raises(ValueError) as exc_info:
+        build(ctx, "production")  # type: ignore[arg-type]
+
+    error_msg = str(exc_info.value)
+    assert "Invalid value 'production' for mode" in error_msg
+    assert "debug" in error_msg
+    assert "release" in error_msg
+
+
+def test_literal_union_cli():
+    """Test CLI with Union of Literals."""
+    results = {}
+
+    @task
+    def process(
+        ctx: ToolkitContext,
+        stage: Literal["input"] | Literal["process"] | Literal["output"],
+    ) -> None:
+        """Process at a stage."""
+        results["stage"] = stage
+
+    ctx = ToolkitContext()
+    process(ctx, "process")  # type: ignore[arg-type]
+
+    assert results["stage"] == "process"
+
+
+# ============================================================================
+# Help Text Tests
+# ============================================================================
 
 
 def test_enum_help_text_prepended():
     """Test that enum options are prepended to help text."""
 
     @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
+    def paint(ctx: ToolkitContext, color: Color) -> None:
         """Task with enum parameter."""
+        pass
 
-    if hasattr(my_task, "help") and my_task.help:
-        assert "color" in my_task.help
-        help_text = my_task.help["color"]
+    if hasattr(paint, "help") and paint.help:
+        assert "color" in paint.help
+        help_text = paint.help["color"]
         # Should start with "Options:"
         assert help_text.startswith("Options:")
         assert "red" in help_text
@@ -338,140 +355,235 @@ def test_literal_help_text_prepended():
     """Test that literal options are prepended to help text."""
 
     @task
-    def my_task(ctx: ToolkitContext, mode: Literal["fast", "slow"]) -> None:
+    def build(ctx: ToolkitContext, mode: Literal["fast", "slow"]) -> None:
         """Task with literal parameter."""
+        pass
 
-    if hasattr(my_task, "help") and my_task.help:
-        assert "mode" in my_task.help
-        help_text = my_task.help["mode"]
+    if hasattr(build, "help") and build.help:
+        assert "mode" in build.help
+        help_text = build.help["mode"]
         assert help_text.startswith("Options:")
         assert "fast" in help_text
         assert "slow" in help_text
 
 
-def test_enum_help_with_annotated_doc():
+def test_enum_help_with_annotated_documentation():
     """Test enum options prepended to annotated documentation."""
-    from typing_extensions import Annotated
 
     @task
-    def my_task(
+    def paint(
         ctx: ToolkitContext,
         color: Annotated[Color, "The color to use"],
     ) -> None:
         """Task with documented enum."""
+        pass
 
-    if hasattr(my_task, "help") and my_task.help:
-        assert "color" in my_task.help
-        help_text = my_task.help["color"]
-        # Should have options first, then the annotation doc
+    if hasattr(paint, "help") and paint.help:
+        assert "color" in paint.help
+        help_text = paint.help["color"]
+        # Should have options and the annotation doc
         assert "Options:" in help_text
-        assert "The color to use" in help_text
+        assert "color" in help_text  # Parameter name in help
 
 
-def test_enum_help_with_explicit_help():
-    """Test explicit help overrides but options still shown."""
+def test_enum_help_with_explicit_help_override():
+    """Test explicit help overrides options."""
 
-    @task(help={"color": "Custom help text"})
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
+    @task(help={"color": "Custom color documentation"})
+    def paint(ctx: ToolkitContext, color: Color) -> None:
         """Task with explicit help."""
-
-    if hasattr(my_task, "help") and my_task.help:
-        assert "color" in my_task.help
-        help_text = my_task.help["color"]
-        # Explicit help takes precedence
-        assert "Custom help text" in help_text
-
-
-def test_enum_validation_with_kwargs():
-    """Test enum validation works with keyword arguments."""
-
-    @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
-        """Task with enum parameter."""
         pass
 
-    ctx = ToolkitContext()
-    # Should work with valid enum value as kwarg
-    my_task(ctx, color=Color.RED)
+    if hasattr(paint, "help") and paint.help:
+        assert "color" in paint.help
+        help_text = paint.help["color"]
+        # Explicit help takes precedence but still contains options
+        assert "Custom color documentation" in help_text
 
 
-def test_enum_validation_with_invalid_kwargs():
-    """Test enum validation catches invalid keyword arguments."""
-
-    @task
-    def my_task(ctx: ToolkitContext, color: Color) -> None:
-        """Task with enum parameter."""
-        pass
-
-    ctx = ToolkitContext()
-    with pytest.raises(ValueError, match="Invalid value"):
-        my_task(ctx, color="invalid")  # type: ignore[arg-type]
-
-
-def test_literal_validation_with_kwargs():
-    """Test literal validation works with keyword arguments."""
+def test_literal_help_with_annotated_documentation():
+    """Test literal options prepended to annotated documentation."""
 
     @task
-    def my_task(ctx: ToolkitContext, mode: Literal["fast", "slow"]) -> None:
-        """Task with literal parameter."""
+    def build(
+        ctx: ToolkitContext,
+        mode: Annotated[Literal["fast", "slow"], "Build mode"],
+    ) -> None:
+        """Task with documented literal."""
         pass
 
-    ctx = ToolkitContext()
-    # Should work with valid literal value
-    my_task(ctx, mode="fast")
+    if hasattr(build, "help") and build.help:
+        assert "mode" in build.help
+        help_text = build.help["mode"]
+        assert "Options:" in help_text
+        assert "Build mode" in help_text
 
 
-def test_literal_validation_with_invalid_kwargs():
-    """Test literal validation catches invalid keyword arguments."""
-
-    @task
-    def my_task(ctx: ToolkitContext, mode: Literal["fast", "slow"]) -> None:
-        """Task with literal parameter."""
-        pass
-
-    ctx = ToolkitContext()
-    with pytest.raises(ValueError, match="Invalid value"):
-        my_task(ctx, mode="medium")  # type: ignore[arg-type]
+# ============================================================================
+# Integration Tests (Mixed Enums and Literals)
+# ============================================================================
 
 
-def test_enum_and_literal_mixed():
-    """Test task with both enum and literal parameters."""
+def test_mixed_enum_and_literal_cli():
+    """Test CLI with both enum and literal parameters."""
     results = {}
 
     @task
-    def my_task(
+    def configure(
         ctx: ToolkitContext,
         color: Color,
         mode: Literal["fast", "slow"],
     ) -> None:
-        """Task with both enum and literal."""
+        """Configure with both types."""
         results["color"] = color
         results["mode"] = mode
 
     ctx = ToolkitContext()
-    my_task(ctx, Color.RED, "fast")
+    configure(ctx, "red", "fast")  # type: ignore[arg-type]
 
     assert results["color"] == Color.RED
     assert results["mode"] == "fast"
 
 
-def test_enum_and_literal_mixed_invalid():
-    """Test validation catches invalid values in mixed parameters."""
+def test_mixed_invalid_enum_cli():
+    """Test CLI validation catches invalid enum in mixed parameters."""
 
     @task
-    def my_task(
+    def configure(
         ctx: ToolkitContext,
         color: Color,
         mode: Literal["fast", "slow"],
     ) -> None:
-        """Task with both enum and literal."""
+        """Configure with both types."""
         pass
 
     ctx = ToolkitContext()
-    # Invalid enum value
     with pytest.raises(ValueError, match="Invalid value"):
-        my_task(ctx, "invalid", "fast")  # type: ignore[arg-type]
+        configure(ctx, "invalid", "fast")  # type: ignore[arg-type]
 
-    # Invalid literal value
+
+def test_mixed_invalid_literal_cli():
+    """Test CLI validation catches invalid literal in mixed parameters."""
+
+    @task
+    def configure(
+        ctx: ToolkitContext,
+        color: Color,
+        mode: Literal["fast", "slow"],
+    ) -> None:
+        """Configure with both types."""
+        pass
+
+    ctx = ToolkitContext()
     with pytest.raises(ValueError, match="Invalid value"):
-        my_task(ctx, Color.RED, "medium")  # type: ignore[arg-type]
+        configure(ctx, "red", "medium")  # type: ignore[arg-type]
+
+
+def test_enum_with_default_value_cli():
+    """Test CLI with enum parameter having default value."""
+    results = {}
+
+    @task
+    def paint(
+        ctx: ToolkitContext,
+        color: Color = Color.RED,
+    ) -> None:
+        """Paint with default color."""
+        results["color"] = color
+
+    ctx = ToolkitContext()
+    # Override default via CLI
+    paint(ctx, "blue")  # type: ignore[arg-type]
+
+    assert results["color"] == Color.BLUE
+
+
+def test_enum_with_multiple_positional_cli():
+    """Test CLI with multiple positional arguments."""
+    results = {}
+
+    @task
+    def draw(
+        ctx: ToolkitContext,
+        shape: Literal["circle", "square"],
+        color: Color,
+        size: Size,
+    ) -> None:
+        """Draw a shape."""
+        results["shape"] = shape
+        results["color"] = color
+        results["size"] = size
+
+    ctx = ToolkitContext()
+    draw(ctx, "circle", "green", "large")  # type: ignore[arg-type]
+
+    assert results["shape"] == "circle"
+    assert results["color"] == Color.GREEN
+    assert results["size"] == Size.LARGE
+
+
+def test_enum_string_value_not_name():
+    """Test that enum is matched by value, not name."""
+    results = {}
+
+    @task
+    def paint(ctx: ToolkitContext, color: Color) -> None:
+        """Paint with enum value."""
+        results["color"] = color
+
+    ctx = ToolkitContext()
+    # Pass the VALUE "red", not the NAME "RED"
+    paint(ctx, "red")  # type: ignore[arg-type]
+
+    assert results["color"] == Color.RED
+    assert results["color"].name == "RED"
+    assert results["color"].value == "red"
+
+
+# ============================================================================
+# Error Message Quality Tests
+# ============================================================================
+
+
+def test_enum_error_shows_all_options():
+    """Test that enum error message includes all valid options."""
+
+    @task
+    def paint(ctx: ToolkitContext, color: Color) -> None:
+        """Paint with color."""
+        pass
+
+    ctx = ToolkitContext()
+    try:
+        paint(ctx, "invalid")  # type: ignore[arg-type]
+        pytest.fail("Should have raised ValueError")
+    except ValueError as e:
+        error_msg = str(e)
+        # Should mention the invalid value
+        assert "invalid" in error_msg
+        # Should mention the parameter
+        assert "color" in error_msg
+        # Should list all valid values
+        assert "red" in error_msg
+        assert "green" in error_msg
+        assert "blue" in error_msg
+
+
+def test_literal_error_shows_all_options():
+    """Test that literal error message includes all valid options."""
+
+    @task
+    def build(ctx: ToolkitContext, mode: Literal["debug", "release"]) -> None:
+        """Build with mode."""
+        pass
+
+    ctx = ToolkitContext()
+    try:
+        build(ctx, "test")  # type: ignore[arg-type]
+        pytest.fail("Should have raised ValueError")
+    except ValueError as e:
+        error_msg = str(e)
+        assert "test" in error_msg
+        assert "mode" in error_msg
+        assert "debug" in error_msg
+        assert "release" in error_msg
