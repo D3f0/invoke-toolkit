@@ -2,6 +2,8 @@
 Type annotated tasks and and overrides over invoke
 """
 
+# pylint: disable=too-many-statements
+
 import inspect
 from enum import Enum
 from functools import wraps
@@ -9,10 +11,12 @@ from typing import (
     Annotated,
     Any,
     Callable,
+    Literal,
     Optional,
     Sequence,
     Type,
     TypeVar,
+    Union,
     cast,
     get_args,
     get_origin,
@@ -73,6 +77,8 @@ def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
     """
     Extract enum type parameters from function signature.
 
+    Handles both plain enum types and Annotated[Enum, ...].
+
     Args:
         func: The function to extract enum parameters from
 
@@ -91,6 +97,12 @@ def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
             if annotation == inspect.Parameter.empty:
                 continue
 
+            # Check if it's an Annotated type and extract the actual type
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+                if args:
+                    annotation = args[0]
+
             try:
                 if isinstance(annotation, type) and issubclass(annotation, Enum):
                     enum_params[param_name] = annotation
@@ -102,10 +114,56 @@ def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
     return enum_params
 
 
+def _extract_literal_params(func: Any) -> dict[str, tuple[Any, ...]]:
+    """
+    Extract Literal type parameters from function signature.
+
+    Args:
+        func: The function to extract literal parameters from
+
+    Returns:
+        Dictionary mapping parameter names to their literal values
+    """
+    literal_params: dict[str, tuple[Any, ...]] = {}
+
+    try:
+        sig = inspect.signature(func)
+        for param_name, param in sig.parameters.items():
+            if param_name.startswith("_") or param_name in ("ctx", "c"):
+                continue
+
+            annotation = param.annotation
+            if annotation == inspect.Parameter.empty:
+                continue
+
+            # Check for Literal or Union of Literals
+            origin = get_origin(annotation)
+            if origin is Literal:
+                literal_params[param_name] = get_args(annotation)
+            elif origin is Union:
+                # Check if all args are Literals
+                args = get_args(annotation)
+                if all(get_origin(arg) is Literal for arg in args):
+                    # Flatten all literal values
+                    all_literals = tuple(val for arg in args for val in get_args(arg))
+                    if all_literals:
+                        literal_params[param_name] = all_literals
+    except (ValueError, TypeError):
+        pass
+
+    return literal_params
+
+
 def _enum_choices_help(enum_class: Type[Enum]) -> str:
-    """Generate help text from enum values."""
+    """Generate help text with available enum choices."""
     values = ", ".join(str(member.value) for member in enum_class)
-    return f"Choose from: {values}"
+    return f"Options: {values}"
+
+
+def _literal_choices_help(literal_values: tuple[Any, ...]) -> str:
+    """Generate help text with available literal choices."""
+    values = ", ".join(str(v) for v in literal_values)
+    return f"Options: {values}"
 
 
 class ToolkitTask(Task): ...
@@ -176,7 +234,7 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
     Automatically merges parameter documentation from Annotated types with explicit help dict.
     Explicit help dict takes precedence over Annotated documentation.
 
-    Enum parameters are auto-discovered and their choices added to help text.
+    Enum and Literal parameters are auto-discovered and their choices added to help text.
 
     Usage:
         @task
@@ -199,17 +257,24 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         def color_task(ctx: Context, color: Color) -> None:
             '''Choices auto-discovered from enum.'''
             print(f"Selected: {color.value}")
+
+        # Using Literal types
+        @task
+        def literal_task(ctx: Context, level: Literal["debug", "info", "error"]) -> None:
+            '''Literal options in help.'''
+            print(f"Level: {level}")
     """
 
     def decorator(f: F) -> F:
-        # Extract enum params early for wrapper
+        # Extract enum and literal params early for wrapper
         enum_params = _extract_enum_params(f)
+        literal_params = _extract_literal_params(f)
         param_names = list(inspect.signature(f).parameters.keys())
 
         # Create a wrapper that Invoke can work with
         @wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Convert string enum values to enum instances
+            # Convert string enum values to enum instances with validation
             if enum_params:
                 # Convert positional args
                 args_list = list(args)
@@ -217,13 +282,50 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
                     if i < len(param_names):
                         param_name = param_names[i]
                         if param_name in enum_params and isinstance(arg, str):
-                            args_list[i] = enum_params[param_name](arg)
+                            enum_class = enum_params[param_name]
+                            try:
+                                args_list[i] = enum_class(arg)
+                            except ValueError as exc:
+                                valid_values = ", ".join(
+                                    str(m.value) for m in enum_class
+                                )
+                                raise ValueError(
+                                    f"Invalid value '{arg}' for {param_name}. "
+                                    f"Must be one of: {valid_values}"
+                                ) from exc
                 args = tuple(args_list)
 
                 # Convert kwargs
                 for param_name, enum_class in enum_params.items():
                     if param_name in kwargs and isinstance(kwargs[param_name], str):
-                        kwargs[param_name] = enum_class(kwargs[param_name])
+                        try:
+                            kwargs[param_name] = enum_class(kwargs[param_name])
+                        except ValueError as exc:
+                            valid_values = ", ".join(str(m.value) for m in enum_class)
+                            raise ValueError(
+                                f"Invalid value '{kwargs[param_name]}' for {param_name}. "
+                                f"Must be one of: {valid_values}"
+                            ) from exc
+
+            # Validate literal values
+            if literal_params:
+                for param_name, literal_values in literal_params.items():
+                    # Check kwargs
+                    if param_name in kwargs:
+                        if kwargs[param_name] not in literal_values:
+                            raise ValueError(
+                                f"Invalid value '{kwargs[param_name]}' for {param_name}. "
+                                f"Must be one of: {', '.join(str(v) for v in literal_values)}"
+                            )
+
+                    # Check positional args
+                    for i, param in enumerate(param_names):
+                        if param == param_name and i < len(args):
+                            if args[i] not in literal_values:
+                                raise ValueError(
+                                    f"Invalid value '{args[i]}' for {param_name}. "
+                                    f"Must be one of: {', '.join(str(v) for v in literal_values)}"
+                                )
 
             return f(*args, **kwargs)
 
@@ -236,10 +338,21 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
             name: _enum_choices_help(enum_class)
             for name, enum_class in enum_params.items()
         }
+        literal_help = {
+            name: _literal_choices_help(literal_values)
+            for name, literal_values in literal_params.items()
+        }
 
-        # Merge help: enums < annotated < explicit (explicit wins)
+        # Merge help: enums/literals < annotated < explicit (explicit wins)
+        # Prepend options to annotated help
         merged_help = enum_help.copy()
-        merged_help.update(annotated_help)
+        merged_help.update(literal_help)
+        for param_name, doc in annotated_help.items():
+            if param_name in merged_help:
+                # Prepend options to annotated doc
+                merged_help[param_name] = f"{merged_help[param_name]}. {doc}"
+            else:
+                merged_help[param_name] = doc
         if help is not None:
             merged_help.update(help)
 
