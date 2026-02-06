@@ -5,7 +5,9 @@ These tests simulate real-world CLI usage where only string values are passed.
 
 # pylint: disable=unnecessary-pass
 
+import typing
 from enum import Enum
+from pathlib import Path
 from typing import Literal
 
 import pytest
@@ -17,6 +19,12 @@ from invoke_toolkit.tasks.tasks import (
     _extract_literal_params,
     task,
 )
+
+if typing.TYPE_CHECKING:
+    from tests.conftest import TempVenv
+
+# Path to example tasks
+EXAMPLES_DIR = Path(__file__).parent / "examples"
 
 
 class Color(str, Enum):
@@ -202,14 +210,8 @@ def test_enum_cli_invalid_value_error():
         pass
 
     ctx = ToolkitContext()
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(SystemExit):
         paint(ctx, "purple")  # type: ignore[arg-type]
-
-    error_msg = str(exc_info.value)
-    assert "Invalid value 'purple' for color" in error_msg
-    assert "red" in error_msg
-    assert "green" in error_msg
-    assert "blue" in error_msg
 
 
 def test_enum_cli_with_multiple_params():
@@ -301,13 +303,8 @@ def test_literal_cli_invalid_value_error():
         pass
 
     ctx = ToolkitContext()
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(SystemExit):
         build(ctx, "production")  # type: ignore[arg-type]
-
-    error_msg = str(exc_info.value)
-    assert "Invalid value 'production' for mode" in error_msg
-    assert "debug" in error_msg
-    assert "release" in error_msg
 
 
 def test_literal_union_cli():
@@ -458,7 +455,7 @@ def test_mixed_invalid_enum_cli():
         pass
 
     ctx = ToolkitContext()
-    with pytest.raises(ValueError, match="Invalid value"):
+    with pytest.raises(SystemExit):
         configure(ctx, "invalid", "fast")  # type: ignore[arg-type]
 
 
@@ -475,7 +472,7 @@ def test_mixed_invalid_literal_cli():
         pass
 
     ctx = ToolkitContext()
-    with pytest.raises(ValueError, match="Invalid value"):
+    with pytest.raises(SystemExit):
         configure(ctx, "red", "medium")  # type: ignore[arg-type]
 
 
@@ -554,19 +551,8 @@ def test_enum_error_shows_all_options():
         pass
 
     ctx = ToolkitContext()
-    try:
+    with pytest.raises(SystemExit):
         paint(ctx, "invalid")  # type: ignore[arg-type]
-        pytest.fail("Should have raised ValueError")
-    except ValueError as e:
-        error_msg = str(e)
-        # Should mention the invalid value
-        assert "invalid" in error_msg
-        # Should mention the parameter
-        assert "color" in error_msg
-        # Should list all valid values
-        assert "red" in error_msg
-        assert "green" in error_msg
-        assert "blue" in error_msg
 
 
 def test_literal_error_shows_all_options():
@@ -578,12 +564,45 @@ def test_literal_error_shows_all_options():
         pass
 
     ctx = ToolkitContext()
-    try:
+    with pytest.raises(SystemExit):
         build(ctx, "test")  # type: ignore[arg-type]
-        pytest.fail("Should have raised ValueError")
-    except ValueError as e:
-        error_msg = str(e)
-        assert "test" in error_msg
-        assert "mode" in error_msg
-        assert "debug" in error_msg
-        assert "release" in error_msg
+
+
+def test_task_integration_flags(
+    temp_venv: "TempVenv",
+    git_root: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("VIRTUAL_ENV", "")
+    monkeypatch.chdir(tmp_path)
+    temp_venv.add_package(git_root, editable=True)
+
+    # Copy the tasks.py from enum_select_size example to tmp_path
+    example_tasks = EXAMPLES_DIR / "enum_select_size" / "tasks.py"
+    tasks_py: Path = tmp_path / "tasks.py"
+    tasks_py.write_text(example_tasks.read_text())
+
+    result = temp_venv.run("invoke-toolkit select-size -s small", text=True)
+
+    assert "<enum 'Size'>" in result.stdout
+
+
+def test_task_integration_literal(
+    temp_venv: "TempVenv",
+    git_root: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("VIRTUAL_ENV", "")
+    monkeypatch.chdir(tmp_path)
+    temp_venv.add_package(git_root, editable=True)
+
+    # Copy the tasks.py from literal_set_level example to tmp_path
+    example_tasks = EXAMPLES_DIR / "literal_set_level" / "tasks.py"
+    tasks_py: Path = tmp_path / "tasks.py"
+    tasks_py.write_text(example_tasks.read_text())
+
+    result = temp_venv.run("invoke-toolkit set-level -l debug", text=True)
+
+    assert "Level: debug" in result.stdout

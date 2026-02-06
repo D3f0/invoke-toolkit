@@ -122,8 +122,11 @@ class TempVenv:
         return env
 
     def _call(
-        self, command: str, cwd: Path | None = None
-    ) -> subprocess.CompletedProcess[bytes]:
+        self,
+        command: str,
+        cwd: Path | None = None,
+        text: bool = False,
+    ) -> subprocess.CompletedProcess[bytes] | subprocess.CompletedProcess[str]:
         """Internal call to the process"""
         result = subprocess.run(
             command,
@@ -133,15 +136,19 @@ class TempVenv:
             env=self._uv_venv,
             cwd=cwd,
             check=False,
+            text=text,
         )
         # assert result.returncode == 0
         return result
 
     def run(
-        self, command: str, cwd: Path | None = None
-    ) -> subprocess.CompletedProcess[bytes]:
+        self,
+        command: str,
+        cwd: Path | None = None,
+        text: bool = False,
+    ) -> subprocess.CompletedProcess[bytes] | subprocess.CompletedProcess[str]:
         """Runs a command in the virtual environment"""
-        return self._call(f"uv run {command}", cwd=cwd)
+        return self._call(f"uv run {command}", cwd=cwd, text=text)
 
     def __repr__(self):
         return f"<temp venv at {self.path}>"
