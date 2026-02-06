@@ -446,7 +446,8 @@ def test_tasks_and_entrypoints_merge(
 
     # Create the package
     temp_venv.run(
-        f"invoke-toolkit -x create.package --name {package_name} --location {tmp_path}"
+        f"invoke-toolkit -x create.package --name {package_name} --location {tmp_path}",
+        text=True,
     )
 
     # Install the newly created package
@@ -471,14 +472,15 @@ def test_tasks_and_entrypoints_merge(
     )
 
     # Now list tasks - should see both entry point tasks and local tasks
-    res = temp_venv.run("invoke-toolkit -dl", cwd=project_dir)
+    res = temp_venv.run("invoke-toolkit -dl", cwd=project_dir, text=True)
 
     assert res.returncode == 0, f"Error: {res.stdout} {res.stderr}"
 
     # Check that both the package entry point and local task are available
-    output = res.stderr.decode() if isinstance(res.stderr, bytes) else res.stderr
-    stdout = res.stdout.decode() if isinstance(res.stdout, bytes) else res.stdout
-    combined_output = output + stdout
+    # When text=True, stdout and stderr are str, not bytes
+    stderr = res.stderr if isinstance(res.stderr, str) else res.stderr.decode()
+    stdout = res.stdout if isinstance(res.stdout, str) else res.stdout.decode()
+    combined_output = stderr + stdout
 
     # Should have the entry point collection (invoke_toolkit_bar)
     assert "invoke_toolkit_bar" in combined_output or "hello" in combined_output, (
@@ -518,5 +520,5 @@ def test_create_package_create_venv_install_intk_and_package_and_list(
     temp_venv.add_package(tmp_pkg_path)
     # Separate test location
     other_place = tmp_path_factory.mktemp("other_place")
-    res = temp_venv.run("invoke-toolkit -l", cwd=other_place)
+    res = temp_venv.run("invoke-toolkit -l", cwd=other_place, text=True)
     assert res.returncode == 0
