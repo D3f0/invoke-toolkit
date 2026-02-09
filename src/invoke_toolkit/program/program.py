@@ -39,7 +39,6 @@ setup_rich_logging()
 # we force rich to be installed first
 
 
-from invoke.completion.complete import complete
 from invoke.exceptions import CollectionNotFound, Exit, ParseError, UnexpectedExit
 from invoke.parser import Argument
 from invoke.program import (
@@ -49,6 +48,7 @@ from invoke.program import (
 from invoke.util import debug
 
 from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.completion import complete_with_choices
 
 # Overrides that need to be imported afterwards
 from invoke_toolkit.config import ToolkitConfig
@@ -548,7 +548,7 @@ class ToolkitProgram(Program):
                         self.collection,  # type: ignore
                     )
 
-            complete(
+            complete_with_choices(
                 names=self.binary_names,
                 core=self.core,
                 initial_context=self.initial_context,
