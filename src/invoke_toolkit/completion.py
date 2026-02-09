@@ -16,52 +16,70 @@ from invoke.completion.complete import (
 from invoke.exceptions import Exit, ParseError
 from invoke.parser import Parser, ParserContext
 
+from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.tasks import (
     _extract_enum_params,
     _extract_literal_params,
 )
 
 
-def get_choices_for_argument(collection, context_name: str, arg_name: str) -> List[str]:
+def get_choices_for_argument(
+    collection, context_name: str, arg_name: str, incomplete: str = ""
+) -> List[str]:
     """
     Get available choices for an argument in a task.
+
+    Checks in priority order:
+    1. Completion callback (if defined)
+    2. Enum parameters (if defined)
+    3. Literal parameters (if defined)
 
     Args:
         collection: The invoke collection
         context_name: The task name
         arg_name: The argument name (without dashes)
+        incomplete: The incomplete value typed by user (for callback filtering)
 
     Returns:
         List of choice strings, or empty list if no choices defined
     """
-    choices = []
-
     # Try to get the task from the collection
     try:
         task = collection[context_name]
     except KeyError:
-        return choices
+        return []
+
+    # Step 1: Check for completion callback (HIGHEST PRIORITY)
+    # Callbacks are stored on the Task object, not the body
+    if hasattr(task, "_completion_callbacks"):  # pylint: disable=protected-access
+        callbacks = task._completion_callbacks  # pylint: disable=protected-access
+        if arg_name in callbacks:
+            try:
+                # Try to call the callback with context and incomplete
+                ctx = ToolkitContext()
+                result = callbacks[arg_name](ctx, incomplete)
+                if result:
+                    return [str(choice) for choice in result]
+            except (AttributeError, TypeError, ValueError) as e:
+                debug(f"Completion callback for {arg_name} failed: {e}")
+                # Fall through to next option
 
     # Get the wrapped function if available
     func = task.body
     if hasattr(func, "__wrapped__"):
         func = func.__wrapped__
 
-    # Extract enum parameters
+    # Step 2: Extract enum parameters (MEDIUM PRIORITY)
     enum_params = _extract_enum_params(func)
     if arg_name in enum_params:
-        enum_class = enum_params[arg_name]
-        choices = [str(member.value) for member in enum_class]
-        return choices
+        return [str(member.value) for member in enum_params[arg_name]]
 
-    # Extract literal parameters
+    # Step 3: Extract literal parameters (MEDIUM PRIORITY)
     literal_params = _extract_literal_params(func)
     if arg_name in literal_params:
-        literal_values = literal_params[arg_name]
-        choices = [str(v) for v in literal_values]
-        return choices
+        return [str(v) for v in literal_params[arg_name]]
 
-    return choices
+    return []
 
 
 def _strip_program_name(names: List[str], remainder: str) -> str:
@@ -123,7 +141,9 @@ def _handle_flag_completion(
     task_name = context.name
 
     if task_name:
-        choices = get_choices_for_argument(collection, task_name, arg_name)
+        # Extract incomplete value from tokens if available
+        incomplete = ""
+        choices = get_choices_for_argument(collection, task_name, arg_name, incomplete)
         if choices:
             debug(f"Found choices for {arg_name}: {choices}")
             for choice in choices:

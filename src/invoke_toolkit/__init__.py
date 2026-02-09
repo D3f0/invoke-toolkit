@@ -10,6 +10,7 @@ from typing import Any
 from invoke_toolkit.collections import ToolkitCollection as Collection  # noqa
 from invoke_toolkit.config.config import ToolkitConfig as Config  # noqa
 from invoke_toolkit.context import ToolkitContext as Context  # noqa
+from invoke_toolkit.parser import ToolkitArgument  # noqa
 from invoke_toolkit.scripts.loader import script  # noqa
 from invoke_toolkit.tasks import call, task  # noqa
 

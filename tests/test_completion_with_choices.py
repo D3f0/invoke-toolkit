@@ -1,4 +1,4 @@
-"""Tests for completion with Enum and Literal choices."""
+"""Tests for completion with Enum and Literal choices and custom callbacks."""
 
 import subprocess
 import sys
@@ -266,4 +266,165 @@ def test_completion_union_literal(suppress_stderr_logging):
     assert "low" in output, f"Expected 'low' in union literal completion, got: {output}"
     assert "high" in output, (
         f"Expected 'high' in union literal completion, got: {output}"
+    )
+
+
+def test_completion_callback_basic(suppress_stderr_logging):
+    """Test that completion callbacks are invoked and return choices."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            dedent("""
+                import sys
+                sys.argv = ['intk', '--complete', '--', 'intk', 'deploy', '--branch']
+
+                from typing import Annotated
+                from invoke_toolkit.collections import ToolkitCollection
+                from invoke_toolkit import Context, task
+
+                def complete_branches(ctx: Context, incomplete: str = "") -> list[str]:
+                    branches = ["main", "develop", "feature/new-api"]
+                    return [b for b in branches if b.startswith(incomplete)]
+
+                coll = ToolkitCollection()
+
+                @task
+                def deploy(
+                    ctx: Context,
+                    branch: Annotated[str, "Git branch to deploy", complete_branches]
+                ) -> None:
+                    pass
+
+                coll.add_task(deploy)  # type: ignore[arg-type]
+
+                from invoke_toolkit.testing import TestingToolkitProgram
+                p = TestingToolkitProgram(namespace=coll)
+                try:
+                    p.run(sys.argv)
+                except SystemExit:
+                    pass
+            """),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    output = result.stdout
+    assert "main" in output, f"Expected 'main' in callback completion, got: {output}"
+    assert "develop" in output, (
+        f"Expected 'develop' in callback completion, got: {output}"
+    )
+    assert "feature/new-api" in output, (
+        f"Expected 'feature/new-api' in callback completion, got: {output}"
+    )
+
+
+def test_completion_callback_with_filtering(suppress_stderr_logging):
+    """Test that completion callbacks filter results based on incomplete value."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            dedent("""
+                import sys
+                sys.argv = ['intk', '--complete', '--', 'intk', 'deploy', '--branch']
+
+                from typing import Annotated
+                from invoke_toolkit.collections import ToolkitCollection
+                from invoke_toolkit import Context, task
+
+                def complete_branches(ctx: Context, incomplete: str = "") -> list[str]:
+                    branches = ["main", "develop", "feature/new-api", "feature/another"]
+                    return [b for b in branches if b.startswith(incomplete)]
+
+                coll = ToolkitCollection()
+
+                @task
+                def deploy(
+                    ctx: Context,
+                    branch: Annotated[str, "Git branch to deploy", complete_branches]
+                ) -> None:
+                    pass
+
+                coll.add_task(deploy)  # type: ignore[arg-type]
+
+                from invoke_toolkit.testing import TestingToolkitProgram
+                p = TestingToolkitProgram(namespace=coll)
+                try:
+                    p.run(sys.argv)
+                except SystemExit:
+                    pass
+            """),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    output = result.stdout
+    # All branches should be returned since no incomplete prefix was provided
+    assert "main" in output, f"Expected 'main' in completion, got: {output}"
+    assert "develop" in output, f"Expected 'develop' in completion, got: {output}"
+
+
+def test_completion_callback_priority_over_enum(suppress_stderr_logging):
+    """Test that completion callback has higher priority than enum."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            dedent("""
+                import sys
+                sys.argv = ['intk', '--complete', '--', 'intk', 'deploy', '--env']
+
+                from typing import Annotated
+                from enum import Enum
+                from invoke_toolkit.collections import ToolkitCollection
+                from invoke_toolkit import Context, task
+
+                class Environment(str, Enum):
+                    DEV = "dev"
+                    STAGING = "staging"
+                    PROD = "prod"
+
+                def complete_env(ctx: Context, incomplete: str = "") -> list[str]:
+                    # Override enum with dynamic values
+                    return ["development", "staging", "production"]
+
+                coll = ToolkitCollection()
+
+                @task
+                def deploy(
+                    ctx: Context,
+                    env: Annotated[Environment, "Deployment environment", complete_env]
+                ) -> None:
+                    pass
+
+                coll.add_task(deploy)  # type: ignore[arg-type]
+
+                from invoke_toolkit.testing import TestingToolkitProgram
+                p = TestingToolkitProgram(namespace=coll)
+                try:
+                    p.run(sys.argv)
+                except SystemExit:
+                    pass
+            """),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    output = result.stdout
+    # Should use callback results, not enum values
+    assert "development" in output, (
+        f"Expected callback result 'development' in completion, got: {output}"
+    )
+    assert "staging" in output, (
+        f"Expected callback result 'staging' in completion, got: {output}"
+    )
+    assert "production" in output, (
+        f"Expected callback result 'production' in completion, got: {output}"
     )
