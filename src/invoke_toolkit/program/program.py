@@ -49,11 +49,10 @@ from invoke.util import debug
 
 from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.completion import complete_with_choices
-
-# Overrides that need to be imported afterwards
 from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.executor import ToolkitExecutor
 from invoke_toolkit.loader.entrypoint import EntryPointLoader
+from invoke_toolkit.parser import ToolkitArgument
 
 EMPTY_COLLECTION_NAME = "_empty"
 
@@ -311,42 +310,42 @@ class ToolkitProgram(Program):
         # Arguments present always, even when wrapped as a different binary
         args = super().core_args()
         toolkit_program_arguments = [
-            Argument(
+            ToolkitArgument(
                 names=("internal-col", "x"),
                 kind=bool,
                 default=False,
                 help="Loads the internal invoke-toolkit collections",
             ),
-            Argument(
+            ToolkitArgument(
                 names=("redact_stdout", "So"),
                 kind=bool,
                 default=False,
                 help="Prevents console to print secrets to [green]stdout[/green]",
             ),
-            Argument(
+            ToolkitArgument(
                 names=("redact_stderr", "Se"),
                 kind=bool,
                 default=False,
                 help="Prevents console to print secrets to [yellow]stderr[/yellow]",
             ),
-            Argument(
+            ToolkitArgument(
                 names=("redact_pattern", "Sp"),
                 kind=list,
                 default=[],
-                help="Defines which patterns should be redactbed, such as *_API*KEY or regexes. Settings this alone enables "
+                help="Regex patterns to redact matching text on both [green]stdout[/green] and [yellow]stderr[/yellow], "
                 "redactbing both for [green]stdout[/green] and [yellow]stderr[/yellow]",
             ),
-            Argument(
+            ToolkitArgument(
                 names=("disable_status", "ds"),
                 kind=bool,
                 default=False,
                 help="Disables the rich status context manager for debugging (useful when debugging breakpoints or using REPL)",
             ),
-            Argument(
+            ToolkitArgument(
                 names=("init_shell",),
                 kind=bool,
                 default=False,
-                help="Initialize the shell for the runner using the $SHELL environment variable",
+                help="Initializes shell for runner via CLI flag",
             ),
         ]
         args.extend(toolkit_program_arguments)

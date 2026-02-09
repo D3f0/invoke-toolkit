@@ -74,6 +74,50 @@ def _extract_annotated_help(func: Any) -> dict[str, str]:
     return help_dict
 
 
+def _extract_completion_callbacks(func: Any) -> dict[str, Callable]:
+    """
+    Extract completion callbacks from Annotated types in function signature.
+
+    Scans the function's parameters for Annotated types and extracts callable
+    completion callbacks. This allows parameters to have dynamic completion.
+
+    Skips the 'ctx' or 'c' parameter (Invoke Context) which Invoke doesn't allow help for.
+
+    Args:
+        func: The function to extract completion callbacks from
+
+    Returns:
+        Dictionary mapping parameter names to their completion callbacks
+    """
+    callbacks: dict[str, Callable] = {}
+
+    try:
+        sig = inspect.signature(func)
+        for param_name, param in sig.parameters.items():
+            # Skip 'self', 'ctx', 'c' and other special parameters
+            if param_name.startswith("_") or param_name in ("ctx", "c"):
+                continue
+
+            annotation = param.annotation
+            if annotation == inspect.Parameter.empty:
+                continue
+
+            # Check if it's an Annotated type
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+                # Look for a callable in Annotated metadata (skip the first arg which is the type)
+                for metadata in args[1:]:
+                    # Check if it's a callable but not a type/class
+                    if callable(metadata) and not isinstance(metadata, type):
+                        callbacks[param_name] = metadata
+                        break
+    except (ValueError, TypeError):
+        # If we can't extract, just return empty dict
+        pass
+
+    return callbacks
+
+
 def _extract_literal_from_union(annotation: Any) -> tuple[Any, ...] | None:
     """
     Extract Literal values from a Union type (e.g., Literal["a", "b"] | None).
@@ -456,6 +500,9 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         # Preserve the type hints on the wrapper
         wrapper.__annotations__ = f.__annotations__
 
+        # Extract completion callbacks
+        completion_callbacks = _extract_completion_callbacks(f)
+
         # Extract all help sources
         annotated_help = _extract_annotated_help(f)
         enum_help = {
@@ -513,6 +560,8 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
 
         # Store reference to original function
         task_decorated.__wrapped__ = f  # type: ignore[attr-defined]
+        # Store completion callbacks for use in completion system
+        task_decorated._completion_callbacks = completion_callbacks  # pylint: disable=protected-access  # type: ignore[attr-defined]
 
         return cast(F, task_decorated)
 
