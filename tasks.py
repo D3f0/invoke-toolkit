@@ -281,12 +281,16 @@ def find_container_tool(ctx: Context) -> str:
     results: dict[str, Any] = {}
     for tool in known_tools:
         promise: Any = ctx.run(
-            f"which {tool} && {tool} ps", asynchronous=True, warn=True
+            f"which {tool} && {tool} ps </dev/null",
+            asynchronous=True,
+            warn=True,
+            in_stream=False,
+            # timeout=5,
         )
         results[tool] = promise
     for tool, promise in results.items():
         result: Result = promise.join()
-        debug(tool, result)
+        debug(f"{tool}: {result}")
 
         if result.ok:
             return tool
@@ -325,8 +329,8 @@ def run_in_container(
     if workdir:
         flags = f"{flags} -w {workdir}"
     if volumes:
-        vols = [f"-v {vol}" for vol in volumes]
-        flags = f"{flags}  {vols}"
+        cli_vol_args = " ".join(f"-v {vol_expr}" for vol_expr in volumes)
+        flags = f"{flags}  {cli_vol_args}"
 
     uv_tool_flags = ""
     if with_:
@@ -334,7 +338,7 @@ def run_in_container(
         uv_tool_flags = f"{uv_tool_flags} {' '.join(with_args)}"
 
     ctx.run(
-        f"{container_tool} run {flags} -ti {volumes} {image} "
+        f"{container_tool} run {flags} {image} "
         + f"uv tool run {uv_tool_flags} --from /repo/ {command}",
         # pty=ctx.config.run.pty,
         pty=True,
