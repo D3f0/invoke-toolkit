@@ -28,7 +28,7 @@ from invoke import task as invoke_task
 from invoke.tasks import Call, Task
 
 from invoke_toolkit.context import ToolkitContext
-from invoke_toolkit.tasks.types import _FilePathMarker, _FilePatternMarker
+from invoke_toolkit.tasks.types import _FileCompletionMarker
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -121,14 +121,13 @@ def _extract_completion_callbacks(func: Any) -> dict[str, Callable]:
 
 def _extract_file_completion_markers(
     func: Any,
-) -> dict[str, _FilePathMarker | _FilePatternMarker]:
+) -> dict[str, _FileCompletionMarker]:
     """
-    Extract file completion markers from Annotated types in function signature.
+    Extract file completion markers from Annotated types and pathlib.Path hints.
 
-    Scans the function's parameters for Annotated types containing file path
-    or file pattern markers. This allows parameters to have file completion.
-
-    Skips the 'ctx' or 'c' parameter (Invoke Context).
+    Scans the function's parameters for:
+    1. Annotated types with _FileCompletionMarker metadata
+    2. Raw pathlib.Path type hints (auto-detected for completion)
 
     Args:
         func: The function to extract file completion markers from
@@ -136,7 +135,14 @@ def _extract_file_completion_markers(
     Returns:
         Dictionary mapping parameter names to their file completion markers
     """
-    markers: dict[str, _FilePathMarker | _FilePatternMarker] = {}
+    from invoke_toolkit.tasks.types import (
+        _FileCompletionMarker,
+        _FilePathMarker,
+        _FilePatternMarker,
+        is_path_type,
+    )
+
+    markers: dict[str, _FileCompletionMarker] = {}
 
     try:
         sig = inspect.signature(func)
@@ -149,16 +155,26 @@ def _extract_file_completion_markers(
             if annotation == inspect.Parameter.empty:
                 continue
 
-            # Check if it's an Annotated type
+            # Check if it's an Annotated type with file marker
             if get_origin(annotation) is Annotated:
                 args = get_args(annotation)
-                # Look for file markers in Annotated metadata (skip the first arg which is the type)
+                # Look for file markers in Annotated metadata
                 for metadata in args[1:]:
-                    if isinstance(metadata, (_FilePathMarker, _FilePatternMarker)):
+                    if isinstance(
+                        metadata,
+                        (_FileCompletionMarker, _FilePathMarker, _FilePatternMarker),
+                    ):
                         markers[param_name] = metadata
                         break
+                else:
+                    # No marker found, but check if base type is Path
+                    if args and is_path_type(args[0]):
+                        markers[param_name] = _FileCompletionMarker()
+            # Check for raw pathlib.Path type hints
+            elif is_path_type(annotation):
+                markers[param_name] = _FileCompletionMarker()
+
     except (ValueError, TypeError):
-        # If we can't extract, just return empty dict
         pass
 
     return markers
@@ -324,6 +340,42 @@ def _extract_literal_params(func: Any) -> dict[str, tuple[Any, ...]]:
     return literal_params
 
 
+def _extract_path_params(func: Any) -> dict[str, bool]:
+    """
+    Extract parameters that should be converted to pathlib.Path.
+
+    Scans for parameters with Path type hints (including Optional[Path]).
+
+    Args:
+        func: The function to extract path parameters from
+
+    Returns:
+        Dictionary mapping parameter names to True if they should be Path objects
+    """
+    from invoke_toolkit.tasks.types import is_path_type
+
+    path_params: dict[str, bool] = {}
+
+    try:
+        sig = inspect.signature(func)
+        for param_name, param in sig.parameters.items():
+            if param_name.startswith("_") or param_name in ("ctx", "c"):
+                continue
+
+            annotation = param.annotation
+            if annotation == inspect.Parameter.empty:
+                continue
+
+            # Check for Path type (handles Path, Optional[Path], Annotated[Path, ...])
+            if is_path_type(annotation):
+                path_params[param_name] = True
+
+    except (ValueError, TypeError):
+        pass
+
+    return path_params
+
+
 def _enum_choices_help(enum_class: Type[Enum]) -> str:
     """Generate help text with available enum choices."""
     values = ", ".join(str(member.value) for member in enum_class)
@@ -473,9 +525,12 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
     """
 
     def decorator(f: F) -> F:
-        # Extract enum and literal params early for wrapper
+        from pathlib import Path as PathlibPath
+
+        # Extract enum, literal, and path params early for wrapper
         enum_params = _extract_enum_params(f)
         literal_params = _extract_literal_params(f)
+        path_params = _extract_path_params(f)
         param_names = list(inspect.signature(f).parameters.keys())
 
         # Create a wrapper that Invoke can work with
@@ -540,6 +595,54 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
                                 _handle_validation_error(
                                     ctx, param_name, args[i], valid_values
                                 )
+
+            # Convert string path values to pathlib.Path instances
+            if path_params:
+                # Convert positional args
+                args_list = list(args)
+                for i, arg in enumerate(args_list):
+                    if i < len(param_names):
+                        param_name = param_names[i]
+                        if param_name in path_params and isinstance(arg, str):
+                            args_list[i] = PathlibPath(arg)
+                args = tuple(args_list)
+
+                # Convert kwargs
+                for param_name in path_params:
+                    if param_name in kwargs and isinstance(kwargs[param_name], str):
+                        kwargs[param_name] = PathlibPath(kwargs[param_name])
+
+            # Validate file paths if exists=True is set
+            if file_completion_markers:
+                for marker_param_name, marker in file_completion_markers.items():
+                    if not marker.exists:
+                        continue
+
+                    # Get the value from kwargs or args
+                    value = kwargs.get(marker_param_name)
+                    if value is None and marker_param_name in param_names:
+                        idx = param_names.index(marker_param_name)
+                        if idx < len(args):
+                            value = args[idx]
+
+                    if value is None:
+                        continue
+
+                    path = PathlibPath(value) if isinstance(value, str) else value
+                    if not path.exists():
+                        from invoke.exceptions import Exit
+
+                        raise Exit(f"Path does not exist: {value}", code=1)
+
+                    # Validate file_okay/dir_okay constraints
+                    if path.is_file() and not marker.file_okay:
+                        from invoke.exceptions import Exit
+
+                        raise Exit(f"Expected a directory, not a file: {value}", code=1)
+                    if path.is_dir() and not marker.dir_okay:
+                        from invoke.exceptions import Exit
+
+                        raise Exit(f"Expected a file, not a directory: {value}", code=1)
 
             return f(*args, **kwargs)
 

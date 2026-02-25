@@ -23,67 +23,118 @@ from invoke_toolkit.tasks.tasks import (
     _extract_enum_params,
     _extract_literal_params,
 )
-from invoke_toolkit.tasks.types import _FilePathMarker, _FilePatternMarker
+from invoke_toolkit.tasks.types import _FileCompletionMarker
 
 
 def _get_file_completions(
-    marker: _FilePathMarker | _FilePatternMarker,
-    incomplete: str = "",
+    marker: "_FileCompletionMarker",
+    incomplete: str,
 ) -> List[str]:
     """
-    Get file completions based on marker type.
+    Get file completions based on marker configuration.
+
+    Supports incremental directory traversal:
+    - Empty or no `/` → list CWD contents
+    - Ends with `/` → list that directory's contents
+    - Contains `/` → list parent directory, filter by partial filename
 
     Args:
-        marker: Either a _FilePathMarker or _FilePatternMarker instance
+        marker: A _FileCompletionMarker instance with completion options
         incomplete: The partial input to filter completions
 
     Returns:
         List of matching file paths within the current directory boundary
     """
-    files: List[str] = []
     cwd = os.path.realpath(".")
 
     def is_within_cwd(filepath: str) -> bool:
         """Check if filepath is within current working directory."""
         try:
             abs_path = os.path.realpath(filepath)
-            # Use commonpath to check if file is under cwd
             common = os.path.commonpath([cwd, abs_path])
             return common == cwd
         except (ValueError, OSError):
             return False
 
-    if isinstance(marker, _FilePathMarker):
-        try:
-            entries = os.listdir(".")
-            files = [f for f in entries if os.path.isfile(f) and is_within_cwd(f)]
-        except PermissionError as e:
-            debug(f"Permission denied listing current directory: {e}")
-            return []
-        except OSError as e:
-            debug(f"Error listing current directory: {e}")
-            return []
-    elif isinstance(marker, _FilePatternMarker):
-        try:
-            raw_files = glob.glob(marker.pattern, recursive=True)
-            # Filter to only files within cwd boundary
-            files = [f for f in raw_files if os.path.isfile(f) and is_within_cwd(f)]
-        except PermissionError as e:
-            debug(f"Permission denied with pattern '{marker.pattern}': {e}")
-            return []
-        except OSError as e:
-            debug(f"Error with glob pattern '{marker.pattern}': {e}")
-            return []
+    def matches_type_filter(filepath: str) -> bool:
+        """Check if filepath matches file_okay/dir_okay filters."""
+        is_file = os.path.isfile(filepath)
+        is_dir = os.path.isdir(filepath)
 
-    # Filter by incomplete prefix with path normalization
+        if is_file and not marker.file_okay:
+            return False
+        if is_dir and not marker.dir_okay:
+            return False
+        return is_file or is_dir
+
+    # Parse incomplete to determine base directory and filter prefix
+    base_dir = "."
+    filter_prefix = ""
+
     if incomplete:
-        incomplete_norm = os.path.normpath(incomplete) if incomplete else ""
-        files = [
-            f
-            for f in files
-            if os.path.normpath(f).startswith(incomplete_norm)
-            or f.startswith(incomplete)  # Also check raw match for partial inputs
-        ]
+        if incomplete.endswith("/"):
+            # User typed "subdir/" → list contents of subdir
+            base_dir = incomplete.rstrip("/")
+            filter_prefix = ""
+        elif "/" in incomplete:
+            # User typed "subdir/fil" → list subdir, filter by "fil"
+            base_dir = os.path.dirname(incomplete)
+            filter_prefix = os.path.basename(incomplete)
+        else:
+            # User typed "fil" → list CWD, filter by "fil"
+            base_dir = "."
+            filter_prefix = incomplete
+
+    # Security check: base directory must be within CWD
+    if not is_within_cwd(base_dir):
+        debug(f"Security: base_dir '{base_dir}' is outside CWD")
+        return []
+
+    # Determine prefix to prepend to results
+    dir_prefix = "" if base_dir == "." else base_dir + "/"
+
+    files: List[str] = []
+
+    try:
+        if marker.pattern:
+            # Use glob pattern (patterns are relative to CWD, not base_dir)
+            raw_files = glob.glob(marker.pattern, recursive=True)
+            # Filter to only files within cwd that match type
+            matched_files = [
+                f for f in raw_files if is_within_cwd(f) and matches_type_filter(f)
+            ]
+            # For pattern mode, filter by incomplete prefix
+            if incomplete:
+                incomplete_norm = os.path.normpath(incomplete) if incomplete else ""
+                files = [
+                    f
+                    for f in matched_files
+                    if os.path.normpath(f).startswith(incomplete_norm)
+                    or f.startswith(incomplete)
+                ]
+            else:
+                files = matched_files
+        else:
+            # List entries in base_dir
+            entries = os.listdir(base_dir)
+            for entry in entries:
+                full_path = os.path.join(base_dir, entry) if base_dir != "." else entry
+                if not is_within_cwd(full_path):
+                    continue
+                if not matches_type_filter(full_path):
+                    continue
+                # Apply filter prefix if present
+                if filter_prefix and not entry.startswith(filter_prefix):
+                    continue
+                # Prepend directory prefix to result
+                result_path = dir_prefix + entry
+                files.append(result_path)
+    except PermissionError as e:
+        debug(f"Permission denied: {e}")
+        return []
+    except OSError as e:
+        debug(f"Error listing files: {e}")
+        return []
 
     return sorted(files)
 
@@ -136,6 +187,7 @@ def get_choices_for_argument(
         markers = task._file_completion_markers  # pylint: disable=protected-access
         if arg_name in markers:
             marker = markers[arg_name]
+            # Handle all marker types (they all inherit from _FileCompletionMarker now)
             return _get_file_completions(marker, incomplete)
 
     # Get the wrapped function if available
