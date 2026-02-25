@@ -1,11 +1,18 @@
 import json
+import pkgutil
 import subprocess
 import sys
 from typing import Any
 
 from invoke_toolkit import Context, task
 from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.extensions import tasks as extensions_tasks
 from invoke_toolkit.testing import TestingToolkitProgram
+
+
+def get_extension_collection_names() -> set[str]:
+    """Dynamically discover all extension collection names."""
+    return {module.name for module in pkgutil.iter_modules(extensions_tasks.__path__)}
 
 
 @task()
@@ -31,8 +38,10 @@ def test_program_with_collection(capsys, suppress_stderr_logging):
     task_list: dict[str, Any] = json.loads(out)
     collections = task_list.get("collections")
     assert collections, "collections not found in -x"
-    assert set(c["name"] for c in collections).issubset(
-        set(["create", "config", "dist"])
+    expected_collections = get_extension_collection_names()
+    actual_collections = set(c["name"] for c in collections)
+    assert actual_collections.issubset(expected_collections), (
+        f"Unexpected collections: {actual_collections - expected_collections}"
     )
 
 

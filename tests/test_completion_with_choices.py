@@ -1,0 +1,234 @@
+"""Tests for completion with Enum and Literal choices and custom callbacks."""
+
+import io
+from contextlib import redirect_stdout
+from enum import Enum
+from typing import Annotated, Literal
+
+from invoke.exceptions import Exit
+
+from invoke_toolkit import Context, task
+from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.completion import get_choices_for_argument
+from invoke_toolkit.testing import TestingToolkitProgram
+from tests.conftest import Color, Size
+
+
+def run_completion(coll: ToolkitCollection, task_name: str, flag: str) -> str:
+    """
+    Run completion for a task and flag, capturing stdout.
+
+    Args:
+        coll: The collection containing the task
+        task_name: Name of the task to complete
+        flag: The flag to complete (e.g., '--branch')
+
+    Returns:
+        The completion output as a string
+    """
+    argv = ["intk", "--complete", "--", "intk", task_name, flag]
+    program = TestingToolkitProgram(namespace=coll)
+    stdout_capture = io.StringIO()
+    with redirect_stdout(stdout_capture):
+        try:
+            program.run(argv)
+        except (SystemExit, Exit):
+            pass
+    return stdout_capture.getvalue()
+
+
+def test_completion_enum_choices():
+    """Test that completion shows enum choices."""
+    coll = ToolkitCollection()
+
+    @task
+    def paint(ctx: Context, color: Color = Color.RED) -> None:
+        """Paint with a color."""
+
+    coll.add_task(paint)  # type: ignore[arg-type]
+
+    output = run_completion(coll, "paint", "--color")
+
+    assert "red" in output, f"Expected 'red' in completion output, got: {output}"
+    assert "green" in output, f"Expected 'green' in completion output, got: {output}"
+    assert "blue" in output, f"Expected 'blue' in completion output, got: {output}"
+
+
+def test_completion_literal_choices():
+    """Test that completion shows literal choices."""
+    coll = ToolkitCollection()
+
+    @task
+    def build(ctx: Context, mode: Literal["debug", "release"] = "debug") -> None:
+        """Build with a mode."""
+
+    coll.add_task(build)  # type: ignore[arg-type]
+
+    output = run_completion(coll, "build", "--mode")
+
+    assert "debug" in output, f"Expected 'debug' in completion output, got: {output}"
+    assert "release" in output, (
+        f"Expected 'release' in completion output, got: {output}"
+    )
+
+
+def test_completion_multiple_enum_params():
+    """Test that completion works with multiple enum parameters."""
+    coll = ToolkitCollection()
+
+    @task
+    def configure(
+        ctx: Context,
+        color: Color = Color.RED,
+        size: Size = Size.MEDIUM,
+    ) -> None:
+        """Configure with color and size."""
+
+    coll.add_task(configure)  # type: ignore[arg-type]
+
+    # Test color completion
+    output = run_completion(coll, "configure", "--color")
+    assert "red" in output, f"Expected 'red' in color completion, got: {output}"
+    assert "green" in output, f"Expected 'green' in color completion, got: {output}"
+    assert "blue" in output, f"Expected 'blue' in color completion, got: {output}"
+
+    # Test size completion
+    output = run_completion(coll, "configure", "--size")
+    assert "small" in output, f"Expected 'small' in size completion, got: {output}"
+    assert "medium" in output, f"Expected 'medium' in size completion, got: {output}"
+    assert "large" in output, f"Expected 'large' in size completion, got: {output}"
+
+
+def test_completion_union_literal():
+    """Test that completion works with optional literal parameters (Union with None)."""
+    coll = ToolkitCollection()
+
+    @task
+    def process(ctx: Context, level: Literal["low", "high"] | None = None) -> None:
+        """Process with a level."""
+
+    coll.add_task(process)  # type: ignore[arg-type]
+
+    output = run_completion(coll, "process", "--level")
+
+    assert "low" in output, f"Expected 'low' in union literal completion, got: {output}"
+    assert "high" in output, (
+        f"Expected 'high' in union literal completion, got: {output}"
+    )
+
+
+def test_completion_callback_basic():
+    """Test that completion callbacks are invoked and return choices."""
+
+    def complete_branches(ctx: Context, incomplete: str = "") -> list[str]:
+        branches = ["main", "develop", "feature/new-api"]
+        return [b for b in branches if b.startswith(incomplete)]
+
+    coll = ToolkitCollection()
+
+    @task
+    def deploy(
+        ctx: Context,
+        branch: Annotated[str, "Git branch to deploy", complete_branches],
+    ) -> None:
+        pass
+
+    coll.add_task(deploy)  # type: ignore[arg-type]
+
+    output = run_completion(coll, "deploy", "--branch")
+
+    assert "main" in output, f"Expected 'main' in callback completion, got: {output}"
+    assert "develop" in output, (
+        f"Expected 'develop' in callback completion, got: {output}"
+    )
+    assert "feature/new-api" in output, (
+        f"Expected 'feature/new-api' in callback completion, got: {output}"
+    )
+
+
+def test_completion_callback_with_filtering():
+    """Test that completion callbacks filter results based on incomplete value."""
+
+    def complete_branches(ctx: Context, incomplete: str = "") -> list[str]:
+        branches = ["main", "develop", "feature/new-api", "feature/another"]
+        return [b for b in branches if b.startswith(incomplete)]
+
+    coll = ToolkitCollection()
+
+    @task
+    def deploy(
+        ctx: Context,
+        branch: Annotated[str, "Git branch to deploy", complete_branches],
+    ) -> None:
+        pass
+
+    coll.add_task(deploy)  # type: ignore[arg-type]
+
+    # Test with no filter - all branches returned via --complete
+    output = run_completion(coll, "deploy", "--branch")
+    assert "main" in output, f"Expected 'main' in completion, got: {output}"
+    assert "develop" in output, f"Expected 'develop' in completion, got: {output}"
+    assert "feature/new-api" in output, (
+        f"Expected 'feature/new-api' in completion, got: {output}"
+    )
+    assert "feature/another" in output, (
+        f"Expected 'feature/another' in completion, got: {output}"
+    )
+
+    # Test filtering via get_choices_for_argument (unit test for callback behavior)
+    choices = get_choices_for_argument(coll, "deploy", "branch", incomplete="feature/")
+    assert "main" not in choices, f"Unexpected 'main' in filtered completion: {choices}"
+    assert "develop" not in choices, (
+        f"Unexpected 'develop' in filtered completion: {choices}"
+    )
+    assert "feature/new-api" in choices, (
+        f"Expected 'feature/new-api' in filtered completion, got: {choices}"
+    )
+    assert "feature/another" in choices, (
+        f"Expected 'feature/another' in filtered completion, got: {choices}"
+    )
+
+    # Test with "m" filter - only main returned
+    choices = get_choices_for_argument(coll, "deploy", "branch", incomplete="m")
+    assert choices == ["main"], f"Expected only ['main'], got: {choices}"
+
+
+def test_completion_callback_priority_over_enum():
+    """Test that completion callback has higher priority than enum."""
+
+    class Environment(str, Enum):
+        DEV = "dev"
+        STAGING = "staging"
+        PROD = "prod"
+
+    def complete_env(ctx: Context, incomplete: str = "") -> list[str]:
+        # Override enum with dynamic values
+        return ["development", "staging", "production"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def deploy(
+        ctx: Context,
+        env: Annotated[Environment, "Deployment environment", complete_env],
+    ) -> None:
+        pass
+
+    coll.add_task(deploy)  # type: ignore[arg-type]
+
+    output = run_completion(coll, "deploy", "--env")
+
+    # Should use callback results, not enum values
+    lines = output.strip().split("\n")
+    assert "development" in lines, (
+        f"Expected callback result 'development' in completion, got: {lines}"
+    )
+    assert "staging" in lines, (
+        f"Expected callback result 'staging' in completion, got: {lines}"
+    )
+    assert "production" in lines, (
+        f"Expected callback result 'production' in completion, got: {lines}"
+    )
+    # Ensure enum values are NOT returned (callback takes priority)
+    assert "dev" not in lines, f"Unexpected enum value 'dev' in completion: {lines}"
+    assert "prod" not in lines, f"Unexpected enum value 'prod' in completion: {lines}"

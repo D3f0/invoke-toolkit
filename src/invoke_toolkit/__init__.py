@@ -10,8 +10,17 @@ from typing import Any
 from invoke_toolkit.collections import ToolkitCollection as Collection  # noqa
 from invoke_toolkit.config.config import ToolkitConfig as Config  # noqa
 from invoke_toolkit.context import ToolkitContext as Context  # noqa
+from invoke_toolkit.parser import ToolkitArgument  # noqa
 from invoke_toolkit.scripts.loader import script  # noqa
 from invoke_toolkit.tasks import call, task  # noqa
+from invoke_toolkit.tasks.types import (
+    DirPath as DirPath,
+    DirPathStr as DirPathStr,
+    FilePath as FilePath,
+    FilePathStr as FilePathStr,
+    FilePattern as FilePattern,
+    FilePatternStr as FilePatternStr,
+)
 
 # Ugly hack to prevent auto-sorting of imports preventing the logging setup
 _KEEP_IMPORTS_SORTED = None

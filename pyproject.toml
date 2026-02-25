@@ -34,6 +34,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "pdbpp >=0.11.7",
     "platformdirs>=4.5.0",
+    "httpx>=0.28.1",
 ]
 
 # Git based versioning, uses git tags
@@ -185,9 +186,11 @@ disable = [
 
 per-file-ignores = [
     "tasks.py:missing-function-docstring,missing-class-docstring,missing-module-docstring,invalid-name,too-many-branches",
-    "src/invoke_toolkit/tasks/tasks.py:too-many-arguments",
+    "src/invoke_toolkit/tasks/tasks.py:too-many-arguments,reimported,import-outside-toplevel,too-many-locals",
+    "src/invoke_toolkit/tasks/types.py:invalid-name,import-outside-toplevel,unidiomatic-typecheck",
+    "src/invoke_toolkit/completion.py:too-many-locals,too-many-branches,too-many-statements",
     "src/invoke_toolkit/program/program.py:ungrouped-imports,redefined-builtin,raise-missing-from,attribute-defined-outside-init,redefined-builtin,possibly-used-before-assignment,no-else-raise",
-    "src/**/__init__.py:missing-module-docstring,global-statement",
+    "src/**/__init__.py:missing-module-docstring,global-statement,useless-import-alias",
     "src/invoke_toolkit/scripts/loader.py:redefined-builtin",
     "src/**/tasks/*.py:unused-argument",
     "src/invoke_toolkit/collections.py:logging-fstring-interpolation,missing-class-docstring",
@@ -196,7 +199,7 @@ per-file-ignores = [
     "**/context.py:too-few-public-methods",
     # This is for the list initialization of var-args in Invoke
     "**/*.py:dangerous-default-value,line-too-long,logging-format-interpolation,missing-module-docstring,missing-class-docstring,logging-fstring-interpolation,redefined-builtin,logging-not-lazy",
-    "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring,redefined-outer-name,import-outside-toplevel,protected-access",
+    "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring,redefined-outer-name,import-outside-toplevel,protected-access,duplicate-code",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
     "src/invoke_toolkit/loader/entrypoint.py:missing-function-docstring,logging-fstring-interpolation,import-outside-toplevel,broad-exception-caught,unused-argument,arguments-differ",
 ]
