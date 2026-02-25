@@ -1,7 +1,9 @@
+# pylint: disable=duplicate-code
 from typing import List, Optional
+
 from invoke_toolkit.config.config import ToolkitConfig
-from invoke_toolkit.program import ToolkitProgram
 from invoke_toolkit.executor import ToolkitExecutor
+from invoke_toolkit.program import ToolkitProgram
 
 
 class NoStdinByDefaultConfig(

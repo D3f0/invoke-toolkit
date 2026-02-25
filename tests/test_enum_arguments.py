@@ -19,28 +19,13 @@ from invoke_toolkit.tasks.tasks import (
     _extract_literal_params,
     task,
 )
+from tests.conftest import Color, Size
 
 if typing.TYPE_CHECKING:
     from tests.conftest import TempVenv
 
 # Path to example tasks
 EXAMPLES_DIR = Path(__file__).parent / "examples"
-
-
-class Color(str, Enum):
-    """Color enumeration."""
-
-    RED = "red"
-    GREEN = "green"
-    BLUE = "blue"
-
-
-class Size(str, Enum):
-    """Size enumeration."""
-
-    SMALL = "small"
-    MEDIUM = "medium"
-    LARGE = "large"
 
 
 class Status(Enum):

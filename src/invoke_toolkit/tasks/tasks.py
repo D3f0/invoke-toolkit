@@ -28,6 +28,7 @@ from invoke import task as invoke_task
 from invoke.tasks import Call, Task
 
 from invoke_toolkit.context import ToolkitContext
+from invoke_toolkit.tasks.types import _FilePathMarker, _FilePatternMarker
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -116,6 +117,51 @@ def _extract_completion_callbacks(func: Any) -> dict[str, Callable]:
         pass
 
     return callbacks
+
+
+def _extract_file_completion_markers(
+    func: Any,
+) -> dict[str, _FilePathMarker | _FilePatternMarker]:
+    """
+    Extract file completion markers from Annotated types in function signature.
+
+    Scans the function's parameters for Annotated types containing file path
+    or file pattern markers. This allows parameters to have file completion.
+
+    Skips the 'ctx' or 'c' parameter (Invoke Context).
+
+    Args:
+        func: The function to extract file completion markers from
+
+    Returns:
+        Dictionary mapping parameter names to their file completion markers
+    """
+    markers: dict[str, _FilePathMarker | _FilePatternMarker] = {}
+
+    try:
+        sig = inspect.signature(func)
+        for param_name, param in sig.parameters.items():
+            # Skip 'self', 'ctx', 'c' and other special parameters
+            if param_name.startswith("_") or param_name in ("ctx", "c"):
+                continue
+
+            annotation = param.annotation
+            if annotation == inspect.Parameter.empty:
+                continue
+
+            # Check if it's an Annotated type
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+                # Look for file markers in Annotated metadata (skip the first arg which is the type)
+                for metadata in args[1:]:
+                    if isinstance(metadata, (_FilePathMarker, _FilePatternMarker)):
+                        markers[param_name] = metadata
+                        break
+    except (ValueError, TypeError):
+        # If we can't extract, just return empty dict
+        pass
+
+    return markers
 
 
 def _extract_literal_from_union(annotation: Any) -> tuple[Any, ...] | None:
@@ -503,6 +549,9 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         # Extract completion callbacks
         completion_callbacks = _extract_completion_callbacks(f)
 
+        # Extract file completion markers
+        file_completion_markers = _extract_file_completion_markers(f)
+
         # Extract all help sources
         annotated_help = _extract_annotated_help(f)
         enum_help = {
@@ -562,6 +611,8 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         task_decorated.__wrapped__ = f  # type: ignore[attr-defined]
         # Store completion callbacks for use in completion system
         task_decorated._completion_callbacks = completion_callbacks  # pylint: disable=protected-access  # type: ignore[attr-defined]
+        # Store file completion markers for use in completion system
+        task_decorated._file_completion_markers = file_completion_markers  # pylint: disable=protected-access  # type: ignore[attr-defined]
 
         return cast(F, task_decorated)
 

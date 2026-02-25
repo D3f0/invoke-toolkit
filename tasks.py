@@ -298,7 +298,7 @@ def find_container_tool(ctx: Context) -> str:
 
 
 @task()
-def run_in_container(
+def run_in_container(  # pylint: disable=too-many-locals
     ctx: Context,
     image: Annotated[
         str, "Base image, should contain uv"

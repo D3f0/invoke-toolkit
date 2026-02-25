@@ -5,6 +5,8 @@ This module extends invoke's completion system to support completing
 argument values for Enum and Literal parameters.
 """
 
+import glob
+import os
 import re
 import shlex
 from typing import List
@@ -21,6 +23,69 @@ from invoke_toolkit.tasks.tasks import (
     _extract_enum_params,
     _extract_literal_params,
 )
+from invoke_toolkit.tasks.types import _FilePathMarker, _FilePatternMarker
+
+
+def _get_file_completions(
+    marker: _FilePathMarker | _FilePatternMarker,
+    incomplete: str = "",
+) -> List[str]:
+    """
+    Get file completions based on marker type.
+
+    Args:
+        marker: Either a _FilePathMarker or _FilePatternMarker instance
+        incomplete: The partial input to filter completions
+
+    Returns:
+        List of matching file paths within the current directory boundary
+    """
+    files: List[str] = []
+    cwd = os.path.realpath(".")
+
+    def is_within_cwd(filepath: str) -> bool:
+        """Check if filepath is within current working directory."""
+        try:
+            abs_path = os.path.realpath(filepath)
+            # Use commonpath to check if file is under cwd
+            common = os.path.commonpath([cwd, abs_path])
+            return common == cwd
+        except (ValueError, OSError):
+            return False
+
+    if isinstance(marker, _FilePathMarker):
+        try:
+            entries = os.listdir(".")
+            files = [f for f in entries if os.path.isfile(f) and is_within_cwd(f)]
+        except PermissionError as e:
+            debug(f"Permission denied listing current directory: {e}")
+            return []
+        except OSError as e:
+            debug(f"Error listing current directory: {e}")
+            return []
+    elif isinstance(marker, _FilePatternMarker):
+        try:
+            raw_files = glob.glob(marker.pattern, recursive=True)
+            # Filter to only files within cwd boundary
+            files = [f for f in raw_files if os.path.isfile(f) and is_within_cwd(f)]
+        except PermissionError as e:
+            debug(f"Permission denied with pattern '{marker.pattern}': {e}")
+            return []
+        except OSError as e:
+            debug(f"Error with glob pattern '{marker.pattern}': {e}")
+            return []
+
+    # Filter by incomplete prefix with path normalization
+    if incomplete:
+        incomplete_norm = os.path.normpath(incomplete) if incomplete else ""
+        files = [
+            f
+            for f in files
+            if os.path.normpath(f).startswith(incomplete_norm)
+            or f.startswith(incomplete)  # Also check raw match for partial inputs
+        ]
+
+    return sorted(files)
 
 
 def get_choices_for_argument(
@@ -31,8 +96,9 @@ def get_choices_for_argument(
 
     Checks in priority order:
     1. Completion callback (if defined)
-    2. Enum parameters (if defined)
-    3. Literal parameters (if defined)
+    2. File completion markers (if defined)
+    3. Enum parameters (if defined)
+    4. Literal parameters (if defined)
 
     Args:
         collection: The invoke collection
@@ -64,17 +130,25 @@ def get_choices_for_argument(
                 debug(f"Completion callback for {arg_name} failed: {e}")
                 # Fall through to next option
 
+    # Step 2: Check for file completion markers (HIGH PRIORITY)
+    # File markers are stored on the Task object
+    if hasattr(task, "_file_completion_markers"):  # pylint: disable=protected-access
+        markers = task._file_completion_markers  # pylint: disable=protected-access
+        if arg_name in markers:
+            marker = markers[arg_name]
+            return _get_file_completions(marker, incomplete)
+
     # Get the wrapped function if available
     func = task.body
     if hasattr(func, "__wrapped__"):
         func = func.__wrapped__
 
-    # Step 2: Extract enum parameters (MEDIUM PRIORITY)
+    # Step 3: Extract enum parameters (MEDIUM PRIORITY)
     enum_params = _extract_enum_params(func)
     if arg_name in enum_params:
         return [str(member.value) for member in enum_params[arg_name]]
 
-    # Step 3: Extract literal parameters (MEDIUM PRIORITY)
+    # Step 4: Extract literal parameters (MEDIUM PRIORITY)
     literal_params = _extract_literal_params(func)
     if arg_name in literal_params:
         return [str(v) for v in literal_params[arg_name]]

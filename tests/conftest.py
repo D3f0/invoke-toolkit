@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import sys
+from enum import Enum
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Protocol, Union
@@ -14,6 +15,22 @@ from tomlkit import TOMLDocument, dump, parse
 # from invoke.context import Context
 from invoke_toolkit import Context
 from invoke_toolkit.output.console import manager
+
+
+class Color(str, Enum):
+    """Color enumeration for testing."""
+
+    RED = "red"
+    GREEN = "green"
+    BLUE = "blue"
+
+
+class Size(str, Enum):
+    """Size enumeration for testing."""
+
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
 
 
 @pytest.fixture
