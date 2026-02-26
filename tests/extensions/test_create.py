@@ -3,10 +3,15 @@ import subprocess
 import typing
 from pathlib import Path
 from textwrap import dedent
+from unittest.mock import patch
 
 import pytest
 
 from invoke_toolkit.context.context import ToolkitContext
+from invoke_toolkit.extensions.tasks.create import (
+    GIT_CONFIG_TEMPLATE_KEY,
+    _get_git_config_value,
+)
 from invoke_toolkit.testing import TestingToolkitProgram
 
 if typing.TYPE_CHECKING:
@@ -522,3 +527,187 @@ def test_create_package_create_venv_install_intk_and_package_and_list(
     other_place = tmp_path_factory.mktemp("other_place")
     res = temp_venv.run("invoke-toolkit -l", cwd=other_place, text=True)
     assert res.returncode == 0
+
+
+def test_get_git_config_value(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """
+    Tests the _get_git_config_value function can retrieve git config values.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    # Initialize a git repo in the temp directory
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+
+    # Set a test config value
+    test_key = "test.config-key"
+    test_value = "https://github.com/example/template.git"
+    subprocess.run(
+        ["git", "config", test_key, test_value],
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
+    )
+
+    # Verify we can read it back
+    result = _get_git_config_value(test_key)
+    assert result == test_value
+
+    # Non-existent key should return None
+    result = _get_git_config_value("non.existent.key")
+    assert result is None
+
+
+def test_package_with_explicit_template_parameter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """
+    Tests that create.package accepts a --template parameter.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    # Create a custom template directory (copy of the default)
+    import invoke_toolkit
+
+    invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+    default_template = (
+        invoke_toolkit_path.parent.parent / "templates" / "package-template"
+    )
+
+    if not default_template.exists():
+        pytest.skip("Default template not found in development setup")
+
+    custom_template = tmp_path / "my-custom-template"
+    import shutil
+
+    shutil.copytree(default_template, custom_template)
+
+    # Create a package using the custom template
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    monkeypatch.chdir(output_dir)
+
+    x = TestingToolkitProgram()
+    x.run(
+        [
+            "",
+            "-x",
+            "create.package",
+            "--name",
+            "custom-template-pkg",
+            "--template",
+            str(custom_template),
+        ]
+    )
+
+    # Verify the package was created
+    pkg_dir = output_dir / "custom-template-pkg"
+    assert pkg_dir.exists(), "Package directory should be created"
+    assert (pkg_dir / "pyproject.toml").exists(), "pyproject.toml should exist"
+
+
+def test_package_uses_git_config_template(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """
+    Tests that create.package reads template from git config when --template is not provided.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    # Create a custom template directory
+    import invoke_toolkit
+
+    invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+    default_template = (
+        invoke_toolkit_path.parent.parent / "templates" / "package-template"
+    )
+
+    if not default_template.exists():
+        pytest.skip("Default template not found in development setup")
+
+    custom_template = tmp_path / "git-configured-template"
+    import shutil
+
+    shutil.copytree(default_template, custom_template)
+
+    # Create output directory and work from there
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    monkeypatch.chdir(output_dir)
+
+    # Mock _get_git_config_value to return our custom template
+    with patch(
+        "invoke_toolkit.extensions.tasks.create._get_git_config_value"
+    ) as mock_git_config:
+        mock_git_config.return_value = str(custom_template)
+
+        x = TestingToolkitProgram()
+        x.run(["", "-x", "create.package", "--name", "git-config-pkg"])
+
+        # Verify git config was queried with the right key
+        mock_git_config.assert_called_with(GIT_CONFIG_TEMPLATE_KEY)
+
+    # Verify the package was created
+    pkg_dir = output_dir / "git-config-pkg"
+    assert pkg_dir.exists(), (
+        "Package directory should be created from git config template"
+    )
+    assert (pkg_dir / "pyproject.toml").exists(), "pyproject.toml should exist"
+
+
+def test_package_template_priority_explicit_over_git_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """
+    Tests that --template parameter takes priority over git config.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    # Create a custom template directory
+    import invoke_toolkit
+
+    invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+    default_template = (
+        invoke_toolkit_path.parent.parent / "templates" / "package-template"
+    )
+
+    if not default_template.exists():
+        pytest.skip("Default template not found in development setup")
+
+    explicit_template = tmp_path / "explicit-template"
+    import shutil
+
+    shutil.copytree(default_template, explicit_template)
+
+    # Create output directory
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    monkeypatch.chdir(output_dir)
+
+    # Mock git config to return a different template (which won't be used)
+    with patch(
+        "invoke_toolkit.extensions.tasks.create._get_git_config_value"
+    ) as mock_git_config:
+        mock_git_config.return_value = "/some/other/template"
+
+        x = TestingToolkitProgram()
+        x.run(
+            [
+                "",
+                "-x",
+                "create.package",
+                "--name",
+                "priority-test-pkg",
+                "--template",
+                str(explicit_template),
+            ]
+        )
+
+        # Git config should NOT be called when explicit template is provided
+        mock_git_config.assert_not_called()
+
+    # Verify the package was created
+    pkg_dir = output_dir / "priority-test-pkg"
+    assert pkg_dir.exists(), "Package should be created with explicit template"

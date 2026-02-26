@@ -17,12 +17,41 @@ from typing_extensions import Annotated
 
 import invoke_toolkit
 from invoke_toolkit import Context, __version__, task
-from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT
+from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT, PLUGIN_PREFIX
 
 try:
     from copier import run_copy
 except ImportError:
     run_copy = None  # type: ignore[assignment]
+
+
+# Git config key for custom template repository/path
+GIT_CONFIG_TEMPLATE_KEY = "invoke-toolkit.package-template"
+
+
+def _get_git_config_value(key: str) -> str | None:
+    """
+    Get a value from git config.
+
+    Args:
+        key: The git config key to look up
+
+    Returns:
+        The config value if found, None otherwise
+    """
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", key],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return None
 
 
 def _get_template() -> str:
@@ -128,6 +157,82 @@ def add_shebang(
         ctx.print(f"{path} has already a shebang")
 
 
+def _get_default_template_path() -> Path:
+    """
+    Get the default template path from the invoke-toolkit package.
+
+    Returns:
+        Path to the bundled package-template directory
+    """
+    # Try to find templates relative to the invoke_toolkit module
+    # This works for both development (repo root) and installed packages
+    invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+
+    # First try: templates in the same directory (development setup)
+    template_path = invoke_toolkit_path.parent.parent / "templates" / "package-template"
+
+    # Second try: templates in the package data directory (installed)
+    if not template_path.exists():
+        template_path = invoke_toolkit_path / "templates" / "package-template"
+
+    # Third try: check if we're in a site-packages installation
+    if not template_path.exists():
+        # Look for templates in the package root's share or data directory
+        site_packages_parent = invoke_toolkit_path.parent.parent.parent
+        template_path = site_packages_parent / "templates" / "package-template"
+
+    return template_path
+
+
+def _resolve_template_source(template: str | None, ctx: Context) -> str:
+    """
+    Resolve the template source path/URL.
+
+    Priority:
+    1. Explicit --template parameter
+    2. Git config (invoke-toolkit.package-template)
+    3. Default bundled template
+
+    Args:
+        template: Explicit template path/URL from --template parameter
+        ctx: Context for error reporting
+
+    Returns:
+        Template path or URL to use with copier
+    """
+    # Priority 1: Explicit --template parameter
+    if template:
+        ctx.print_err(f"[blue]Using template from --template:[/blue] {template}")
+        return template
+
+    # Priority 2: Git config
+    git_template = _get_git_config_value(GIT_CONFIG_TEMPLATE_KEY)
+    if git_template:
+        ctx.print_err(
+            f"[blue]Using template from git config ({GIT_CONFIG_TEMPLATE_KEY}):[/blue] {git_template}"
+        )
+        return git_template
+
+    # Priority 3: Default bundled template
+    default_path = _get_default_template_path()
+    if not default_path.exists():
+        ctx.rich_exit(
+            dedent(
+                f"""
+                Template directory not found at [bold]{default_path}[/bold].
+                Please ensure invoke-toolkit is properly installed.
+
+                You can also specify a custom template using:
+                  --template <path-or-git-url>
+                Or set a default in git config:
+                  git config --global {GIT_CONFIG_TEMPLATE_KEY} <path-or-git-url>
+                """
+            ).strip()
+        )
+
+    return str(default_path)
+
+
 @task(aliases=["p"])
 def package(
     ctx: Context,
@@ -136,6 +241,11 @@ def package(
     ext_name: Annotated[
         str,
         "Optional short name for the extension. If provided, the full package name will be prefixed with 'invoke-toolkit-'",
+    ] = "",
+    template: Annotated[
+        str,
+        "Custom copier template path or git URL. If not provided, uses git config "
+        f"'{GIT_CONFIG_TEMPLATE_KEY}' or the bundled template.",
     ] = "",
 ) -> None:
     """
@@ -192,38 +302,8 @@ def package(
             ).strip()
         )
 
-    # Find the copier template in the invoke-toolkit package
-    try:
-        # Try to find templates relative to the invoke_toolkit module
-        # This works for both development (repo root) and installed packages
-        invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
-
-        # First try: templates in the same directory (development setup)
-        template_path = (
-            invoke_toolkit_path.parent.parent / "templates" / "package-template"
-        )
-
-        # Second try: templates in the package data directory (installed)
-        if not template_path.exists():
-            template_path = invoke_toolkit_path / "templates" / "package-template"
-
-        # Third try: check if we're in a site-packages installation
-        if not template_path.exists():
-            # Look for templates in the package root's share or data directory
-            site_packages_parent = invoke_toolkit_path.parent.parent.parent
-            template_path = site_packages_parent / "templates" / "package-template"
-    except (ImportError, AttributeError) as exc:
-        ctx.rich_exit(f"Could not find invoke-toolkit installation: {exc}")
-
-    if not template_path.exists():
-        ctx.rich_exit(
-            dedent(
-                f"""
-                Template directory not found at [bold]{template_path}[/bold].
-                Please ensure invoke-toolkit is properly installed.
-                """
-            ).strip()
-        )
+    # Resolve the template source (explicit param, git config, or default)
+    template_source = _resolve_template_source(template or None, ctx)
 
     ctx.print_err(
         f"[blue]Creating package[/blue] [bold]{actual_name}[/bold] [blue]from template...[/blue]"
@@ -232,15 +312,23 @@ def package(
     try:
         # Prepare data for template rendering
         package_slug = actual_name.lower().replace("-", "_").replace(" ", "_")
+
+        # Determine extension short name for entry point
+        if actual_name.startswith(PLUGIN_PREFIX):
+            extension_short_name = actual_name[len(PLUGIN_PREFIX) :]
+        else:
+            extension_short_name = package_slug
+
         template_data = {
             "package_name": actual_name,
             "package_slug": package_slug,
             "collection_name": package_slug,
+            "extension_short_name": extension_short_name,
             "python_version": "3.10",
         }
 
         run_copy(
-            src_path=str(template_path),
+            src_path=template_source,
             dst_path=str(target_path),
             data=template_data,
             quiet=False,
