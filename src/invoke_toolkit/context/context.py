@@ -1,5 +1,7 @@
 """Context object for invoke_toolkit tasks"""
 
+import os
+import subprocess
 import sys
 from contextlib import contextmanager
 from typing import (
@@ -13,6 +15,7 @@ from typing import (
     Protocol,
 )
 
+import setproctitle
 from invoke.context import Context
 from invoke.util import debug
 from rich import inspect
@@ -42,6 +45,9 @@ class ConfigProtocol(Protocol):
         self, message: str = "Exited", exit_code: Optional[int] = 1
     ) -> NoReturn:
         """Rich exit"""
+
+    def proctitle(self, title: str) -> Iterator[None]:
+        """Context manager to set the process title"""
 
 
 class ToolkitContext(Context, ConfigProtocol):
@@ -221,3 +227,53 @@ class ToolkitContext(Context, ConfigProtocol):
             )
             debug(f"restoring {stream_name=} {pattern_list=}")
             console.secret_patterns = pattern_list
+
+    @contextmanager
+    def proctitle(self, title: str) -> Iterator[None]:
+        """
+        Context manager to temporarily set the process title.
+
+        When the context manager exits, the previous process title is restored.
+        If running inside tmux ($TMUX is set), also updates the tmux window title.
+
+        Example:
+            @task()
+            def my_task(ctx: Context):
+                with ctx.proctitle("Processing files"):
+                    # Long running operation
+                    process_files()
+                # Title is restored here
+
+        Args:
+            title: The process title to set
+        """
+        previous_title = setproctitle.getproctitle()
+        in_tmux = os.environ.get("TMUX")
+        previous_tmux_title = None
+
+        if in_tmux:
+            # Save current tmux window name
+            result = subprocess.run(
+                ["tmux", "display-message", "-p", "#W"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                previous_tmux_title = result.stdout.strip()
+            # Set new tmux window name
+            subprocess.run(
+                ["tmux", "rename-window", title],
+                check=False,
+            )
+
+        try:
+            setproctitle.setproctitle(title)
+            yield
+        finally:
+            setproctitle.setproctitle(previous_title)
+            if in_tmux and previous_tmux_title is not None:
+                subprocess.run(
+                    ["tmux", "rename-window", previous_tmux_title],
+                    check=False,
+                )
