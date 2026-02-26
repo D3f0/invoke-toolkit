@@ -259,6 +259,76 @@ def _parse_value(value_str: str) -> Any:
         return value_str
 
 
+# Basic types that we validate against
+_BASIC_TYPES = (bool, int, float, str, list, dict, type(None))
+
+
+def _get_expected_type(ctx: Context, path: str) -> Optional[type]:
+    """Get the expected type for a config path based on current config.
+
+    Args:
+        ctx: The context object
+        path: Dot-separated config path
+
+    Returns:
+        The type of the existing value, or None if path doesn't exist
+    """
+    config_dict = dict(ctx.config.items())
+    value, found = _navigate_config_path(config_dict, path)
+
+    if not found:
+        return None
+
+    value_type = type(value)
+    # Only return type if it's a basic type we want to validate
+    if value_type in _BASIC_TYPES:
+        return value_type
+
+    return None
+
+
+def _validate_type(
+    value: Any, expected_type: Optional[type], path: str
+) -> tuple[bool, str]:
+    """Validate that a value matches the expected type.
+
+    Args:
+        value: The parsed value to validate
+        expected_type: The expected type (or None to skip validation)
+        path: The config path (for error messages)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if expected_type is None:
+        # No existing value or unknown type, allow anything
+        return True, ""
+
+    actual_type = type(value)
+
+    # Special case: allow int where float is expected (numeric promotion)
+    if expected_type is float and actual_type is int:
+        return True, ""
+
+    # For dict and list, we don't check internal types
+    if expected_type in (dict, list):
+        if actual_type is expected_type:
+            return True, ""
+        return False, (
+            f"Type mismatch for '{path}': expected {expected_type.__name__}, "
+            f"got {actual_type.__name__}"
+        )
+
+    # For basic types, check exact match
+    if actual_type is not expected_type:
+        return False, (
+            f"Type mismatch for '{path}': expected {expected_type.__name__}, "
+            f"got {actual_type.__name__}"
+        )
+
+    return True, ""
+
+
 def _get_all_config_paths(config_dict: dict, prefix: str = "") -> list[str]:
     """Recursively get all dot-notation paths from a config dictionary.
 
@@ -423,6 +493,18 @@ def set_(
     """
     # Parse the value
     parsed_value = _parse_value(value)
+
+    # Validate type against existing config value
+    expected_type = _get_expected_type(ctx, path)
+    is_valid, error_msg = _validate_type(parsed_value, expected_type, path)
+
+    if not is_valid:
+        ctx.print_err(f"[red]Error:[/red] {error_msg}")
+        ctx.print_err(
+            f"[dim]Hint: Use the correct type or check the existing value with "
+            f"'config.get {path}'[/dim]"
+        )
+        return
 
     # Find existing config file or determine default path
     config_path = _find_existing_config_file(ctx, location)
