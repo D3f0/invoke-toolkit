@@ -6,10 +6,14 @@ from enum import Enum
 from typing import Annotated, Literal
 
 from invoke.exceptions import Exit
+from invoke.parser import Argument, ParserContext
 
 from invoke_toolkit import Context, task
 from invoke_toolkit.collections import ToolkitCollection
-from invoke_toolkit.completion import get_choices_for_argument
+from invoke_toolkit.completion import (
+    _get_positional_arg_index,
+    get_choices_for_argument,
+)
 from invoke_toolkit.testing import TestingToolkitProgram
 from tests.conftest import Color, Size
 
@@ -97,6 +101,103 @@ def test_completion_multiple_enum_params():
     assert "small" in output, f"Expected 'small' in size completion, got: {output}"
     assert "medium" in output, f"Expected 'medium' in size completion, got: {output}"
     assert "large" in output, f"Expected 'large' in size completion, got: {output}"
+
+
+def test_get_positional_arg_index_no_args():
+    """Test _get_positional_arg_index returns 0 when no positional args given."""
+    ctx = ParserContext(name="mytask")
+    ctx.add_arg(Argument(names=("path",), positional=True))
+
+    tokens = ["mytask"]
+    index = _get_positional_arg_index(ctx, tokens)
+    assert index == 0
+
+
+def test_get_positional_arg_index_one_arg():
+    """Test _get_positional_arg_index returns 1 when one positional arg given."""
+    ctx = ParserContext(name="mytask")
+    ctx.add_arg(Argument(names=("path",), positional=True))
+    ctx.add_arg(Argument(names=("value",), positional=True))
+
+    tokens = ["mytask", "run.echo"]
+    index = _get_positional_arg_index(ctx, tokens)
+    assert index == 1
+
+
+def test_get_positional_arg_index_with_flags():
+    """Test _get_positional_arg_index correctly skips flags."""
+    ctx = ParserContext(name="mytask")
+    ctx.add_arg(Argument(names=("path",), positional=True))
+    ctx.add_arg(Argument(names=("format",), default="yaml"))
+
+    tokens = ["mytask", "--format", "json"]
+    index = _get_positional_arg_index(ctx, tokens)
+    # --format json are flag and value, not positional
+    assert index == 0
+
+
+def test_get_positional_arg_index_no_task_name():
+    """Test _get_positional_arg_index returns -1 when no task name in context."""
+    ctx = ParserContext()
+    tokens = ["something"]
+    index = _get_positional_arg_index(ctx, tokens)
+    assert index == -1
+
+
+def test_positional_completion_with_callback():
+    """Test positional argument completion uses callback when available."""
+
+    def complete_paths(ctx: Context, incomplete: str) -> list[str]:
+        """Return some paths for completion."""
+        all_paths = ["run.echo", "run.warn", "tasks.auto_dash_names"]
+        if incomplete:
+            return [p for p in all_paths if p.startswith(incomplete)]
+        return all_paths
+
+    coll = ToolkitCollection()
+
+    @task
+    def get_config(
+        ctx: Context,
+        path: Annotated[str, complete_paths],
+    ) -> None:
+        """Get a config value."""
+
+    coll.add_task(get_config)  # type: ignore[arg-type]
+
+    # Test getting choices for the positional 'path' argument
+    choices = get_choices_for_argument(coll, "get-config", "path", "")
+    assert "run.echo" in choices
+    assert "run.warn" in choices
+    assert "tasks.auto_dash_names" in choices
+
+
+def test_positional_completion_filters_by_incomplete():
+    """Test positional completion filters results by incomplete string."""
+
+    def complete_paths(ctx: Context, incomplete: str) -> list[str]:
+        """Return paths filtered by incomplete."""
+        all_paths = ["run.echo", "run.warn", "tasks.auto_dash_names"]
+        if incomplete:
+            return [p for p in all_paths if p.startswith(incomplete)]
+        return all_paths
+
+    coll = ToolkitCollection()
+
+    @task
+    def get_config(
+        ctx: Context,
+        path: Annotated[str, complete_paths],
+    ) -> None:
+        """Get a config value."""
+
+    coll.add_task(get_config)  # type: ignore[arg-type]
+
+    # Test filtering by incomplete
+    choices = get_choices_for_argument(coll, "get-config", "path", "run")
+    assert "run.echo" in choices
+    assert "run.warn" in choices
+    assert "tasks.auto_dash_names" not in choices
 
 
 def test_completion_union_literal():
