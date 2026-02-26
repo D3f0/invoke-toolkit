@@ -1,5 +1,12 @@
 """Tests for proctitle functionality."""
 
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from textwrap import dedent
+
 import setproctitle
 
 from invoke_toolkit import Context, task
@@ -140,3 +147,65 @@ def test_task_without_proctitle():
 
     assert title_during_execution[0] == original_title
     assert setproctitle.getproctitle() == original_title
+
+
+def test_proctitle_visible_in_ps(tmp_path: Path):
+    """Integration test: verify process title is visible via ps command."""
+    # Create a tasks.py with a task that sets proctitle and waits for a signal
+    unique_title = f"INTK_TEST_PROCTITLE_{os.getpid()}"
+    signal_file = tmp_path / "ready"
+    done_file = tmp_path / "done"
+
+    tasks_content = dedent(f"""
+        import time
+        from pathlib import Path
+        from invoke_toolkit import task, Context
+
+        @task(proctitle="{unique_title}")
+        def test_proctitle(ctx: Context):
+            # Signal that we're running
+            Path("{signal_file}").write_text("ready")
+            # Wait for done signal
+            while not Path("{done_file}").exists():
+                time.sleep(0.05)
+    """)
+
+    tasks_file = tmp_path / "tasks.py"
+    tasks_file.write_text(tasks_content)
+
+    # Start the task in a subprocess
+    with subprocess.Popen(
+        [sys.executable, "-m", "invoke_toolkit", "-r", str(tmp_path), "test-proctitle"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as proc:
+        # Wait for the task to signal it's ready
+        timeout = 10
+        start = time.time()
+        while not signal_file.exists():
+            if time.time() - start > timeout:
+                raise TimeoutError("Task did not start in time")
+            if proc.poll() is not None:
+                stdout, stderr = proc.communicate()
+                raise RuntimeError(
+                    f"Process exited early: {proc.returncode}\n"
+                    f"stdout: {stdout.decode()}\nstderr: {stderr.decode()}"
+                )
+            time.sleep(0.05)
+
+        # Check the process title using ps
+        ps_result = subprocess.run(
+            ["ps", "-p", str(proc.pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        # Verify the unique title appears in ps output
+        assert unique_title in ps_result.stdout, (
+            f"Expected '{unique_title}' in ps output, got: {ps_result.stdout}"
+        )
+
+        # Signal the task to finish
+        done_file.write_text("done")
+        proc.wait(timeout=5)
