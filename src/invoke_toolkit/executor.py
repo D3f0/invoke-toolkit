@@ -2,6 +2,7 @@
 Custom executor class to for Syntax highlighted output
 """
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from invoke.executor import Executor
@@ -140,7 +141,7 @@ class ToolkitExecutor(Executor):
                 # NOTE: Long strings will get wrapped when using autoprint in a console
                 #       we will use print for strings, for the case of piping output
                 #       and any non string type will be formatted by the console
-                if isinstance(result, str):
+                if isinstance(result, (str, Path)):
                     print(result)
                 else:
                     get_console("out").print(result)
