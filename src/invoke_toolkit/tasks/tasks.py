@@ -31,7 +31,15 @@ from invoke import task as invoke_task
 from invoke.tasks import Call, Task
 
 from invoke_toolkit.context import ToolkitContext
+from invoke_toolkit.tasks.cache import (
+    CacheConfig,
+    cached_task_wrapper,
+    parse_cache_config,
+)
 from invoke_toolkit.tasks.types import _FileCompletionMarker
+
+# Type alias for cache parameter
+CacheParam = Union[bool, dict, CacheConfig, None]
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -449,6 +457,7 @@ def task(
     post: Optional[list[Callable[..., Any]]] = None,
     klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
     proctitle: Optional[str] = None,
+    cache: CacheParam = None,
 ) -> F: ...
 
 
@@ -470,6 +479,7 @@ def task(
     post: Optional[list[Callable[..., Any]]] = None,
     klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
     proctitle: Optional[str] = None,
+    cache: CacheParam = None,
 ) -> Callable[[F], F]: ...
 
 
@@ -490,6 +500,7 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
     post: Optional[list[Callable[..., Any]]] = None,
     klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
     proctitle: Optional[str] = None,
+    cache: CacheParam = None,
 ) -> Any:
     """
     Decorator for Invoke tasks that preserves type hints and Context annotation.
@@ -503,6 +514,17 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
 
     The proctitle parameter allows setting the process title while the task runs.
     When the task completes, the original process title is restored.
+
+    Args:
+        cache: Optional caching configuration for task results. Can be:
+            - True: Enable caching with defaults
+            - False/None: Disable caching (default)
+            - dict: Enable with custom settings (ttl, key_prefix, ignore_args)
+            - CacheConfig: Use a CacheConfig instance directly
+
+            Cache location is computed from git repository root + platformdirs.
+            Requires 'diskcache' package to be installed; gracefully degrades if not available.
+            Cache hits/misses are logged when using -d (debug mode).
 
     Usage:
         @task
@@ -538,6 +560,24 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
             '''Task with custom process title.'''
             # Process title is "Processing data" while running
             do_processing()
+
+        # Using caching - simple (no TTL)
+        @task(cache=True)
+        def expensive_task(ctx: Context, param: str) -> str:
+            '''Results are cached across invocations.'''
+            return do_expensive_computation(param)
+
+        # Using caching with TTL (1 hour)
+        @task(cache={"ttl": 3600})
+        def cached_task(ctx: Context, name: str) -> dict:
+            '''Results cached for 1 hour.'''
+            return fetch_data(name)
+
+        # Using caching with ignore_args (ctx excluded by default)
+        @task(cache={"ttl": 600, "ignore_args": ["verbose"]})
+        def cached_with_options(ctx: Context, query: str, verbose: bool = False) -> list:
+            '''Cache key ignores verbose flag.'''
+            return search(query, verbose=verbose)
     """
 
     def decorator(f: F) -> F:
@@ -756,8 +796,15 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         if default is not None:
             task_kwargs["default"] = default
 
+        # Apply caching wrapper if configured
+        cache_config = parse_cache_config(cache)
+        if cache_config is not None:
+            cached_wrapper = cached_task_wrapper(wrapper, cache_config)
+        else:
+            cached_wrapper = wrapper
+
         # Apply the Invoke @task decorator
-        task_decorated = invoke_task(wrapper, klass=klass, **task_kwargs)
+        task_decorated = invoke_task(cached_wrapper, klass=klass, **task_kwargs)
 
         # Store reference to original function
         task_decorated.__wrapped__ = f  # type: ignore[attr-defined]

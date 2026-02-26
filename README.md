@@ -25,6 +25,7 @@ This extends the Collection from Invoke so it can create automatically collectio
 - Discovery to *plain old* tasks.py (or any other name)
 - Local tasks discovery from `local_tasks.py` in the current directory
 - Integration with stand alone binaries for specific tasks
+- **Task result caching** with TTL support via `diskcache` (optional)
 - **Future** Download binaries
 
 ## Do I need this package
@@ -67,6 +68,43 @@ intk local.my-task
 ```
 
 Local tasks are automatically discovered and added to the `local` namespace, allowing you to keep project-specific tasks separate from your main task collection.
+
+### Using Task Caching
+
+Cache expensive task results with the `cache` parameter:
+
+```python
+from invoke_toolkit import task
+
+# Simple caching (no expiration)
+@task(cache=True)
+def expensive_task(ctx, param: str) -> str:
+    """Results are cached across invocations."""
+    return do_expensive_computation(param)
+
+# Caching with TTL (1 hour)
+@task(cache={"ttl": 3600})
+def cached_task(ctx, name: str) -> dict:
+    """Results cached for 1 hour."""
+    return fetch_data(name)
+
+# Caching with ignored arguments
+@task(cache={"ttl": 600, "ignore_args": ["verbose"]})
+def cached_with_options(ctx, query: str, verbose: bool = False) -> list:
+    """Cache key ignores verbose flag."""
+    return search(query, verbose=verbose)
+```
+
+Cache features:
+- Cache location is computed from git repository root + platformdirs
+- Debug logging (`-d` flag) shows cache hits/misses
+- Graceful degradation when `diskcache` is not installed
+
+To enable caching, install with the cache extra:
+
+```console
+pip install invoke-toolkit[cache]
+```
 
 ## Development
 

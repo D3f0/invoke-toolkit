@@ -12,7 +12,13 @@ from invoke_toolkit.config.config import ToolkitConfig as Config  # noqa
 from invoke_toolkit.context import ToolkitContext as Context  # noqa
 from invoke_toolkit.parser import ToolkitArgument  # noqa
 from invoke_toolkit.scripts.loader import script  # noqa
-from invoke_toolkit.tasks import call, task  # noqa
+from invoke_toolkit.tasks import (  # noqa
+    CacheConfig,
+    cache_stats,
+    call,
+    clear_task_cache,
+    task,
+)
 from invoke_toolkit.tasks.types import (
     DirPath as DirPath,
     DirPathStr as DirPathStr,

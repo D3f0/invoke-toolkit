@@ -405,6 +405,15 @@ wheels = [
 ]
 
 [[package]]
+name = "diskcache"
+version = "5.6.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/21/1c1ffc1a039ddcc459db43cc108658f32c57d271d7289a2794e401d0fdb6/diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc", size = 67916, upload-time = "2023-08-31T06:12:00.316Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/27/4570e78fc0bf5ea0ca45eb1de3818a23787af9b390c0b0a0033a1b8236f9/diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19", size = 45550, upload-time = "2023-08-31T06:11:58.822Z" },
+]
+
+[[package]]
 name = "distlib"
 version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -663,6 +672,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+cache = [
+    { name = "diskcache" },
+]
 copier = [
     { name = "copier" },
 ]
@@ -672,6 +684,7 @@ debug = [
 ]
 full = [
     { name = "copier" },
+    { name = "diskcache" },
     { name = "hunter" },
     { name = "pdbpp" },
 ]
@@ -686,6 +699,7 @@ ci = [
 dev = [
     { name = "attrs" },
     { name = "copier" },
+    { name = "diskcache" },
     { name = "hunter" },
     { name = "pdbpp" },
     { name = "pre-commit" },
@@ -710,6 +724,8 @@ requires-dist = [
     { name = "copier", marker = "extra == 'copier'", specifier = ">=9.10.3" },
     { name = "copier", marker = "extra == 'full'", specifier = ">=9.10.3" },
     { name = "copier", marker = "extra == 'templating'", specifier = ">=9.10.3" },
+    { name = "diskcache", marker = "extra == 'cache'", specifier = ">=5.6.0" },
+    { name = "diskcache", marker = "extra == 'full'", specifier = ">=5.6.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "hunter", marker = "extra == 'debug'", specifier = ">=3.7.0" },
     { name = "hunter", marker = "extra == 'full'", specifier = ">=3.7.0" },
@@ -724,13 +740,14 @@ requires-dist = [
     { name = "tomlkit", specifier = ">=0.13.3" },
     { name = "typing-extensions", specifier = ">=4.13.2" },
 ]
-provides-extras = ["copier", "debug", "full", "templating"]
+provides-extras = ["cache", "copier", "debug", "full", "templating"]
 
 [package.metadata.requires-dev]
 ci = [{ name = "nox", specifier = ">=2025.10.16" }]
 dev = [
     { name = "attrs", specifier = ">=24.1.0" },
     { name = "copier", specifier = ">=9.10.3" },
+    { name = "diskcache", specifier = ">=5.6.0" },
     { name = "hunter", specifier = ">=3.7.0" },
     { name = "pdbpp", specifier = ">=0.11.7" },
     { name = "pre-commit", specifier = ">=4.3.0" },
