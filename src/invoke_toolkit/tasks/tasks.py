@@ -5,6 +5,8 @@ Type annotated tasks and and overrides over invoke
 # pylint: disable=too-many-statements
 
 import inspect
+import os
+import subprocess
 import types
 from enum import Enum
 from functools import wraps
@@ -661,11 +663,35 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
             # Handle proctitle: set process title while task runs
             if proctitle is not None:
                 previous_title = setproctitle.getproctitle()
+                in_tmux = os.environ.get("TMUX")
+                previous_tmux_title = None
+
+                if in_tmux:
+                    # Save current tmux window name
+                    result = subprocess.run(
+                        ["tmux", "display-message", "-p", "#W"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    if result.returncode == 0:
+                        previous_tmux_title = result.stdout.strip()
+                    # Set new tmux window name
+                    subprocess.run(
+                        ["tmux", "rename-window", proctitle],
+                        check=False,
+                    )
+
                 try:
                     setproctitle.setproctitle(proctitle)
                     return f(*args, **kwargs)
                 finally:
                     setproctitle.setproctitle(previous_title)
+                    if in_tmux and previous_tmux_title is not None:
+                        subprocess.run(
+                            ["tmux", "rename-window", previous_tmux_title],
+                            check=False,
+                        )
             else:
                 return f(*args, **kwargs)
 

@@ -1,5 +1,7 @@
 """Context object for invoke_toolkit tasks"""
 
+import os
+import subprocess
 import sys
 from contextlib import contextmanager
 from typing import (
@@ -232,6 +234,7 @@ class ToolkitContext(Context, ConfigProtocol):
         Context manager to temporarily set the process title.
 
         When the context manager exits, the previous process title is restored.
+        If running inside tmux ($TMUX is set), also updates the tmux window title.
 
         Example:
             @task()
@@ -245,8 +248,32 @@ class ToolkitContext(Context, ConfigProtocol):
             title: The process title to set
         """
         previous_title = setproctitle.getproctitle()
+        in_tmux = os.environ.get("TMUX")
+        previous_tmux_title = None
+
+        if in_tmux:
+            # Save current tmux window name
+            result = subprocess.run(
+                ["tmux", "display-message", "-p", "#W"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                previous_tmux_title = result.stdout.strip()
+            # Set new tmux window name
+            subprocess.run(
+                ["tmux", "rename-window", title],
+                check=False,
+            )
+
         try:
             setproctitle.setproctitle(title)
             yield
         finally:
             setproctitle.setproctitle(previous_title)
+            if in_tmux and previous_tmux_title is not None:
+                subprocess.run(
+                    ["tmux", "rename-window", previous_tmux_title],
+                    check=False,
+                )

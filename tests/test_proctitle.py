@@ -6,7 +6,9 @@ import sys
 import time
 from pathlib import Path
 from textwrap import dedent
+from unittest import mock
 
+import pytest
 import setproctitle
 
 from invoke_toolkit import Context, task
@@ -189,7 +191,7 @@ def test_proctitle_visible_in_ps(tmp_path: Path):
                 stdout, stderr = proc.communicate()
                 raise RuntimeError(
                     f"Process exited early: {proc.returncode}\n"
-                    f"stdout: {stdout.decode()}\nstderr: {stderr.decode()}"
+                    + f"stdout: {stdout.decode()}\nstderr: {stderr.decode()}"
                 )
             time.sleep(0.05)
 
@@ -209,3 +211,130 @@ def test_proctitle_visible_in_ps(tmp_path: Path):
         # Signal the task to finish
         done_file.write_text("done")
         proc.wait(timeout=5)
+
+
+@pytest.fixture
+def mock_tmux_env(monkeypatch):
+    """Mock TMUX environment variable."""
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,12345,0")
+    return monkeypatch
+
+
+def test_context_proctitle_calls_tmux_when_in_tmux(mock_tmux_env):
+    """Test that ctx.proctitle calls tmux rename-window when $TMUX is set."""
+    tmux_calls = []
+
+    def mock_run(args, **kwargs):
+        tmux_calls.append(args)
+        result = mock.MagicMock()
+        result.returncode = 0
+        result.stdout = "original-window-name\n"
+        return result
+
+    @task()
+    def task_with_proctitle(ctx: Context):
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with ctx.proctitle("My Task Title"):
+                pass
+
+    p = TestingToolkitProgram(namespace=ToolkitCollection(task_with_proctitle))
+    p.run(["", "task-with-proctitle"], exit=False)
+
+    # Should have called tmux to get current name, set new name, and restore
+    assert any("display-message" in str(call) for call in tmux_calls)
+    assert any(
+        "rename-window" in str(call) and "My Task Title" in str(call)
+        for call in tmux_calls
+    )
+    assert any(
+        "rename-window" in str(call) and "original-window-name" in str(call)
+        for call in tmux_calls
+    )
+
+
+def test_task_decorator_proctitle_calls_tmux_when_in_tmux(mock_tmux_env):
+    """Test that @task(proctitle=...) calls tmux rename-window when $TMUX is set."""
+    tmux_calls = []
+
+    original_run = subprocess.run
+
+    def mock_run(args, check=False, **kwargs):
+        if args and "tmux" in str(args[0]):
+            tmux_calls.append(args)
+            result = mock.MagicMock()
+            result.returncode = 0
+            result.stdout = "original-window\n"
+            return result
+        return original_run(args, check=check, **kwargs)
+
+    @task(proctitle="Decorator Task")
+    def task_with_decorator(ctx: Context):
+        pass
+
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        p = TestingToolkitProgram(namespace=ToolkitCollection(task_with_decorator))
+        p.run(["", "task-with-decorator"], exit=False)
+
+    # Should have called tmux to get current name, set new name, and restore
+    assert any("display-message" in str(call) for call in tmux_calls)
+    assert any(
+        "rename-window" in str(call) and "Decorator Task" in str(call)
+        for call in tmux_calls
+    )
+
+
+def test_proctitle_skips_tmux_when_not_in_tmux(monkeypatch):
+    """Test that proctitle does not call tmux when $TMUX is not set."""
+    monkeypatch.delenv("TMUX", raising=False)
+    tmux_calls = []
+
+    original_run = subprocess.run
+
+    def mock_run(args, check=False, **kwargs):
+        if args and "tmux" in str(args[0]):
+            tmux_calls.append(args)
+        return original_run(args, check=check, **kwargs)
+
+    @task()
+    def task_no_tmux(ctx: Context):
+        with ctx.proctitle("No Tmux Title"):
+            pass
+
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        p = TestingToolkitProgram(namespace=ToolkitCollection(task_no_tmux))
+        p.run(["", "task-no-tmux"], exit=False)
+
+    # Should not have called tmux at all
+    assert len(tmux_calls) == 0
+
+
+def test_proctitle_restores_tmux_title_on_exception(mock_tmux_env):
+    """Test that tmux window title is restored even when exception occurs."""
+    tmux_calls = []
+
+    def mock_run(args, **kwargs):
+        tmux_calls.append(args)
+        result = mock.MagicMock()
+        result.returncode = 0
+        result.stdout = "original-title\n"
+        return result
+
+    @task()
+    def task_raises(ctx: Context):
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with ctx.proctitle("Before Error"):
+                raise ValueError("Test error")
+
+    p = TestingToolkitProgram(namespace=ToolkitCollection(task_raises))
+    try:
+        p.run(["", "task-raises"], exit=False)
+    except ValueError:
+        pass
+
+    # Should have restored the original title
+    restore_calls = [
+        call
+        for call in tmux_calls
+        if "rename-window" in str(call) and "original-title" in str(call)
+    ]
+    assert len(restore_calls) >= 1
