@@ -113,6 +113,9 @@ exclude_lines = [
 "src/invoke_toolkit/program/program.py" = ["E402"]
 
 [project.optional-dependencies]
+cache = [
+  "diskcache>=5.6.0",
+]
 copier = [
   "copier>=9.10.3",
 ]
@@ -125,6 +128,7 @@ debug = [
 ]
 full = [
   "copier>=9.10.3",
+  "diskcache>=5.6.0",
   "hunter>=3.7.0",
   "pdbpp>=0.11.7",
 ]
@@ -136,6 +140,7 @@ ci = [
 dev = [
     "attrs>=24.1.0",
     "copier>=9.10.3",
+    "diskcache>=5.6.0",
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",
     "pre-commit>=4.3.0",
