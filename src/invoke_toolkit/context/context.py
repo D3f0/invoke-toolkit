@@ -13,6 +13,7 @@ from typing import (
     Protocol,
 )
 
+import setproctitle
 from invoke.context import Context
 from invoke.util import debug
 from rich import inspect
@@ -42,6 +43,9 @@ class ConfigProtocol(Protocol):
         self, message: str = "Exited", exit_code: Optional[int] = 1
     ) -> NoReturn:
         """Rich exit"""
+
+    def proctitle(self, title: str) -> Iterator[None]:
+        """Context manager to set the process title"""
 
 
 class ToolkitContext(Context, ConfigProtocol):
@@ -221,3 +225,28 @@ class ToolkitContext(Context, ConfigProtocol):
             )
             debug(f"restoring {stream_name=} {pattern_list=}")
             console.secret_patterns = pattern_list
+
+    @contextmanager
+    def proctitle(self, title: str) -> Iterator[None]:
+        """
+        Context manager to temporarily set the process title.
+
+        When the context manager exits, the previous process title is restored.
+
+        Example:
+            @task()
+            def my_task(ctx: Context):
+                with ctx.proctitle("Processing files"):
+                    # Long running operation
+                    process_files()
+                # Title is restored here
+
+        Args:
+            title: The process title to set
+        """
+        previous_title = setproctitle.getproctitle()
+        try:
+            setproctitle.setproctitle(title)
+            yield
+        finally:
+            setproctitle.setproctitle(previous_title)

@@ -24,6 +24,7 @@ from typing import (
     overload,
 )
 
+import setproctitle
 from invoke import task as invoke_task
 from invoke.tasks import Call, Task
 
@@ -445,6 +446,7 @@ def task(
     pre: Optional[list[Callable[..., Any]]] = None,
     post: Optional[list[Callable[..., Any]]] = None,
     klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
+    proctitle: Optional[str] = None,
 ) -> F: ...
 
 
@@ -465,6 +467,7 @@ def task(
     pre: Optional[list[Callable[..., Any]]] = None,
     post: Optional[list[Callable[..., Any]]] = None,
     klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
+    proctitle: Optional[str] = None,
 ) -> Callable[[F], F]: ...
 
 
@@ -484,6 +487,7 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
     pre: Optional[list[Callable[..., Any]]] = None,
     post: Optional[list[Callable[..., Any]]] = None,
     klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
+    proctitle: Optional[str] = None,
 ) -> Any:
     """
     Decorator for Invoke tasks that preserves type hints and Context annotation.
@@ -494,6 +498,9 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
     Explicit help dict takes precedence over Annotated documentation.
 
     Enum and Literal parameters are auto-discovered and their choices added to help text.
+
+    The proctitle parameter allows setting the process title while the task runs.
+    When the task completes, the original process title is restored.
 
     Usage:
         @task
@@ -522,6 +529,13 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         def literal_task(ctx: Context, level: Literal["debug", "info", "error"]) -> None:
             '''Literal options in help.'''
             print(f"Level: {level}")
+
+        # Setting process title
+        @task(proctitle="Processing data")
+        def process_task(ctx: Context) -> None:
+            '''Task with custom process title.'''
+            # Process title is "Processing data" while running
+            do_processing()
     """
 
     def decorator(f: F) -> F:
@@ -644,7 +658,16 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
 
                         raise Exit(f"Expected a file, not a directory: {value}", code=1)
 
-            return f(*args, **kwargs)
+            # Handle proctitle: set process title while task runs
+            if proctitle is not None:
+                previous_title = setproctitle.getproctitle()
+                try:
+                    setproctitle.setproctitle(proctitle)
+                    return f(*args, **kwargs)
+                finally:
+                    setproctitle.setproctitle(previous_title)
+            else:
+                return f(*args, **kwargs)
 
         # Preserve the type hints on the wrapper
         wrapper.__annotations__ = f.__annotations__
