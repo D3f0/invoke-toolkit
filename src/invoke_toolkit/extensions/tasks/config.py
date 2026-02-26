@@ -7,7 +7,7 @@ import json
 from enum import Enum
 from os.path import expanduser
 from pathlib import Path
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 import yaml
 
@@ -259,6 +259,56 @@ def _parse_value(value_str: str) -> Any:
         return value_str
 
 
+def _get_all_config_paths(config_dict: dict, prefix: str = "") -> list[str]:
+    """Recursively get all dot-notation paths from a config dictionary.
+
+    Args:
+        config_dict: The config dictionary to traverse
+        prefix: Current path prefix for recursion
+
+    Returns:
+        List of all available dot-notation paths
+    """
+    paths: list[str] = []
+
+    for key, value in config_dict.items():
+        current_path = f"{prefix}.{key}" if prefix else key
+        paths.append(current_path)
+
+        # Recursively add nested paths
+        if isinstance(value, dict):
+            paths.extend(_get_all_config_paths(value, current_path))
+
+    return paths
+
+
+def _complete_config_path(ctx: Context, incomplete: str) -> list[str]:
+    """Completion callback for config paths.
+
+    Returns config paths that match the incomplete string.
+
+    Args:
+        ctx: The context object
+        incomplete: The partial path typed by the user
+
+    Returns:
+        List of matching config paths
+    """
+    # Get current config as a clean dict
+    config_dict = _clean_dict_for_serialization(dict(ctx.config.items()))
+
+    # Get all available paths
+    all_paths = _get_all_config_paths(config_dict)
+
+    # Filter paths that start with the incomplete string
+    if incomplete:
+        matching = [p for p in all_paths if p.startswith(incomplete)]
+    else:
+        matching = all_paths
+
+    return sorted(matching)
+
+
 @task(
     default=True,
     autoprint=True,
@@ -305,7 +355,7 @@ def show(
 )
 def get(
     ctx: Context,
-    path: str,
+    path: Annotated[str, _complete_config_path],
     format_: str = "raw",
 ):
     """
@@ -350,7 +400,7 @@ def get(
 )
 def set_(
     ctx: Context,
-    path: str,
+    path: Annotated[str, _complete_config_path],
     value: str,
     location: ConfigLocation = ConfigLocation.LOCAL,
     format_: str = "yaml",

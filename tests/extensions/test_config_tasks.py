@@ -11,7 +11,9 @@ import yaml
 from invoke_toolkit import Context
 from invoke_toolkit.extensions.tasks.config import (
     ConfigLocation,
+    _complete_config_path,
     _find_existing_config_file,
+    _get_all_config_paths,
     _get_config_file_paths,
     _get_config_prefix,
     _get_default_config_path,
@@ -382,3 +384,99 @@ class TestSetTask:
         # No YAML file should be created
         yaml_path = temp_config_dir / "invoke.yaml"
         assert not yaml_path.exists()
+
+
+class TestGetAllConfigPaths:
+    """Tests for _get_all_config_paths function"""
+
+    def test_simple_dict(self):
+        config = {"key1": "value1", "key2": "value2"}
+        paths = _get_all_config_paths(config)
+        assert sorted(paths) == ["key1", "key2"]
+
+    def test_nested_dict(self):
+        config = {"run": {"echo": True, "warn": False}}
+        paths = _get_all_config_paths(config)
+        assert sorted(paths) == ["run", "run.echo", "run.warn"]
+
+    def test_deeply_nested_dict(self):
+        config = {"a": {"b": {"c": "value"}}}
+        paths = _get_all_config_paths(config)
+        assert sorted(paths) == ["a", "a.b", "a.b.c"]
+
+    def test_mixed_depth(self):
+        config = {
+            "simple": "value",
+            "nested": {"key": "value"},
+            "deep": {"level1": {"level2": "value"}},
+        }
+        paths = _get_all_config_paths(config)
+        expected = [
+            "deep",
+            "deep.level1",
+            "deep.level1.level2",
+            "nested",
+            "nested.key",
+            "simple",
+        ]
+        assert sorted(paths) == expected
+
+    def test_empty_dict(self):
+        paths = _get_all_config_paths({})
+        assert not paths
+
+
+class TestCompleteConfigPath:
+    """Tests for _complete_config_path function"""
+
+    def test_returns_all_paths_for_empty_incomplete(self, ctx):
+        paths = _complete_config_path(ctx, "")
+        # Should return many paths from default config
+        assert len(paths) > 0
+        # Should include known config paths
+        assert "run" in paths
+        assert "run.echo" in paths
+
+    def test_filters_by_prefix(self, ctx):
+        paths = _complete_config_path(ctx, "run")
+        # All paths should start with "run"
+        for path in paths:
+            assert path.startswith("run")
+        # Should include run itself and nested paths
+        assert "run" in paths
+        assert "run.echo" in paths
+
+    def test_filters_nested_prefix(self, ctx):
+        paths = _complete_config_path(ctx, "run.e")
+        # Should match run.echo, run.echo_format, run.echo_stdin, run.env, run.err_stream
+        assert len(paths) > 0
+        for path in paths:
+            assert path.startswith("run.e")
+
+    def test_no_match_returns_empty(self, ctx):
+        paths = _complete_config_path(ctx, "nonexistent_prefix_xyz")
+        assert paths == []
+
+    def test_results_are_sorted(self, ctx):
+        paths = _complete_config_path(ctx, "")
+        assert paths == sorted(paths)
+
+
+class TestCompletionCallbacksAttached:
+    """Tests to verify completion callbacks are properly attached to tasks"""
+
+    def test_get_task_has_completion_callback(self):
+        callbacks = getattr(get, "_completion_callbacks", {})
+        assert "path" in callbacks
+        assert callable(callbacks["path"])
+
+    def test_set_task_has_completion_callback(self):
+        callbacks = getattr(set_, "_completion_callbacks", {})
+        assert "path" in callbacks
+        assert callable(callbacks["path"])
+
+    def test_completion_callback_is_same_function(self):
+        get_callbacks = getattr(get, "_completion_callbacks", {})
+        set_callbacks = getattr(set_, "_completion_callbacks", {})
+        # Both should use the same completion function
+        assert get_callbacks.get("path") is set_callbacks.get("path")
