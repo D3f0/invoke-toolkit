@@ -281,6 +281,98 @@ def _handle_flag_completion(
     return False
 
 
+def _get_positional_arg_index(context: ParserContext, tokens: List[str]) -> int:
+    """
+    Determine which positional argument we're completing based on tokens.
+
+    Counts non-flag tokens after the task name to determine position.
+
+    Args:
+        context: The parser context for the task
+        tokens: The tokenized invocation
+
+    Returns:
+        Index of the positional argument being completed (0-based), or -1 if not applicable
+    """
+    if not context.name:
+        return -1
+
+    # Find where the task name is in tokens
+    task_name = context.name
+    task_idx = -1
+    for i, token in enumerate(tokens):
+        if token == task_name or token.replace("-", "_") == task_name.replace("-", "_"):
+            task_idx = i
+            break
+
+    if task_idx == -1:
+        return -1
+
+    # Count positional values (non-flag tokens after task name)
+    positional_count = 0
+    i = task_idx + 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token.startswith("-"):
+            # It's a flag, check if it takes a value
+            flag_name = token
+            if flag_name in context.flags:
+                flag = context.flags[flag_name]
+                if flag.takes_value and i + 1 < len(tokens):
+                    # Skip the flag's value
+                    i += 1
+        else:
+            # It's a positional value
+            positional_count += 1
+        i += 1
+
+    return positional_count
+
+
+def _handle_positional_completion(
+    context: ParserContext,
+    collection,
+    positional_index: int,
+    incomplete: str = "",
+) -> bool:
+    """
+    Handle completion for positional arguments.
+
+    Args:
+        context: The parser context
+        collection: The invoke collection
+        positional_index: Which positional argument we're completing (0-based)
+        incomplete: The incomplete value typed by user
+
+    Returns:
+        True if choices were printed, False otherwise
+    """
+    task_name = context.name
+    if not task_name:
+        return False
+
+    # Get positional args from the context
+    positional_args = context.positional_args
+    if positional_index >= len(positional_args):
+        debug(f"Positional index {positional_index} out of range")
+        return False
+
+    arg = positional_args[positional_index]
+    arg_name: str = arg.name or ""
+
+    debug(f"Completing positional arg {positional_index}: {arg_name}")
+
+    # Try to get choices for this argument
+    choices = get_choices_for_argument(collection, task_name, arg_name, incomplete)
+    if choices:
+        debug(f"Found choices for {arg_name}: {choices[:10]}...")
+        for choice in choices:
+            print(choice)
+        return True
+
+    return False
+
+
 def complete_with_choices(
     names: List[str],
     core,
@@ -292,11 +384,14 @@ def complete_with_choices(
     Enhanced completion function that supports Enum and Literal choices.
 
     This function extends invoke's basic completion to handle completing
-    argument values for parameters with defined choices.
+    argument values for parameters with defined choices, including positional arguments.
     """
     # Strip out program name
     invocation = _strip_program_name(names, core.remainder)
     debug("Completing for invocation: {!r}".format(invocation))
+
+    # Check if invocation ends with space (user wants to complete next token)
+    completing_new_token = invocation.rstrip() != invocation
 
     # Tokenize
     tokens = shlex.split(invocation)
@@ -343,8 +438,53 @@ def complete_with_choices(
         # Known flags complete w/ values or nothing
         else:
             _handle_flag_completion(context, tail, collection)
-    # If not a flag, complete task names
+    # If not a flag, check if we should complete positional args or task names
     else:
+        # Try to parse to get the current context
+        contexts: List[ParserContext] = []
+        try:
+            debug("Parsing tokens for positional completion: {!r}".format(tokens))
+            contexts = parser.parse_argv(tokens)
+        except ParseError as e:
+            debug(
+                "Got parser error ({!r}), grabbing last-seen context {!r}".format(
+                    e, e.context
+                )
+            )
+            contexts = [e.context] if e.context is not None else []
+
+        # Check if we have a task context (not just core context)
+        if contexts and contexts[-1] and contexts[-1].name:
+            context = contexts[-1]
+            debug(f"In task context: {context.name}")
+
+            # Determine which positional argument we're completing
+            positional_index = _get_positional_arg_index(context, tokens)
+            debug(
+                f"Positional index: {positional_index}, completing_new_token: {completing_new_token}"
+            )
+
+            # Check if the last token is a partial value for completion
+            incomplete = ""
+            if completing_new_token:
+                # User typed space after last token, completing fresh
+                # positional_index is already correct
+                incomplete = ""
+            elif tokens:
+                last_token = tokens[-1]
+                # If last token is the task name, we're starting fresh
+                if last_token != context.name and not last_token.startswith("-"):
+                    incomplete = last_token
+                    # Adjust index since we're completing the current token
+                    positional_index = max(0, positional_index - 1)
+
+            # Try to complete positional argument
+            if _handle_positional_completion(
+                context, collection, positional_index, incomplete
+            ):
+                raise Exit
+
+        # Fall back to task name completion
         debug("Last token isn't flag-like, just printing task names")
         print_task_names(collection)
 
