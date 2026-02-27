@@ -12,6 +12,7 @@ from invoke_toolkit import Context, task
 from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.completion import (
     _get_positional_arg_index,
+    _handle_positional_completion,
     get_choices_for_argument,
 )
 from invoke_toolkit.testing import TestingToolkitProgram
@@ -333,3 +334,82 @@ def test_completion_callback_priority_over_enum():
     # Ensure enum values are NOT returned (callback takes priority)
     assert "dev" not in lines, f"Unexpected enum value 'dev' in completion: {lines}"
     assert "prod" not in lines, f"Unexpected enum value 'prod' in completion: {lines}"
+
+
+def test_positional_completion_with_callback_returns_handled_and_suppress():
+    """Test that positional completion with callback returns (True, True)."""
+
+    def complete_paths(ctx: Context, incomplete: str) -> list[str]:
+        return ["run.echo", "run.warn"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def get_value(
+        ctx: Context,
+        path: Annotated[str, complete_paths],
+    ) -> None:
+        """Get a value."""
+
+    coll.add_task(get_value)  # type: ignore[arg-type]
+
+    # Create a parser context for the task
+    ctx = ParserContext(name="get-value")
+    ctx.add_arg(Argument(names=("path",), positional=True))
+
+    # First positional arg (path) - has callback, should return (True, True)
+    handled, suppress = _handle_positional_completion(ctx, coll, 0, "")
+    assert handled is True, "Should have handled completion with callback"
+    assert suppress is True, "Should suppress fallback when handled"
+
+
+def test_positional_completion_without_callback_returns_not_handled_but_suppress():
+    """Test that positional completion without callback returns (False, True)."""
+    coll = ToolkitCollection()
+
+    @task
+    def set_value(
+        ctx: Context,
+        path: str,
+        value: str,  # No completion callback
+    ) -> None:
+        """Set a value."""
+
+    coll.add_task(set_value)  # type: ignore[arg-type]
+
+    # Create a parser context for the task
+    ctx = ParserContext(name="set-value")
+    ctx.add_arg(Argument(names=("path",), positional=True))
+    ctx.add_arg(Argument(names=("value",), positional=True))
+
+    # Second positional arg (value) - no callback, should return (False, True)
+    # to suppress task name completion
+    handled, suppress = _handle_positional_completion(ctx, coll, 1, "")
+    assert handled is False, "Should not have handled (no callback)"
+    assert suppress is True, (
+        "Should suppress fallback for positional arg without callback"
+    )
+
+
+def test_positional_completion_out_of_range_allows_task_completion():
+    """Test that completion after all positional args allows task names."""
+    coll = ToolkitCollection()
+
+    @task
+    def simple_task(
+        ctx: Context,
+        name: str,
+    ) -> None:
+        """A simple task."""
+
+    coll.add_task(simple_task)  # type: ignore[arg-type]
+
+    # Create a parser context for the task
+    ctx = ParserContext(name="simple-task")
+    ctx.add_arg(Argument(names=("name",), positional=True))
+
+    # Index 1 is out of range (only 1 positional arg at index 0)
+    # Should return (False, False) to allow task name completion
+    handled, suppress = _handle_positional_completion(ctx, coll, 1, "")
+    assert handled is False, "Should not have handled (out of range)"
+    assert suppress is False, "Should NOT suppress fallback when out of range"
