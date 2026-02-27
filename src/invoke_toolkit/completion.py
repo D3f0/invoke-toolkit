@@ -334,7 +334,7 @@ def _handle_positional_completion(
     collection,
     positional_index: int,
     incomplete: str = "",
-) -> bool:
+) -> tuple[bool, bool]:
     """
     Handle completion for positional arguments.
 
@@ -345,17 +345,22 @@ def _handle_positional_completion(
         incomplete: The incomplete value typed by user
 
     Returns:
-        True if choices were printed, False otherwise
+        Tuple of (handled, should_suppress_fallback):
+        - handled: True if choices were printed
+        - should_suppress_fallback: True if we're in a positional arg context
+          and should NOT fall back to task name completion
     """
     task_name = context.name
     if not task_name:
-        return False
+        return False, False
 
     # Get positional args from the context
     positional_args = context.positional_args
     if positional_index >= len(positional_args):
-        debug(f"Positional index {positional_index} out of range")
-        return False
+        debug(
+            f"Positional index {positional_index} out of range, allow task completion"
+        )
+        return False, False
 
     arg = positional_args[positional_index]
     arg_name: str = arg.name or ""
@@ -368,9 +373,12 @@ def _handle_positional_completion(
         debug(f"Found choices for {arg_name}: {choices[:10]}...")
         for choice in choices:
             print(choice)
-        return True
+        return True, True
 
-    return False
+    # No choices available, but we're still within positional args range
+    # Suppress fallback to task names - user needs to provide a value
+    debug(f"No completion for positional arg {arg_name}, suppressing task completion")
+    return False, True
 
 
 def complete_with_choices(
@@ -479,9 +487,12 @@ def complete_with_choices(
                     positional_index = max(0, positional_index - 1)
 
             # Try to complete positional argument
-            if _handle_positional_completion(
+            handled, suppress_fallback = _handle_positional_completion(
                 context, collection, positional_index, incomplete
-            ):
+            )
+            if handled or suppress_fallback:
+                # Either we printed completions, or we're in a positional arg
+                # that has no completion (like 'value') - don't show task names
                 raise Exit
 
         # Fall back to task name completion
