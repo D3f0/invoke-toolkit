@@ -272,11 +272,16 @@ def _get_expected_type(ctx: Context, path: str) -> Optional[type]:
 
     Returns:
         The type of the existing value, or None if path doesn't exist
+        or if the existing value is None (to allow setting any type)
     """
     config_dict = dict(ctx.config.items())
     value, found = _navigate_config_path(config_dict, path)
 
     if not found:
+        return None
+
+    # If the existing value is None, allow any type to be set
+    if value is None:
         return None
 
     value_type = type(value)
@@ -470,8 +475,8 @@ def get(
 )
 def set_(
     ctx: Context,
-    path: Annotated[str, _complete_config_path],
-    value: str,
+    path: Annotated[str | None, _complete_config_path] = None,
+    value: str | None = None,
     location: ConfigLocation = ConfigLocation.LOCAL,
     format_: str = "yaml",
 ):
@@ -491,6 +496,15 @@ def set_(
         invoke-toolkit -x config.set custom.settings "{'debug': True}"
         invoke-toolkit -x config.set api.key "my-secret-key" --location user
     """
+    # Validate required arguments
+    if path is None or value is None:
+        ctx.print_err(
+            "[red]Error:[/red] Both 'path' and 'value' are required.\n"
+            "[dim]Usage: config.set <path> <value>[/dim]\n"
+            "[dim]Use --help for more information.[/dim]"
+        )
+        return
+
     # Parse the value
     parsed_value = _parse_value(value)
 
