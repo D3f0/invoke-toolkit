@@ -475,8 +475,8 @@ def get(
 )
 def set_(
     ctx: Context,
-    path: Annotated[str | None, _complete_config_path] = None,
-    value: str | None = None,
+    path: Annotated[str, _complete_config_path],
+    value: str,
     location: ConfigLocation = ConfigLocation.LOCAL,
     format_: str = "yaml",
 ):
@@ -496,15 +496,6 @@ def set_(
         invoke-toolkit -x config.set custom.settings "{'debug': True}"
         invoke-toolkit -x config.set api.key "my-secret-key" --location user
     """
-    # Validate required arguments
-    if path is None or value is None:
-        ctx.print_err(
-            "[red]Error:[/red] Both 'path' and 'value' are required.\n"
-            "[dim]Usage: config.set <path> <value>[/dim]\n"
-            "[dim]Use --help for more information.[/dim]"
-        )
-        return
-
     # Parse the value
     parsed_value = _parse_value(value)
 

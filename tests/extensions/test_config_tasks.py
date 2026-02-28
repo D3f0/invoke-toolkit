@@ -731,3 +731,24 @@ def test_set_accepts_dict_for_dict_type(ctx, temp_config_dir):
     with open(config_path, encoding="utf-8") as f:
         content = yaml.safe_load(f)
     assert content["run"]["env"] == {"FOO": "bar"}
+
+
+def test_set_updates_custom_string_value_from_file(ctx, temp_config_dir):
+    """
+    Regression test for issue where config.set would fail when updating
+    a custom string value that exists in invoke.yaml but not in ctx.config.
+
+    This tests the scenario:
+    - invoke.yaml has: containerlab.vm_name = "contaierlab"
+    - User runs: intk -x config.set containerlab.vm_name 'containerlab'
+    - Should succeed and update the value
+    """
+    config_path = temp_config_dir / "invoke.yaml"
+    config_path.write_text("containerlab:\n  vm_name: contaierlab\n")
+
+    # This should succeed despite containerlab.vm_name not being in ctx.config
+    set_(ctx, "containerlab.vm_name", "containerlab", ConfigLocation.LOCAL)
+
+    with open(config_path, encoding="utf-8") as f:
+        content = yaml.safe_load(f)
+    assert content["containerlab"]["vm_name"] == "containerlab"
