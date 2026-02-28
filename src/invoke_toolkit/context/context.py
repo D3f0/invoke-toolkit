@@ -3,7 +3,8 @@
 import os
 import subprocess
 import sys
-from contextlib import contextmanager
+from contextlib import _GeneratorContextManager, contextmanager
+from os import PathLike
 from typing import (
     TYPE_CHECKING,
     Callable,
@@ -13,6 +14,7 @@ from typing import (
     NoReturn,
     Optional,
     Protocol,
+    Union,
 )
 
 import setproctitle
@@ -57,6 +59,11 @@ class ToolkitContext(Context, ConfigProtocol):
     _console: "Console"
     _config: ToolkitConfig
     _status_helper: StatusHelper
+
+    # Override cd with proper type annotation to fix PathLike[Unknown] issue
+    cd: Callable[
+        [Union[PathLike[str], str]], _GeneratorContextManager[None, None, None]
+    ]
 
     def __init__(self, config: Optional[ToolkitConfig] = None) -> None:
         super().__init__(config)
