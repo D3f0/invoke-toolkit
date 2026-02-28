@@ -1,6 +1,8 @@
 """Tests for completion with Enum and Literal choices and custom callbacks."""
 
 import io
+import os
+import tempfile
 from contextlib import redirect_stdout
 from enum import Enum
 from typing import Annotated, Literal
@@ -413,3 +415,41 @@ def test_positional_completion_out_of_range_allows_task_completion():
     handled, suppress = _handle_positional_completion(ctx, coll, 1, "")
     assert handled is False, "Should not have handled (out of range)"
     assert suppress is False, "Should NOT suppress fallback when out of range"
+
+
+def test_completion_without_task_file_with_internal_col_flag():
+    """Test that completion works without task file when -x flag is in completion context.
+
+    This tests GitHub issue #57: When using tab completion without a task file,
+    completion of -x extensions should not trigger task discovery errors.
+    """
+    # Create a temporary directory without any task files
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmpdir)
+
+            # Simulate completion with -x flag in completion context
+            # Shell calls: intk --complete -- intk -x config
+            argv = ["intk", "--complete", "--", "intk", "-x", "config"]
+            program = TestingToolkitProgram()
+            stdout_capture = io.StringIO()
+
+            with redirect_stdout(stdout_capture):
+                try:
+                    program.run(argv)
+                except (SystemExit, Exit):
+                    pass
+
+            output = stdout_capture.getvalue()
+
+            # Should show internal collection tasks, not an error
+            assert "config" in output, (
+                f"Expected 'config' in completion output, got: {output}"
+            )
+            # Should NOT contain the error message
+            assert "Can't find any collection" not in output, (
+                f"Should not show error message, got: {output}"
+            )
+        finally:
+            os.chdir(original_cwd)

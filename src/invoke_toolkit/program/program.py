@@ -439,7 +439,16 @@ class ToolkitProgram(Program):
             else:
                 # If entry points weren't found, try local_tasks or fail
                 if not (Path(start) / "local_tasks.py").exists():
-                    if not self.args["internal-col"].value:
+                    # Allow completion mode with -x flag to proceed without raising error
+                    # The internal collections will be loaded in parse_cleanup()
+                    is_completion_with_internal = (
+                        self.args.complete.value
+                        and self._has_internal_col_flag_in_completion()
+                    )
+                    if (
+                        not self.args["internal-col"].value
+                        and not is_completion_with_internal
+                    ):
                         raise Exit(
                             (
                                 "Can't find any collection named [red]{name!r}[/red].\n"

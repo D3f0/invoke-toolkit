@@ -5,10 +5,11 @@ Rich console instance
 import os
 import re
 from fnmatch import fnmatch
-from typing import List, Literal, Pattern, Union
+from typing import Any, List, Literal, Optional, Pattern, Union
 
 from invoke.util import debug
-from rich.console import Console
+from rich.console import Console, JustifyMethod, OverflowMethod
+from rich.style import Style
 from rich.text import Text
 from typing_extensions import Annotated
 
@@ -121,7 +122,25 @@ class SecretRedactorConsole(Console):
         """Public method to redact text using configured secret patterns."""
         return self._redact_text(text)
 
-    def print(self, *objects, **kwargs):
+    # pylint: disable=too-many-arguments,too-many-locals
+    def print(
+        self,
+        *objects: Any,
+        sep: str = " ",
+        end: str = "\n",
+        style: Optional[Union[str, Style]] = None,
+        justify: Optional[JustifyMethod] = None,
+        overflow: Optional[OverflowMethod] = None,
+        no_wrap: Optional[bool] = None,
+        emoji: Optional[bool] = None,
+        markup: Optional[bool] = None,
+        highlight: Optional[bool] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        crop: bool = True,
+        soft_wrap: Optional[bool] = None,
+        new_line_start: bool = False,
+    ) -> None:
         """Override print to redact secrets before output."""
         # Process each object
         redacted_objects = []
@@ -134,16 +153,32 @@ class SecretRedactorConsole(Console):
                 new_text = Text()
 
                 for segment in obj._spans:  # pylint: disable=protected-access
-                    start, end, style = segment
-                    segment_text = obj.plain[start:end]
+                    start, seg_end, seg_style = segment
+                    segment_text = obj.plain[start:seg_end]
                     redacted_segment = self._redact_text(segment_text)
-                    new_text.append(redacted_segment, style=style)
+                    new_text.append(redacted_segment, style=seg_style)
 
                 redacted_objects.append(new_text)
             else:
                 redacted_objects.append(obj)
 
-        super().print(*redacted_objects, **kwargs)
+        super().print(
+            *redacted_objects,
+            sep=sep,
+            end=end,
+            style=style,
+            justify=justify,
+            overflow=overflow,
+            no_wrap=no_wrap,
+            emoji=emoji,
+            markup=markup,
+            highlight=highlight,
+            width=width,
+            height=height,
+            crop=crop,
+            soft_wrap=soft_wrap,
+            new_line_start=new_line_start,
+        )
 
     def __repr__(self) -> str:
         return (
