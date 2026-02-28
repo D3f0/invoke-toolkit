@@ -15,16 +15,27 @@ from invoke_toolkit.scripts.loader import script  # noqa
 from invoke_toolkit.tasks import (  # noqa
     CacheConfig,
     cache_stats,
+    cached,
     call,
     clear_task_cache,
     task,
 )
 from invoke_toolkit.tasks.types import (
     DirPath as DirPath,
+)
+from invoke_toolkit.tasks.types import (
     DirPathStr as DirPathStr,
+)
+from invoke_toolkit.tasks.types import (
     FilePath as FilePath,
+)
+from invoke_toolkit.tasks.types import (
     FilePathStr as FilePathStr,
+)
+from invoke_toolkit.tasks.types import (
     FilePattern as FilePattern,
+)
+from invoke_toolkit.tasks.types import (
     FilePatternStr as FilePatternStr,
 )
 

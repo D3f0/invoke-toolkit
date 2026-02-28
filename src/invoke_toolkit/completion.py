@@ -9,6 +9,8 @@ import glob
 import os
 import re
 import shlex
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import List
 
 from invoke.completion.complete import (
@@ -18,6 +20,7 @@ from invoke.completion.complete import (
 from invoke.exceptions import Exit, ParseError
 from invoke.parser import Parser, ParserContext
 
+from invoke_toolkit.config import get_config_value
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.tasks import (
     _extract_enum_params,
@@ -168,15 +171,36 @@ def get_choices_for_argument(
 
     # Step 1: Check for completion callback (HIGHEST PRIORITY)
     # Callbacks are stored on the Task object, not the body
-    if hasattr(task, "_completion_callbacks"):  # pylint: disable=protected-access
+    if hasattr(task, "_completion_callbacks"):  # pylint: disable=protected-access,too-many-nested-blocks
         callbacks = task._completion_callbacks  # pylint: disable=protected-access
         if arg_name in callbacks:
             try:
                 # Try to call the callback with context and incomplete
                 ctx = ToolkitContext()
-                result = callbacks[arg_name](ctx, incomplete)
-                if result:
-                    return [str(choice) for choice in result]
+
+                # Get timeout from config (default: 10 seconds)
+                timeout = get_config_value(
+                    ctx, "completion.callback_timeout", default=10.0
+                )
+
+                # Execute callback with timeout
+                # Note: Don't use context manager because it waits for threads on exit
+                executor = ThreadPoolExecutor(max_workers=1)
+                try:
+                    future = executor.submit(callbacks[arg_name], ctx, incomplete)
+                    try:
+                        result = future.result(timeout=timeout)
+                        if result:
+                            return [str(choice) for choice in result]
+                    except FuturesTimeoutError:
+                        debug(
+                            f"Completion callback for {arg_name} timed out after {timeout}s. "
+                            f"You can increase this with INVOKE_COMPLETION_CALLBACK_TIMEOUT environment variable."
+                        )
+                        # Fall through to next option
+                finally:
+                    # Shutdown without waiting for running threads
+                    executor.shutdown(wait=False)
             except (AttributeError, TypeError, ValueError) as e:
                 debug(f"Completion callback for {arg_name} failed: {e}")
                 # Fall through to next option

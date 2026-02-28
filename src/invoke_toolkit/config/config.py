@@ -95,6 +95,9 @@ class ToolkitConfig(Config):
         ret["run"]["echo_format"] = "[bold]{command}[/bold]"
         ret["disable_status"] = False
         ret["init_shell"] = False
+        ret["completion"] = {
+            "callback_timeout": 10.0,  # Timeout in seconds for completion callbacks
+        }
 
         return ret
 
