@@ -660,6 +660,7 @@ name = "invoke-toolkit"
 source = { editable = "." }
 dependencies = [
     { name = "appdirs" },
+    { name = "attrs" },
     { name = "httpx" },
     { name = "invoke" },
     { name = "pdbpp" },
@@ -697,7 +698,6 @@ ci = [
     { name = "nox" },
 ]
 dev = [
-    { name = "attrs" },
     { name = "copier" },
     { name = "diskcache" },
     { name = "hunter" },
@@ -721,6 +721,7 @@ doc = [
 [package.metadata]
 requires-dist = [
     { name = "appdirs" },
+    { name = "attrs", specifier = ">=24.1.0" },
     { name = "copier", marker = "extra == 'copier'", specifier = ">=9.10.3" },
     { name = "copier", marker = "extra == 'full'", specifier = ">=9.10.3" },
     { name = "copier", marker = "extra == 'templating'", specifier = ">=9.10.3" },
@@ -745,7 +746,6 @@ provides-extras = ["cache", "copier", "debug", "full", "templating"]
 [package.metadata.requires-dev]
 ci = [{ name = "nox", specifier = ">=2025.10.16" }]
 dev = [
-    { name = "attrs", specifier = ">=24.1.0" },
     { name = "copier", specifier = ">=9.10.3" },
     { name = "diskcache", specifier = ">=5.6.0" },
     { name = "hunter", specifier = ">=3.7.0" },
