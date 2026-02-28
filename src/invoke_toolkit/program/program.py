@@ -404,6 +404,9 @@ class ToolkitProgram(Program):
         # NOTE: start, coll_name both fall back to configuration values within
         # Loader (which may, however, get them from our config.)
         start = self.args["search-root"].value
+        # In completion mode, check if -r is in the completion context
+        if self.args.complete.value and start is None:
+            start = self._get_search_root_from_completion()
         loader = self.loader_class(  # type: ignore
             config=self.config, start=start
         )
@@ -424,7 +427,7 @@ class ToolkitProgram(Program):
             # Load local tasks if they exist
             self.collection.load_local_tasks(search_path=parent)
             # Also try to load entry points (merge with tasks.py)
-            ep_collection = self._load_entry_points_collection(start)
+            ep_collection = self._load_entry_points_collection(parent)
             if ep_collection is not None:
                 debug("Merging entry point collections with tasks.py")
                 for name, collection in ep_collection.collections.items():
@@ -439,15 +442,17 @@ class ToolkitProgram(Program):
             else:
                 # If entry points weren't found, try local_tasks or fail
                 if not (Path(start) / "local_tasks.py").exists():
-                    # Allow completion mode with -x flag to proceed without raising error
-                    # The internal collections will be loaded in parse_cleanup()
+                    # Allow completion mode to proceed without raising error
+                    # Core flags can still be completed even without a collection
                     is_completion_with_internal = (
                         self.args.complete.value
                         and self._has_internal_col_flag_in_completion()
                     )
+                    is_completion_mode = self.args.complete.value
                     if (
                         not self.args["internal-col"].value
                         and not is_completion_with_internal
+                        and not is_completion_mode
                     ):
                         raise Exit(
                             (
@@ -496,6 +501,28 @@ class ToolkitProgram(Program):
         if hasattr(self, "argv") and self.argv:
             return "-x" in self.argv or "--internal-col" in self.argv
         return False
+
+    def _get_search_root_from_completion(self) -> "str | None":
+        """
+        Extract the -r or --search-root value from the completion context.
+
+        When completion is triggered, the -r flag value is in the remainder
+        (after --), not in the parsed core args. We need to extract it to
+        load the correct collection.
+        """
+        if not hasattr(self, "argv") or not self.argv:
+            return None
+
+        argv = self.argv
+        for i, arg in enumerate(argv):
+            if arg in ("-r", "--search-root") and i + 1 < len(argv):
+                return argv[i + 1]
+            # Handle --search-root=value format
+            if arg.startswith("--search-root="):
+                return arg.split("=", 1)[1]
+            if arg.startswith("-r="):
+                return arg.split("=", 1)[1]
+        return None
 
     def parse_cleanup(self) -> None:
         """

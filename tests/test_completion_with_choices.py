@@ -453,3 +453,234 @@ def test_completion_without_task_file_with_internal_col_flag():
             )
         finally:
             os.chdir(original_cwd)
+
+
+def test_completion_with_search_root_flag():
+    """Test that completion works with -r/--search-root flag.
+
+    This tests GitHub issue #54: When using tab completion with -r <path>,
+    the completions should show tasks from the specified directory, not
+    the current working directory.
+    """
+    # Create a temporary directory with a tasks.py file
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tasks_file = os.path.join(tmpdir, "tasks.py")
+        with open(tasks_file, "w", encoding="utf-8") as f:
+            f.write(
+                "from invoke_toolkit import task, Context\n"
+                "@task\n"
+                "def custom_task_one(ctx):\n"
+                "    pass\n"
+                "@task\n"
+                "def custom_task_two(ctx):\n"
+                "    pass\n"
+            )
+
+        # Test with -r short flag
+        argv = ["intk", "--complete", "--", "intk", "-r", tmpdir, ""]
+        program = TestingToolkitProgram()
+        stdout_capture = io.StringIO()
+
+        with redirect_stdout(stdout_capture):
+            try:
+                program.run(argv)
+            except (SystemExit, Exit):
+                pass
+
+        output = stdout_capture.getvalue()
+
+        # Should show tasks from the temp directory
+        assert "custom-task-one" in output, (
+            f"Expected 'custom-task-one' in completion output, got: {output}"
+        )
+        assert "custom-task-two" in output, (
+            f"Expected 'custom-task-two' in completion output, got: {output}"
+        )
+
+
+def test_completion_with_search_root_long_flag():
+    """Test that completion works with --search-root long flag."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tasks_file = os.path.join(tmpdir, "tasks.py")
+        with open(tasks_file, "w", encoding="utf-8") as f:
+            f.write(
+                "from invoke_toolkit import task, Context\n"
+                "@task\n"
+                "def my_custom_task(ctx):\n"
+                "    pass\n"
+            )
+
+        # Test with --search-root long flag
+        argv = ["intk", "--complete", "--", "intk", "--search-root", tmpdir, ""]
+        program = TestingToolkitProgram()
+        stdout_capture = io.StringIO()
+
+        with redirect_stdout(stdout_capture):
+            try:
+                program.run(argv)
+            except (SystemExit, Exit):
+                pass
+
+        output = stdout_capture.getvalue()
+
+        assert "my-custom-task" in output, (
+            f"Expected 'my-custom-task' in completion output, got: {output}"
+        )
+
+
+def test_completion_search_root_shows_directories():
+    """Test that -r/--search-root flag completes with directory names.
+
+    This tests GitHub issue #54: The -r flag should complete with directories
+    so users can easily navigate to the location of their tasks.py file.
+    """
+    # Simulating completion: intk -r <TAB>
+    argv = ["intk", "--complete", "--", "intk", "-r", ""]
+    program = TestingToolkitProgram()
+    stdout_capture = io.StringIO()
+
+    with redirect_stdout(stdout_capture):
+        try:
+            program.run(argv)
+        except (SystemExit, Exit):
+            pass
+
+    output = stdout_capture.getvalue()
+    lines = output.strip().split("\n")
+
+    # Should show directories, not task names
+    # The test directory should contain at least 'src', 'tests', 'docs' directories
+    assert any("src" in line or "tests" in line for line in lines), (
+        f"Expected directory names in completion output, got: {lines}"
+    )
+
+    # Should NOT show task names (like 'build', 'test', etc.)
+    # Task names typically don't look like directory names
+    assert "build" not in lines, (
+        f"Should not show task names in -r completion, got: {lines}"
+    )
+
+
+def test_completion_search_root_filters_by_prefix():
+    """Test that -r completion filters directories by prefix."""
+    # Simulating completion: intk -r tes<TAB>
+    argv = ["intk", "--complete", "--", "intk", "-r", "tes"]
+    program = TestingToolkitProgram()
+    stdout_capture = io.StringIO()
+
+    with redirect_stdout(stdout_capture):
+        try:
+            program.run(argv)
+        except (SystemExit, Exit):
+            pass
+
+    output = stdout_capture.getvalue()
+    lines = [line for line in output.strip().split("\n") if line]
+
+    # Should only show directories starting with 'tes'
+    for line in lines:
+        assert line.startswith("tes"), (
+            f"Expected all completions to start with 'tes', got: {line}"
+        )
+
+
+def test_completion_search_root_subdirectory():
+    """Test that -r completion works for subdirectories."""
+    # Simulating completion: intk -r src/<TAB>
+    argv = ["intk", "--complete", "--", "intk", "-r", "src/"]
+    program = TestingToolkitProgram()
+    stdout_capture = io.StringIO()
+
+    with redirect_stdout(stdout_capture):
+        try:
+            program.run(argv)
+        except (SystemExit, Exit):
+            pass
+
+    output = stdout_capture.getvalue()
+    lines = [line for line in output.strip().split("\n") if line]
+
+    # Should show subdirectories of src/
+    assert any("src/invoke_toolkit" in line for line in lines), (
+        f"Expected 'src/invoke_toolkit' in completion output, got: {lines}"
+    )
+
+
+def test_completion_flags_without_tasks_file():
+    """Test that flag completion works even when no tasks.py exists.
+
+    This tests GitHub issue #54: When there's no tasks.py file, users should
+    still be able to complete core flags like -r, -x, --help, etc.
+    """
+    # Create a temporary directory without any task files
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmpdir)
+
+            # Simulating completion: intk -<TAB>
+            argv = ["intk", "--complete", "--", "intk", "-"]
+            program = TestingToolkitProgram()
+            stdout_capture = io.StringIO()
+
+            with redirect_stdout(stdout_capture):
+                try:
+                    program.run(argv)
+                except (SystemExit, Exit):
+                    pass
+
+            output = stdout_capture.getvalue()
+            lines = [line for line in output.strip().split("\n") if line]
+
+            # Should show core flags, not an error
+            assert len(lines) > 0, "Expected flag completions, got empty output"
+
+            # Should include common flags
+            assert any("--help" in line or "-h" in line for line in lines), (
+                f"Expected --help in completion output, got: {lines}"
+            )
+            assert any("--search-root" in line or "-r" in line for line in lines), (
+                f"Expected --search-root/-r in completion output, got: {lines}"
+            )
+
+            # Should NOT contain the error message
+            assert not any("Can't find any collection" in line for line in lines), (
+                f"Should not show error message, got: {lines}"
+            )
+        finally:
+            os.chdir(original_cwd)
+
+
+def test_completion_search_root_without_tasks_file():
+    """Test that -r directory completion works even when no tasks.py exists."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmpdir)
+            # Create some subdirectories
+            os.makedirs("project1")
+            os.makedirs("project2")
+
+            # Simulating completion: intk -r <TAB>
+            argv = ["intk", "--complete", "--", "intk", "-r", ""]
+            program = TestingToolkitProgram()
+            stdout_capture = io.StringIO()
+
+            with redirect_stdout(stdout_capture):
+                try:
+                    program.run(argv)
+                except (SystemExit, Exit):
+                    pass
+
+            output = stdout_capture.getvalue()
+            lines = [line for line in output.strip().split("\n") if line]
+
+            # Should show the directories we created
+            assert "project1" in lines, (
+                f"Expected 'project1' in completion output, got: {lines}"
+            )
+            assert "project2" in lines, (
+                f"Expected 'project2' in completion output, got: {lines}"
+            )
+        finally:
+            os.chdir(original_cwd)

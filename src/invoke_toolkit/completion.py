@@ -238,10 +238,75 @@ def _strip_program_name(names: List[str], remainder: str) -> str:
     return invocation
 
 
+def _get_directory_completions(incomplete: str) -> List[str]:
+    """
+    Get directory completions for path arguments like --search-root.
+
+    Args:
+        incomplete: The partial path typed by user
+
+    Returns:
+        List of matching directory paths
+    """
+    # Parse incomplete to determine base directory and filter prefix
+    base_dir = "."
+    filter_prefix = ""
+
+    if incomplete:
+        if incomplete.endswith("/"):
+            # User typed "subdir/" → list contents of subdir
+            base_dir = incomplete.rstrip("/") or "/"
+            filter_prefix = ""
+        elif "/" in incomplete:
+            # User typed "subdir/fil" → list subdir, filter by "fil"
+            base_dir = os.path.dirname(incomplete) or "/"
+            filter_prefix = os.path.basename(incomplete)
+        else:
+            # User typed "fil" → list CWD, filter by "fil"
+            base_dir = "."
+            filter_prefix = incomplete
+
+    # Determine prefix to prepend to results
+    if base_dir == ".":
+        dir_prefix = ""
+    elif base_dir == "/":
+        dir_prefix = "/"
+    else:
+        dir_prefix = base_dir + "/"
+
+    directories: List[str] = []
+
+    try:
+        if not os.path.isdir(base_dir):
+            return []
+
+        entries = os.listdir(base_dir)
+        for entry in entries:
+            full_path = os.path.join(base_dir, entry)
+            # Only include directories
+            if not os.path.isdir(full_path):
+                continue
+            # Apply filter prefix if present
+            if filter_prefix and not entry.startswith(filter_prefix):
+                continue
+            # Prepend directory prefix to result
+            result_path = dir_prefix + entry
+            directories.append(result_path)
+    except PermissionError as e:
+        debug(f"Permission denied: {e}")
+        return []
+    except OSError as e:
+        debug(f"Error listing directories: {e}")
+        return []
+
+    return sorted(directories)
+
+
 def _handle_flag_completion(
     context: ParserContext,
     flag_name: str,
     collection,
+    incomplete: str = "",
 ) -> bool:
     """
     Handle completion for a flag that takes a value.
@@ -250,6 +315,7 @@ def _handle_flag_completion(
         context: The parser context
         flag_name: The flag name (e.g., '--color')
         collection: The invoke collection
+        incomplete: The incomplete value typed by user
 
     Returns:
         True if choices were printed, False otherwise
@@ -261,14 +327,25 @@ def _handle_flag_completion(
         print_task_names(collection)
         return False
 
+    # Extract the argument name from the flag object's canonical name
+    # (e.g., flag.name is "search-root" regardless of whether -r or --search-root was used)
+    arg_name = flag.name.replace("-", "_")
+
+    # Special handling for search-root: complete with directories
+    if arg_name == "search_root":
+        debug(f"Completing search-root with directories, incomplete={incomplete!r}")
+        directories = _get_directory_completions(incomplete)
+        if directories:
+            for directory in directories:
+                print(directory)
+            return True
+        # Even if no directories found, we handled it (don't fall back)
+        return True
+
     # Try to get choices for this flag
-    # Extract the argument name from the flag (e.g., "--color" -> "color")
-    arg_name = flag_name.lstrip("-").replace("-", "_")
     task_name = context.name
 
     if task_name:
-        # Extract incomplete value from tokens if available
-        incomplete = ""
         choices = get_choices_for_argument(collection, task_name, arg_name, incomplete)
         if choices:
             debug(f"Found choices for {arg_name}: {choices}")
@@ -279,6 +356,45 @@ def _handle_flag_completion(
     # No choices found, let shell handle it (file completion)
     debug("Found, and it takes a value, so no completion")
     return False
+
+
+def _try_complete_flag_value(
+    tokens: List[str],
+    completing_new_token: bool,
+    initial_context: ParserContext,
+    collection,
+) -> bool:
+    """
+    Try to complete a value for a flag that takes a value.
+
+    Args:
+        tokens: The tokenized invocation
+        completing_new_token: Whether we're completing a new token (trailing space)
+        initial_context: The core context with flag definitions
+        collection: The invoke collection
+
+    Returns:
+        True if completion was handled, False otherwise
+    """
+    if len(tokens) < 2:
+        return False
+
+    prev_token = tokens[-2] if not completing_new_token else tokens[-1]
+    if not prev_token.startswith("-"):
+        return False
+
+    # Try to find the flag in initial_context (core args)
+    if prev_token not in initial_context.flags:
+        return False
+
+    flag = initial_context.flags[prev_token]
+    if not flag.takes_value:
+        return False
+
+    # We're completing a value for this flag
+    incomplete = tokens[-1] if not completing_new_token else ""
+    debug(f"Completing value for flag {prev_token}, incomplete={incomplete!r}")
+    return _handle_flag_completion(initial_context, prev_token, collection, incomplete)
 
 
 def _get_positional_arg_index(context: ParserContext, tokens: List[str]) -> int:
@@ -445,9 +561,15 @@ def complete_with_choices(
                     print(name)
         # Known flags complete w/ values or nothing
         else:
-            _handle_flag_completion(context, tail, collection)
-    # If not a flag, check if we should complete positional args or task names
+            _handle_flag_completion(context, tail, collection, incomplete="")
+    # If not a flag, check if we're completing a flag value, positional args, or task names
     else:
+        # Check if the previous token is a flag that takes a value
+        if _try_complete_flag_value(
+            tokens, completing_new_token, initial_context, collection
+        ):
+            raise Exit
+
         # Try to parse to get the current context
         contexts: List[ParserContext] = []
         try:
