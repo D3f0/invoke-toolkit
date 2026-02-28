@@ -693,7 +693,7 @@ def test_completion_callback_timeout():
 
     def slow_callback(ctx: Context, incomplete: str) -> list[str]:
         """A callback that takes too long."""
-        time.sleep(10)  # Sleep longer than the timeout
+        time.sleep(15)  # Sleep longer than the 10s timeout
         return ["result1", "result2"]
 
     coll = ToolkitCollection()
@@ -716,7 +716,7 @@ def test_completion_callback_timeout():
     # Should return empty list due to timeout
     assert choices == []
     # Should timeout in approximately 10 seconds (default), not complete all 15
-    assert elapsed < 12, f"Callback took {elapsed}s, expected ~10s timeout"
+    assert elapsed < 11, f"Callback took {elapsed}s, expected ~10s timeout"
     assert elapsed > 9, f"Callback took {elapsed}s, expected ~10s timeout"
 
 
@@ -784,7 +784,7 @@ def test_completion_callback_timeout_with_filtering():
 
     def slow_filtered_callback(ctx: Context, incomplete: str) -> list[str]:
         """A callback that filters but takes too long."""
-        time.sleep(10)
+        time.sleep(15)  # Sleep longer than the 10s timeout
         all_items = ["apple", "apricot", "banana"]
         if incomplete:
             return [i for i in all_items if i.startswith(incomplete)]
@@ -807,7 +807,7 @@ def test_completion_callback_timeout_with_filtering():
     elapsed = time.time() - start
 
     assert choices == []
-    assert elapsed < 12, f"Callback took {elapsed}s, expected ~10s timeout"
+    assert elapsed < 11, f"Callback took {elapsed}s, expected ~10s timeout"
 
 
 def test_completion_callback_timeout_env_variable():
