@@ -1,8 +1,10 @@
 """Tests for completion with Enum and Literal choices and custom callbacks."""
+# pylint: disable=too-many-lines
 
 import io
 import os
 import tempfile
+import time
 from contextlib import redirect_stdout
 from enum import Enum
 from typing import Annotated, Literal
@@ -10,7 +12,7 @@ from typing import Annotated, Literal
 from invoke.exceptions import Exit
 from invoke.parser import Argument, ParserContext
 
-from invoke_toolkit import Context, task
+from invoke_toolkit import Context, cached, task
 from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.completion import (
     _get_positional_arg_index,
@@ -684,3 +686,443 @@ def test_completion_search_root_without_tasks_file():
             )
         finally:
             os.chdir(original_cwd)
+
+
+def test_completion_callback_timeout():
+    """Test that completion callbacks timeout after configured duration."""
+
+    def slow_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that takes too long."""
+        time.sleep(15)  # Sleep longer than the 10s timeout
+        return ["result1", "result2"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def slow_task(
+        ctx: Context,
+        value: Annotated[str, slow_callback],
+    ) -> None:
+        """Task with slow completion callback."""
+
+    coll.add_task(slow_task)  # type: ignore[arg-type]
+
+    # The callback should timeout and return empty list
+    # Default timeout is 10 seconds, so this should fail fast
+    start = time.time()
+    choices = get_choices_for_argument(coll, "slow-task", "value", "")
+    elapsed = time.time() - start
+
+    # Should return empty list due to timeout
+    assert choices == []
+    # Should timeout in approximately 10 seconds (default), not complete all 15
+    assert elapsed < 11, f"Callback took {elapsed}s, expected ~10s timeout"
+    assert elapsed > 9, f"Callback took {elapsed}s, expected ~10s timeout"
+
+
+def test_completion_callback_respects_config_timeout():
+    """Test that completion callbacks use the config timeout value."""
+
+    def somewhat_slow_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that takes 3 seconds."""
+        time.sleep(3)
+        return ["result1", "result2"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def moderate_task(
+        ctx: Context,
+        value: Annotated[str, somewhat_slow_callback],
+    ) -> None:
+        """Task with moderate completion callback."""
+
+    coll.add_task(moderate_task)  # type: ignore[arg-type]
+
+    # With default timeout of 10s, this 3s callback should complete successfully
+    start = time.time()
+    choices = get_choices_for_argument(coll, "moderate-task", "value", "")
+    elapsed = time.time() - start
+
+    # Should complete successfully within the 5s default timeout
+    assert choices == ["result1", "result2"]
+    assert elapsed < 4, f"Callback took {elapsed}s, should complete in ~3s"
+    assert elapsed > 2.5, f"Callback took {elapsed}s, expected ~3s"
+
+
+def test_completion_callback_fast_succeeds():
+    """Test that fast completion callbacks complete successfully."""
+
+    def fast_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that returns quickly."""
+        return ["fast1", "fast2", "fast3"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def fast_task(
+        ctx: Context,
+        value: Annotated[str, fast_callback],
+    ) -> None:
+        """Task with fast completion callback."""
+
+    coll.add_task(fast_task)  # type: ignore[arg-type]
+
+    # The callback should complete successfully
+    start = time.time()
+    choices = get_choices_for_argument(coll, "fast-task", "value", "")
+    elapsed = time.time() - start
+
+    # Should return results
+    assert choices == ["fast1", "fast2", "fast3"]
+    # Should complete very quickly
+    assert elapsed < 1, f"Fast callback took {elapsed}s, should be instant"
+
+
+def test_completion_callback_timeout_with_filtering():
+    """Test timeout works with incomplete string filtering."""
+
+    def slow_filtered_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that filters but takes too long."""
+        time.sleep(15)  # Sleep longer than the 10s timeout
+        all_items = ["apple", "apricot", "banana"]
+        if incomplete:
+            return [i for i in all_items if i.startswith(incomplete)]
+        return all_items
+
+    coll = ToolkitCollection()
+
+    @task
+    def filtered_task(
+        ctx: Context,
+        fruit: Annotated[str, slow_filtered_callback],
+    ) -> None:
+        """Task with filtered completion callback."""
+
+    coll.add_task(filtered_task)  # type: ignore[arg-type]
+
+    # Should timeout even when filtering
+    start = time.time()
+    choices = get_choices_for_argument(coll, "filtered-task", "fruit", "ap")
+    elapsed = time.time() - start
+
+    assert choices == []
+    assert elapsed < 11, f"Callback took {elapsed}s, expected ~10s timeout"
+
+
+def test_completion_callback_timeout_env_variable():
+    """Test that timeout can be configured via environment variable.
+
+    Note: Environment variables work when set before process starts.
+    Use INVOKE_COMPLETION_CALLBACK_TIMEOUT=10.0 intk mytask --help
+    Or configure in invoke.yaml:
+        completion:
+          callback_timeout: 10.0
+    """
+
+    def moderate_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that takes 1 second."""
+        time.sleep(1)
+        return ["result1", "result2"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def env_task(
+        ctx: Context,
+        value: Annotated[str, moderate_callback],
+    ) -> None:
+        """Task with completion callback for env testing."""
+
+    coll.add_task(env_task)  # type: ignore[arg-type]
+
+    # With default 10s timeout, 1s callback should succeed
+    start = time.time()
+    choices = get_choices_for_argument(coll, "env-task", "value", "")
+    elapsed = time.time() - start
+
+    # Should complete successfully
+    assert choices == ["result1", "result2"]
+    assert elapsed < 2, f"Callback took {elapsed}s, should complete in ~1s"
+    assert elapsed > 0.5, f"Callback took {elapsed}s, expected ~1s"
+
+
+def test_completion_callback_with_cached_decorator():
+    """Test that completion callbacks work with @cached decorator."""
+    try:
+        import diskcache  # noqa: F401  # pylint: disable=unused-import
+
+        has_diskcache = True
+    except ImportError:
+        has_diskcache = False
+
+    if not has_diskcache:
+        import pytest
+
+        pytest.skip("diskcache not installed")
+
+    # Track call count for the expensive operation
+    call_count = {"count": 0}
+
+    @cached(ttl=60)
+    def cached_callback(ctx: Context, incomplete: str) -> list[str]:
+        """Completion callback with @cached decorator."""
+        call_count["count"] += 1
+        # Simulate expensive operation
+        time.sleep(0.1)
+        items = ["apple", "apricot", "banana", "berry"]
+        if incomplete:
+            return [i for i in items if i.startswith(incomplete)]
+        return items
+
+    coll = ToolkitCollection()
+
+    @task
+    def cached_task(
+        ctx: Context,
+        fruit: Annotated[str, cached_callback],
+    ) -> None:
+        """Task with cached completion callback."""
+
+    coll.add_task(cached_task)  # type: ignore[arg-type]
+
+    # Clear any existing cache
+    cached_callback.cache_clear()
+
+    # First call - should invoke the callback
+    start = time.time()
+    choices = get_choices_for_argument(coll, "cached-task", "fruit", "")
+    elapsed = time.time() - start
+    assert choices == ["apple", "apricot", "banana", "berry"]
+    assert call_count["count"] == 1
+    assert elapsed > 0.05, "First call should take time"
+
+    # Second call with same args - should use persistent cache
+    start = time.time()
+    choices = get_choices_for_argument(coll, "cached-task", "fruit", "")
+    elapsed = time.time() - start
+    assert choices == ["apple", "apricot", "banana", "berry"]
+    assert call_count["count"] == 1, "Should not call callback again (persistent cache)"
+    assert elapsed < 0.05, "Cached call should be fast"
+
+    # Third call with different filtering - should invoke callback with new args
+    choices = get_choices_for_argument(coll, "cached-task", "fruit", "b")
+    assert choices == ["banana", "berry"]
+    assert call_count["count"] == 2, "Should call callback with new incomplete string"
+
+    # Fourth call with same filtering - should use persistent cache
+    start = time.time()
+    choices = get_choices_for_argument(coll, "cached-task", "fruit", "b")
+    elapsed = time.time() - start
+    assert choices == ["banana", "berry"]
+    assert call_count["count"] == 2, "Should use cached result"
+    assert elapsed < 0.05, "Cached call should be fast"
+
+    # Clean up
+    cached_callback.cache_clear()
+
+
+def test_completion_callback_cached_decorator_with_slow_operation():
+    """Test that @cached decorator works correctly with slow operations."""
+    try:
+        import diskcache  # noqa: F401  # pylint: disable=unused-import
+
+        has_diskcache = True
+    except ImportError:
+        has_diskcache = False
+
+    if not has_diskcache:
+        import pytest
+
+        pytest.skip("diskcache not installed")
+
+    call_count = {"count": 0}
+
+    @cached(ttl=60)
+    def slow_cached_callback(ctx: Context, incomplete: str) -> list[str]:
+        """Completion callback with slow operation using @cached decorator."""
+        call_count["count"] += 1
+        time.sleep(3)  # Takes 3 seconds
+        return ["result1", "result2"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def slow_cached_task(
+        ctx: Context,
+        value: Annotated[str, slow_cached_callback],
+    ) -> None:
+        """Task with slow cached completion callback."""
+
+    coll.add_task(slow_cached_task)  # type: ignore[arg-type]
+
+    # Clear any existing cache
+    slow_cached_callback.cache_clear()
+
+    # First call - completes within default 10s timeout
+    choices = get_choices_for_argument(coll, "slow-cached-task", "value", "")
+    assert choices == ["result1", "result2"]
+    assert call_count["count"] == 1
+
+    # Second call - should use persistent cache and be instant
+    start = time.time()
+    choices = get_choices_for_argument(coll, "slow-cached-task", "value", "")
+    elapsed = time.time() - start
+    assert choices == ["result1", "result2"]
+    assert call_count["count"] == 1, "Should use cached result from disk"
+    assert elapsed < 0.5, f"Cached call should be fast, took {elapsed}s"
+
+    # Clean up
+    slow_cached_callback.cache_clear()
+
+
+def test_completion_callback_with_lru_cache_manual():
+    """Test manual caching pattern using functools.lru_cache on data fetching."""
+    from functools import lru_cache
+
+    fetch_count = {"count": 0}
+
+    @lru_cache(maxsize=128)
+    def fetch_items() -> tuple[str, ...]:
+        """Expensive operation that fetches items - this is cached."""
+        fetch_count["count"] += 1
+        time.sleep(0.1)
+        return ("apple", "apricot", "banana", "berry")
+
+    def manual_cached_callback(ctx: Context, incomplete: str) -> list[str]:
+        """Completion callback that uses cached data fetch."""
+        items = fetch_items()
+        if incomplete:
+            return [i for i in items if i.startswith(incomplete)]
+        return list(items)
+
+    coll = ToolkitCollection()
+
+    @task
+    def manual_task(
+        ctx: Context,
+        fruit: Annotated[str, manual_cached_callback],
+    ) -> None:
+        """Task with manual cached completion callback."""
+
+    coll.add_task(manual_task)  # type: ignore[arg-type]
+
+    # First call - should invoke the expensive fetch operation
+    choices = get_choices_for_argument(coll, "manual-task", "fruit", "")
+    assert choices == ["apple", "apricot", "banana", "berry"]
+    assert fetch_count["count"] == 1
+
+    # Second call with different filtering - still uses cached fetch
+    choices = get_choices_for_argument(coll, "manual-task", "fruit", "b")
+    assert choices == ["banana", "berry"]
+    assert fetch_count["count"] == 1, "Should still use cached fetch"
+
+
+def test_completion_callback_cached_decorator_uses_diskcache():
+    """Test that @cached decorator uses diskcache when available."""
+    try:
+        import diskcache  # noqa: F401  # pylint: disable=unused-import
+
+        has_diskcache = True
+    except ImportError:
+        has_diskcache = False
+
+    if not has_diskcache:
+        import pytest
+
+        pytest.skip("diskcache not installed")
+
+    call_count = {"count": 0}
+
+    @cached(ttl=300)
+    def disk_cached_callback(ctx: Context, incomplete: str) -> list[str]:
+        """Completion callback with disk caching."""
+        call_count["count"] += 1
+        time.sleep(0.1)
+        return ["option1", "option2", "option3"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def disk_task(
+        ctx: Context,
+        value: Annotated[str, disk_cached_callback],
+    ) -> None:
+        """Task with disk-cached completion callback."""
+
+    coll.add_task(disk_task)  # type: ignore[arg-type]
+
+    # Clear any existing cache
+    disk_cached_callback.cache_clear()
+
+    # First call
+    choices = get_choices_for_argument(coll, "disk-task", "value", "")
+    assert choices == ["option1", "option2", "option3"]
+    assert call_count["count"] == 1
+
+    # Check cache info
+    cache_info = disk_cached_callback.cache_info()
+    assert cache_info["function"] == "disk_cached_callback"
+    assert cache_info["ttl"] == 300
+    assert cache_info["backend"] == "diskcache"
+    assert "entries" in cache_info
+    assert cache_info["entries"] >= 1
+    assert "cache_directory" in cache_info
+
+    # Second call should use cache
+    choices = get_choices_for_argument(coll, "disk-task", "value", "")
+    assert choices == ["option1", "option2", "option3"]
+    assert call_count["count"] == 1, "Should use disk cache"
+
+    # Clear cache
+    disk_cached_callback.cache_clear()
+    cache_info = disk_cached_callback.cache_info()
+    assert cache_info["entries"] == 0
+
+
+def test_completion_callback_cached_decorator_without_diskcache():
+    """Test @cached decorator behavior when diskcache is not available."""
+    try:
+        import diskcache  # noqa: F401  # pylint: disable=unused-import
+
+        has_diskcache = True
+    except ImportError:
+        has_diskcache = False
+
+    if has_diskcache:
+        import pytest
+
+        pytest.skip("diskcache is installed, skipping no-diskcache test")
+
+    call_count = {"count": 0}
+
+    @cached(ttl=60)
+    def no_cache_callback(ctx: Context, incomplete: str) -> list[str]:
+        """Completion callback without caching (diskcache not available)."""
+        call_count["count"] += 1
+        return ["item1", "item2", "item3"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def no_cache_task(
+        ctx: Context,
+        value: Annotated[str, no_cache_callback],
+    ) -> None:
+        """Task with completion callback but no caching."""
+
+    coll.add_task(no_cache_task)  # type: ignore[arg-type]
+
+    # First call
+    choices = get_choices_for_argument(coll, "no-cache-task", "value", "")
+    assert choices == ["item1", "item2", "item3"]
+    assert call_count["count"] == 1
+
+    # Second call - no caching, so callback is called again
+    choices = get_choices_for_argument(coll, "no-cache-task", "value", "")
+    assert choices == ["item1", "item2", "item3"]
+    assert call_count["count"] == 2, "Callback should be called again (no caching)"
+
+    # Check cache info shows no backend
+    cache_info = no_cache_callback.cache_info()
+    assert cache_info["backend"] == "none"

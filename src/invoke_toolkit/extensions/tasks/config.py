@@ -1,5 +1,19 @@
 """
 Invoke toolkit (internal) configuration tasks
+
+This module demonstrates the proper use of completion callbacks through
+invoke-toolkit's @task decorator system:
+
+1. Callbacks are extracted from Annotated type hints via _extract_completion_callbacks
+2. They are stored on the Task object as _completion_callbacks
+3. The completion system retrieves them via get_choices_for_argument
+4. This is clean, non-invasive, and follows the decorator pattern
+
+The _complete_config_path callback is a good example of a reusable
+completion function that can be:
+- Applied to multiple parameters via Annotated types
+- Used by other tasks that need config path completion
+- Tested independently without touching invoke internals
 """
 
 import ast
@@ -362,12 +376,91 @@ def _complete_config_path(ctx: Context, incomplete: str) -> list[str]:
 
     Returns config paths that match the incomplete string.
 
+    This callback demonstrates the proper way to create reusable completion
+    callbacks using invoke-toolkit's @task decorator system. It's applied to
+    task parameters via Annotated type hints:
+
+        @task
+        def my_task(ctx, path: Annotated[str, _complete_config_path]):
+            pass
+
+    The callback mechanism works as follows:
+    1. The @task decorator extracts completion callbacks from Annotated types
+    2. They are stored on the Task object as _completion_callbacks
+    3. The completion system (in completion.py) retrieves them
+    4. User types tab and shell displays completions
+
+    This approach is clean, non-invasive, and doesn't require tapping into
+    invoke internals. Callbacks have highest priority in the completion system
+    (before enums, literals, and file markers).
+
+    Completion callbacks support timeouts (default: 10 seconds):
+    - Configure via environment: INVOKE_COMPLETION_CALLBACK_TIMEOUT=10.0
+    - Or in invoke.yaml:
+        completion:
+          callback_timeout: 10.0
+
+    Template for creating custom completion callbacks:
+
+        def _complete_my_items(ctx: Context, incomplete: str) -> list[str]:
+            '''Completion callback for my custom items.'''
+            from invoke_toolkit.config import get_config_value
+
+            # Get data from context or config
+            items = get_config_value(ctx, "my.items", default=[])
+
+            # Filter by incomplete prefix
+            matching = [i for i in items if i.startswith(incomplete)]
+
+            return sorted(matching)
+
+        @task
+        def my_task(ctx, item: Annotated[str, _complete_my_items]):
+            '''Task with auto-completion for items.'''
+
+    Completion callbacks can be cached using the @cached decorator for persistent
+    disk-based caching. This is essential for shell completion performance, as
+    each completion request happens in a separate process.
+
+        from invoke_toolkit import task, Context, cached
+        from typing import Annotated
+
+        @cached(ttl=300)  # Cache for 5 minutes
+        def _complete_expensive_items(ctx: Context, incomplete: str) -> list[str]:
+            '''Completion callback with persistent caching.'''
+            # Expensive operation like API call or database query
+            items = fetch_items_from_api()
+            matching = [i for i in items if i.startswith(incomplete)]
+            return sorted(matching)
+
+        @task
+        def deploy(ctx, target: Annotated[str, _complete_expensive_items]):
+            '''Deploy to a target with cached completion.'''
+
+    The @cached decorator uses diskcache for persistent storage, so results are
+    cached across separate shell completion processes. Requires: pip install diskcache
+
+    Callbacks are executed in a separate thread with a timeout (default: 10s).
+
+    Note: Don't use functools.lru_cache for completion callbacks, as each shell
+    completion happens in a separate process, making in-memory caching ineffective.
+    Always use the @cached decorator for persistent disk-based caching:
+
+        @cached(ttl=60)  # Short TTL for frequently changing data
+        def _complete_active_deployments(ctx: Context, incomplete: str) -> list[str]:
+            items = fetch_from_api()
+            return [i for i in items if i.startswith(incomplete)]
+
+        @cached(ttl=3600)  # Longer TTL for stable data
+        def _complete_aws_regions(ctx: Context, incomplete: str) -> list[str]:
+            return ["us-east-1", "us-west-2", "eu-west-1"]
+
     Args:
-        ctx: The context object
-        incomplete: The partial path typed by the user
+        ctx: The context object (contains config, run method, etc.)
+        incomplete: The partial path typed by the user (for filtering)
 
     Returns:
-        List of matching config paths
+        List of matching config paths sorted alphabetically
     """
     # Get current config as a clean dict
     config_dict = _clean_dict_for_serialization(dict(ctx.config.items()))
@@ -475,8 +568,8 @@ def get(
 )
 def set_(
     ctx: Context,
-    path: Annotated[str, _complete_config_path],
-    value: str,
+    path: Annotated[str | None, _complete_config_path] = None,
+    value: str | None = None,
     location: ConfigLocation = ConfigLocation.LOCAL,
     format_: str = "yaml",
 ):
@@ -496,6 +589,15 @@ def set_(
         invoke-toolkit -x config.set custom.settings "{'debug': True}"
         invoke-toolkit -x config.set api.key "my-secret-key" --location user
     """
+    # Validate required arguments
+    if path is None or value is None:
+        ctx.print_err(
+            "[red]Error:[/red] Both 'path' and 'value' are required.\n"
+            "[dim]Usage: config.set <path> <value>[/dim]\n"
+            "[dim]Use --help for more information.[/dim]"
+        )
+        return
+
     # Parse the value
     parsed_value = _parse_value(value)
 
