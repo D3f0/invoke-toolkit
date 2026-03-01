@@ -98,6 +98,10 @@ class ToolkitConfig(Config):
         ret["completion"] = {
             "callback_timeout": 10.0,  # Timeout in seconds for completion callbacks
         }
+        ret["fuzzy_finder"] = {
+            "show_warnings": True,  # Show warning when fzf is not available
+            "force_fallback": False,  # Force use of rich fallback instead of fzf
+        }
 
         return ret
 
