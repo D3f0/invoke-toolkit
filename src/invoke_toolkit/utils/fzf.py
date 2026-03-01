@@ -418,7 +418,11 @@ def select(  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
             if value:
                 fzf_cmd.append(f"--{flag}")
         else:
-            fzf_cmd.append(f"--{flag}={value}")
+            # Quote value if it contains spaces
+            if isinstance(value, str) and " " in value:
+                fzf_cmd.append(f"--{flag}='{value}'")
+            else:
+                fzf_cmd.append(f"--{flag}={value}")
 
     # Run fzf with choices
     return _run_fzf(fzf_cmd, "\n".join(choices), multi)
@@ -601,7 +605,11 @@ def select_from_command(  # pylint: disable=too-many-locals,too-many-branches,to
             if value:
                 fzf_cmd.append(f"--{flag}")
         else:
-            fzf_cmd.append(f"--{flag}={value}")
+            # Quote value if it contains spaces
+            if isinstance(value, str) and " " in value:
+                fzf_cmd.append(f"--{flag}='{value}'")
+            else:
+                fzf_cmd.append(f"--{flag}={value}")
 
     debug(f"Running command to get input: {command}")
 
