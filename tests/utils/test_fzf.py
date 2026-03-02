@@ -595,69 +595,59 @@ def test_select_from_command_with_select_1_uses_fallback_correctly():
 # Tests for fzf warning message
 
 
-def test_show_fzf_warning_displays_message():
+def test_show_fzf_warning_displays_message(capsys):
     """Test that warning message is displayed when fzf is not available."""
     ctx = Context()
 
-    with patch("invoke_toolkit.utils.fzf.Console") as mock_console_class:
-        mock_console = Mock()
-        mock_console_class.return_value = mock_console
+    # Reset the global warning flag
+    import invoke_toolkit.utils.fzf as fzf_module
 
-        # Reset the global warning flag
-        import invoke_toolkit.utils.fzf as fzf_module
+    fzf_module._fzf_warning_shown = False
 
-        fzf_module._fzf_warning_shown = False
+    _show_fzf_warning(ctx, force_fallback=False)
 
-        _show_fzf_warning(ctx)
-
-        # Should create console with stderr=True
-        mock_console_class.assert_called_once_with(stderr=True)
-
-        # Should print warning messages
-        assert mock_console.print.call_count == 2
-        first_call = mock_console.print.call_args_list[0][0][0]
-        assert "fzf not found" in first_call
-        assert "https://github.com/junegunn/fzf" in first_call
+    # Check stderr output
+    captured = capsys.readouterr()
+    assert "fzf not found" in captured.err
+    assert "https://github.com/junegunn/fzf" in captured.err
+    assert "fuzzy_finder.show_warnings = false" in captured.err
 
 
-def test_show_fzf_warning_only_shows_once():
+def test_show_fzf_warning_only_shows_once(capsys):
     """Test that warning is only shown once per session."""
     ctx = Context()
 
-    with patch("invoke_toolkit.utils.fzf.Console") as mock_console_class:
-        mock_console = Mock()
-        mock_console_class.return_value = mock_console
+    # Reset the global warning flag
+    import invoke_toolkit.utils.fzf as fzf_module
 
-        # Reset the global warning flag
-        import invoke_toolkit.utils.fzf as fzf_module
+    fzf_module._fzf_warning_shown = False
 
-        fzf_module._fzf_warning_shown = False
+    # Call twice
+    _show_fzf_warning(ctx, force_fallback=False)
+    _show_fzf_warning(ctx, force_fallback=False)
 
-        # Call multiple times
-        _show_fzf_warning(ctx)
-        _show_fzf_warning(ctx)
-        _show_fzf_warning(ctx)
-
-        # Should only create console once
-        mock_console_class.assert_called_once()
+    # Check that message only appears once
+    captured = capsys.readouterr()
+    # Count occurrences of the warning message
+    occurrences = captured.err.count("fzf not found")
+    assert occurrences == 1
 
 
-def test_show_fzf_warning_respects_config():
-    """Test that warning respects fuzzy_finder.show_warnings config."""
+def test_show_fzf_warning_respects_config(capsys):
+    """Test that warning can be disabled via config."""
     ctx = Context()
-    # Use merge_dicts to properly set nested config
     ctx.config._config["fuzzy_finder"] = {"show_warnings": False}
 
-    with patch("invoke_toolkit.utils.fzf.Console") as mock_console_class:
-        # Reset the global warning flag
-        import invoke_toolkit.utils.fzf as fzf_module
+    # Reset the global warning flag
+    import invoke_toolkit.utils.fzf as fzf_module
 
-        fzf_module._fzf_warning_shown = False
+    fzf_module._fzf_warning_shown = False
 
-        _show_fzf_warning(ctx)
+    _show_fzf_warning(ctx, force_fallback=False)
 
-        # Should not create console or print anything
-        mock_console_class.assert_not_called()
+    # Should not output anything when warnings disabled
+    captured = capsys.readouterr()
+    assert captured.err == ""
 
 
 def test_select_shows_warning_when_using_fallback():
@@ -675,7 +665,7 @@ def test_select_shows_warning_when_using_fallback():
                 select(ctx, ["option1", "option2"], use_fallback=True)
 
                 # Should call warning function
-                mock_warning.assert_called_once_with(ctx)
+                mock_warning.assert_called_once_with(ctx, force_fallback=False)
 
 
 def test_select_from_command_shows_warning_when_using_fallback():
@@ -699,7 +689,7 @@ def test_select_from_command_shows_warning_when_using_fallback():
                     select_from_command(ctx, "echo test", use_fallback=True)
 
                     # Should call warning function
-                    mock_warning.assert_called_once_with(ctx)
+                    mock_warning.assert_called_once_with(ctx, force_fallback=False)
 
 
 def test_warning_not_shown_when_fzf_available():
@@ -732,8 +722,8 @@ def test_select_respects_force_fallback_config():
 
                 # Should use rich fallback even though fzf is available
                 mock_rich.assert_called_once()
-                # Should not show warning when force_fallback is enabled
-                mock_warning.assert_not_called()
+                # Should show warning with force_fallback=True
+                mock_warning.assert_called_once_with(ctx, force_fallback=True)
                 assert result == "option1"
 
 
@@ -756,8 +746,8 @@ def test_select_from_command_respects_force_fallback_config():
 
                     # Should use rich fallback even though fzf is available
                     mock_rich.assert_called_once()
-                    # Should not show warning when force_fallback is enabled
-                    mock_warning.assert_not_called()
+                    # Should show warning with force_fallback=True
+                    mock_warning.assert_called_once_with(ctx, force_fallback=True)
                     assert result == "option2"
 
 
@@ -790,7 +780,7 @@ def test_select_respects_force_fallback_env_var():
 
                     assert result == "option1"
                     mock_rich.assert_called_once()
-                    mock_warning.assert_not_called()
+                    mock_warning.assert_called_once_with(ctx, force_fallback=True)
 
 
 def test_select_from_command_respects_force_fallback_env_var():
@@ -821,7 +811,7 @@ def test_select_from_command_respects_force_fallback_env_var():
 
                         assert result == "option1"
                         mock_rich.assert_called_once()
-                        mock_warning.assert_not_called()
+                        mock_warning.assert_called_once_with(ctx, force_fallback=True)
 
 
 def test_env_var_overrides_config():
@@ -846,4 +836,4 @@ def test_env_var_overrides_config():
 
                     assert result == "option1"
                     mock_rich.assert_called_once()
-                    mock_warning.assert_not_called()
+                    mock_warning.assert_called_once_with(ctx, force_fallback=True)

@@ -41,14 +41,15 @@ def is_fzf_available() -> bool:
     return available
 
 
-def _show_fzf_warning(ctx: Context) -> None:
+def _show_fzf_warning(ctx: Context, force_fallback: bool = False) -> None:
     """
-    Show a warning message when fzf is not available.
+    Show a warning message when fzf is not available or disabled.
 
     Can be disabled via config: fuzzy_finder.show_warnings = False
 
     Args:
         ctx: The invoke context
+        force_fallback: Whether fallback is forced via config
     """
     global _fzf_warning_shown  # pylint: disable=global-statement
 
@@ -69,17 +70,21 @@ def _show_fzf_warning(ctx: Context) -> None:
 
     debug("Showing fzf warning message")
 
-    console = Console(stderr=True)
-    console.print(
-        "[yellow]Note:[/yellow] fzf not found. "
-        "For better interactive selection, install fzf: "
-        "[cyan]https://github.com/junegunn/fzf[/cyan]",
-        highlight=False,
-    )
-    console.print(
-        "[dim]Disable this message with config: fuzzy_finder.show_warnings = false[/dim]",
-        highlight=False,
-    )
+    if force_fallback:
+        ctx.print_err(
+            "[yellow]Note:[/yellow] fzf is disabled via config (force_fallback=true). "
+            "Using rich-based fallback selector."
+        )
+        ctx.print_err("[dim]Re-enable with: fuzzy_finder.force_fallback = false[/dim]")
+    else:
+        ctx.print_err(
+            "[yellow]Note:[/yellow] fzf not found. "
+            "For better interactive selection, install fzf: "
+            "[cyan]https://github.com/junegunn/fzf[/cyan]"
+        )
+        ctx.print_err(
+            "[dim]Disable this message with config: fuzzy_finder.show_warnings = false[/dim]"
+        )
 
     _fzf_warning_shown = True
 
@@ -366,9 +371,8 @@ def select(  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
             raise RuntimeError(
                 "fzf is not installed. Install from: https://github.com/junegunn/fzf"
             )
-        # Show warning message (once per session, configurable) only if fzf not available
-        if not force_fallback:
-            _show_fzf_warning(ctx)
+        # Show warning message (once per session, configurable)
+        _show_fzf_warning(ctx, force_fallback=force_fallback)
         # Use rich-based fallback with select_1 and exit_0 support
         select_1 = kwargs.get("select_1", False)
         exit_0 = kwargs.get("exit_0", False)
@@ -545,9 +549,8 @@ def select_from_command(  # pylint: disable=too-many-locals,too-many-branches,to
             raise RuntimeError(
                 "fzf is not installed. Install from: https://github.com/junegunn/fzf"
             )
-        # Show warning message (once per session, configurable) only if fzf not available
-        if not force_fallback:
-            _show_fzf_warning(ctx)
+        # Show warning message (once per session, configurable)
+        _show_fzf_warning(ctx, force_fallback=force_fallback)
         # Run command to get choices and use rich fallback
         debug(f"Running command to get choices: {command}")
         result = ctx.run(command, hide=True, warn=True)
