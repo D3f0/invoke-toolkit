@@ -14,3 +14,4 @@ _scratchpad.py
 # Test files
 _[a-z]*.py
 _test/*
+invoke.yaml
