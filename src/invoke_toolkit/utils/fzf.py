@@ -345,10 +345,8 @@ def select(  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
 
     # Check if force_fallback is enabled in config (includes environment variables)
     # Invoke's config system automatically handles INVOKE_FUZZY_FINDER_FORCE_FALLBACK
-    try:
-        force_fallback = ctx.config.get("fuzzy_finder", {}).get("force_fallback", False)
-    except (AttributeError, KeyError):
-        force_fallback = False
+    force_fallback = ctx.config.get("fuzzy_finder", {}).get("force_fallback", False)
+    debug(f"force_fallback value: {force_fallback}")
 
     if force_fallback:
         debug(
@@ -527,10 +525,8 @@ def select_from_command(  # pylint: disable=too-many-locals,too-many-branches,to
 
     # Check if force_fallback is enabled in config (includes environment variables)
     # Invoke's config system automatically handles INVOKE_FUZZY_FINDER_FORCE_FALLBACK
-    try:
-        force_fallback = ctx.config.get("fuzzy_finder", {}).get("force_fallback", False)
-    except (AttributeError, KeyError):
-        force_fallback = False
+    force_fallback = ctx.config.get("fuzzy_finder", {}).get("force_fallback", False)
+    debug(f"force_fallback value: {force_fallback}")
 
     if force_fallback:
         debug(
