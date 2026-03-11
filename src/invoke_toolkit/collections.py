@@ -7,7 +7,7 @@ import sys
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, overload
+from typing import TYPE_CHECKING, Any, Callable, overload
 
 try:
     from typing import override  # type: ignore[attr-defined]
@@ -20,6 +20,9 @@ from invoke.util import debug
 
 from invoke_toolkit.tasks.tasks import ToolkitTask
 from invoke_toolkit.utils.inspection import get_calling_file_path
+
+if TYPE_CHECKING:
+    from invoke_toolkit.config.schema import ConfigSchema
 
 logger = getLogger("invoke")
 
@@ -86,6 +89,9 @@ class ToolkitCollection(Collection):
     This Collection allows to load sub-collections from python package paths/namespaces
     like `myscripts.tasks.*`
     """
+
+    # Store the config schema class for later validation
+    _config_schema: "type[ConfigSchema] | None" = None
 
     @overload
     def __init__(self, **kwargs) -> None: ...
@@ -277,6 +283,71 @@ class ToolkitCollection(Collection):
                 f"Error loading local_tasks.py from {local_tasks_file}: {e}"
             )
 
+    @override
+    def configure(
+        self,
+        mapping: dict[str, Any] | None = None,
+        *,
+        schema: "type[ConfigSchema] | ConfigSchema | None" = None,
+    ) -> None:
+        """Configure collection with optional attrs schema.
+
+        Args:
+            mapping: Traditional dict config (existing behavior)
+            schema: Attrs class (uses defaults) or instance (uses provided values)
+
+        Examples:
+            # Traditional dict
+            ns.configure({"debug": True})
+
+            # Schema class - uses defaults
+            ns.configure(schema=MyConfig)
+
+            # Schema instance - uses provided values
+            ns.configure(schema=MyConfig(debug=True))
+
+            # Both - schema provides structure, mapping overrides
+            ns.configure(mapping={"timeout": 60}, schema=MyConfig)
+        """
+        from invoke_toolkit.config.registry import register_schema
+        from invoke_toolkit.config.schema import ConfigSchema
+
+        final_mapping: dict[str, Any] = {}
+
+        if schema is not None:
+            if isinstance(schema, type) and issubclass(schema, ConfigSchema):
+                # Class passed - instantiate with defaults
+                self._config_schema = schema
+                final_mapping = schema().to_dict()
+            elif isinstance(schema, ConfigSchema):
+                # Instance passed - use its values
+                self._config_schema = type(schema)
+                final_mapping = schema.to_dict()
+            else:
+                raise TypeError(
+                    f"schema must be a ConfigSchema class or instance, "
+                    f"got {type(schema)}"
+                )
+
+            # Register schema with collection name for validation
+            if self.name and self._config_schema:
+                register_schema(self.name, self._config_schema)
+
+        if mapping:
+            # Merge mapping over schema defaults (mapping wins)
+            self._deep_merge(final_mapping, mapping)
+
+        if final_mapping:
+            super().configure(final_mapping)
+
+    def _deep_merge(self, base: dict[str, Any], override: dict[str, Any]) -> None:
+        """Recursively merge override into base."""
+        for key, value in override.items():
+            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                self._deep_merge(base[key], value)
+            else:
+                base[key] = value
+
     @classmethod
     @override
     def from_module(
@@ -296,8 +367,13 @@ class ToolkitCollection(Collection):
         cls, package_path: str, into: "ToolkitCollection"
     ) -> "ToolkitCollection":  # pylint: disable=too-many-branches)
         """
-        Creates a collection from a package and configures it
+        Creates a collection from a package and configures it.
+
+        Auto-discovers config schemas if modules define a `config_schema` attribute
+        pointing to a ConfigSchema subclass.
         """
+        from invoke_toolkit.config.registry import register_schema
+        from invoke_toolkit.config.schema import ConfigSchema
 
         if not isinstance(into, Collection):
             raise ValueError("into parameter is a not a Collection")
@@ -305,6 +381,15 @@ class ToolkitCollection(Collection):
 
         global_config: dict[str, Any] = {}  # type: ignore[valid-type]
         for name, module in import_submodules(package_path).items():
+            # Look for schema class on the module
+            schema = getattr(module, "config_schema", None)
+            if (
+                schema is not None
+                and isinstance(schema, type)
+                and issubclass(schema, ConfigSchema)
+            ):
+                register_schema(name, schema)
+
             config = getattr(module, "config", None)
             collection: "ToolkitCollection" = ns.from_module(module)
             clean_collection(collection=collection)

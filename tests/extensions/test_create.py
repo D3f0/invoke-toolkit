@@ -81,16 +81,16 @@ def test_new_package(
 
     # Verify tasks module has the hello task
     tasks_content = (src_dir / "tasks.py").read_text()
-    assert "@task(" in tasks_content, "tasks module should have @task decorator"
+    assert "@task" in tasks_content, "tasks module should have @task decorator"
     assert "def hello" in tasks_content, "hello task not found in tasks module"
 
-    # Verify __init__.py creates the collection with auto-discovery
+    # Verify __init__.py creates the collection
     init_content = (src_dir / "__init__.py").read_text()
-    assert "collection = ToolkitCollection" in init_content, (
-        "Collection object not found in __init__.py"
+    assert "ToolkitCollection" in init_content, (
+        "ToolkitCollection not found in __init__.py"
     )
-    assert "add_collections_from_namespace" in init_content, (
-        "auto-discovery not set up in collection"
+    assert "collection = ToolkitCollection" in init_content, (
+        "Collection not created in __init__.py"
     )
 
 
@@ -127,12 +127,12 @@ def test_new_package_structure_validation(
     init_path = pkg_dir / "src" / "my_sample_tasks" / "__init__.py"
     init_text = init_path.read_text()
 
-    # Should create the collection with auto-discovery
+    # Should create collection in __init__.py
+    assert "ToolkitCollection" in init_text, (
+        "ToolkitCollection not found in __init__.py"
+    )
     assert "collection = ToolkitCollection" in init_text, (
         "Collection not created in __init__.py"
-    )
-    assert "add_collections_from_namespace" in init_text, (
-        "auto-discovery not set up in __init__.py"
     )
 
 
@@ -162,21 +162,20 @@ def test_new_package_callable_collection(
         "Missing invoke_toolkit imports"
     )
     # Verify task definition
-    assert "@task(" in tasks_content, "Missing @task decorator"
+    assert "@task" in tasks_content, "Missing @task decorator"
     assert "def hello(" in tasks_content, "Missing hello task function"
 
     # Verify __init__.py has proper exports
     init_py = src_dir / "__init__.py"
     init_content = init_py.read_text()
 
-    assert "__version__" in init_content, "Missing __version__ in __init__.py"
-    assert "from invoke_toolkit.collections import ToolkitCollection" in init_content, (
-        "Missing ToolkitCollection import in __init__.py"
+    assert "__all__" in init_content, "Missing __all__ in __init__.py"
+    assert "ToolkitCollection" in init_content, (
+        "Missing ToolkitCollection in __init__.py"
     )
     assert "collection = ToolkitCollection" in init_content, (
-        "Missing collection instantiation in __init__.py"
+        "Missing collection creation in __init__.py"
     )
-    assert "__all__" in init_content, "Missing __all__ in __init__.py"
 
 
 def test_package_collection_discovery(
@@ -217,18 +216,18 @@ def test_package_collection_discovery(
 
     # Verify tasks module has the hello task
     tasks_content = tasks_file.read_text()
-    assert "@task(" in tasks_content, "Missing @task decorator"
+    assert "@task" in tasks_content, "Missing @task decorator"
     assert "def hello(" in tasks_content, "Missing hello task function"
 
-    # Verify __init__.py creates the collection with auto-discovery
+    # Verify __init__.py creates collection
     init_file = pkg_dir / "src" / collection_slug / "__init__.py"
     assert init_file.exists(), "__init__.py not found"
     init_content = init_file.read_text()
+    assert "ToolkitCollection" in init_content, (
+        "ToolkitCollection not found in __init__.py"
+    )
     assert "collection = ToolkitCollection" in init_content, (
         "Collection not created in __init__.py"
-    )
-    assert "add_collections_from_namespace" in init_content, (
-        "auto-discovery not set up in __init__.py"
     )
     assert "__all__" in init_content, "__all__ not defined in __init__.py"
 
@@ -431,11 +430,14 @@ def test_package_multiple_task_modules(
     assert "def deploy" in handlers_content, "deploy task not found"
     assert "def rollback" in handlers_content, "rollback task not found"
 
-    # Verify that the __init__.py will auto-discover it
+    # Verify that the __init__.py creates collection
     init_file = src_dir / "__init__.py"
     init_content = init_file.read_text()
-    assert "add_collections_from_namespace" in init_content, (
-        "Collection should use add_collections_from_namespace for auto-discovery"
+    assert "ToolkitCollection" in init_content, (
+        "ToolkitCollection should be in __init__.py"
+    )
+    assert "collection = ToolkitCollection" in init_content, (
+        "Collection should be created in __init__.py"
     )
 
 

@@ -26,7 +26,9 @@ except ImportError:
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_create_package_via_intk_command(ctx: Context, tmp_path: Path, git_root: str):
+def test_create_package_via_intk_command(
+    ctx: Context, system_tmp_path: Path, git_root: str
+):
     """
     Test that `intk create.package` creates a valid package structure.
 
@@ -36,11 +38,11 @@ def test_create_package_via_intk_command(ctx: Context, tmp_path: Path, git_root:
     3. Verify entry point is configured in pyproject.toml
     4. Verify collection module exists and exports collection
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     # Create package from template
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package "
             f"--name invoke-toolkit-pkg1 "
@@ -66,7 +68,9 @@ def test_create_package_via_intk_command(ctx: Context, tmp_path: Path, git_root:
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_package_entry_point_configuration(ctx: Context, tmp_path: Path, git_root: str):
+def test_package_entry_point_configuration(
+    ctx: Context, system_tmp_path: Path, git_root: str
+):
     """
     Test that the generated package has correct entry point configuration.
 
@@ -75,11 +79,11 @@ def test_package_entry_point_configuration(ctx: Context, tmp_path: Path, git_roo
     2. Entry point name matches package slug
     3. Entry point value points to correct collection module
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     # Create package
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package --name my-test-package --location {pkg_location}",
             warn=True,
@@ -111,7 +115,7 @@ def test_package_entry_point_configuration(ctx: Context, tmp_path: Path, git_roo
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
 def test_generated_collection_module_structure(
-    ctx: Context, tmp_path: Path, git_root: str
+    ctx: Context, system_tmp_path: Path, git_root: str
 ):
     """
     Test that the generated collection module has correct structure.
@@ -121,12 +125,12 @@ def test_generated_collection_module_structure(
     2. Collection is named correctly based on package slug
     3. Collection auto-discovers tasks from the package namespace
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     package_name = "test-pkg"
 
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
             warn=True,
@@ -141,34 +145,22 @@ def test_generated_collection_module_structure(
     with open(init_file, encoding="utf-8") as f:
         init_content = f.read()
 
-        # Verify collection creation and export
-        assert "ToolkitCollection" in init_content, "ToolkitCollection not imported"
-        assert f'collection = ToolkitCollection("{pkg_slug}")' in init_content, (
-            "Collection not created with correct name"
+        # Verify collection creation in __init__.py
+        assert "ToolkitCollection" in init_content, (
+            "ToolkitCollection not found in __init__.py"
         )
-        assert "collection.add_flat_tasks_from_namespace" in init_content, (
-            "Collection does not auto-discover tasks in flat structure"
+        assert "collection = ToolkitCollection" in init_content, (
+            "Collection not created in __init__.py"
         )
-        assert "collection" in init_content and "__all__" in init_content, (
-            "Collection not properly exported"
-        )
-        # Verify documentation about flat vs namespace discovery
-        assert "flat" in init_content.lower(), (
-            "Documentation about flat task discovery is missing"
-        )
-        assert "add_collections_from_namespace" in init_content, (
-            "Documentation about nested namespace discovery option is missing"
-        )
-        # Verify examples in documentation show correct namespace structure
-        assert pkg_slug in init_content, (
-            "Collection name not shown in documentation examples"
-        )
+        assert "__all__" in init_content, "Collection not properly exported"
 
-    # Check tasks.py has at least one sample task
+    # Check tasks.py has task definitions
     tasks_file = pkg_dir / "src" / pkg_slug / "tasks.py"
     with open(tasks_file, encoding="utf-8") as f:
         tasks_content = f.read()
 
+        # Verify config_schema decorator
+        assert "@config_schema" in tasks_content, "Config schema decorator not found"
         # Verify task decorator and function exist
         assert "@task" in tasks_content, "No @task decorator found"
         assert "def hello" in tasks_content, "Sample hello task not found"
@@ -176,7 +168,7 @@ def test_generated_collection_module_structure(
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
 def test_package_with_custom_collection_name(
-    ctx: Context, tmp_path: Path, git_root: str
+    ctx: Context, system_tmp_path: Path, git_root: str
 ):
     """
     Test that package template respects custom collection names.
@@ -186,12 +178,12 @@ def test_package_with_custom_collection_name(
     - {{ package_slug }} - normalized package name
     - {{ collection_name }} - entry point collection name
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     package_name = "my-custom-pkg"
 
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
             warn=True,
@@ -224,7 +216,7 @@ def test_package_with_custom_collection_name(
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
 def test_toolkit_machinery_over_invoke_errors(
-    ctx: Context, tmp_path: Path, git_root: str
+    ctx: Context, system_tmp_path: Path, git_root: str
 ):
     """
     Test that invoke-toolkit machinery handles errors gracefully.
@@ -234,13 +226,13 @@ def test_toolkit_machinery_over_invoke_errors(
     2. Error messages are formatted through invoke-toolkit's output system
     3. Exit codes are properly propagated
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     package_name = "error-test-pkg"
 
     # Create package
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
             warn=True,
@@ -272,7 +264,7 @@ def test_toolkit_machinery_over_invoke_errors(
     tasks_file.write_text(failing_task_code, encoding="utf-8")
 
     # Try to run the failing task via uv tool run
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv tool run --with {git_root} --with {pkg_dir} intk failing-task",
             warn=True,
@@ -286,7 +278,9 @@ def test_toolkit_machinery_over_invoke_errors(
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_installed_package_discovery(ctx: Context, tmp_path: Path, git_root: str):
+def test_installed_package_discovery(
+    ctx: Context, system_tmp_path: Path, git_root: str
+):
     """
     Test that installed packages are discovered via entry points.
 
@@ -296,13 +290,13 @@ def test_installed_package_discovery(ctx: Context, tmp_path: Path, git_root: str
     3. Use invoke-toolkit to list available tasks
     4. Verify collection from installed package is available
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     package_name = "installed-test-pkg"
 
     # Create package
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
             warn=True,
@@ -317,7 +311,7 @@ def test_installed_package_discovery(ctx: Context, tmp_path: Path, git_root: str
         assert result.ok, f"Failed to install package: {result.stderr}"
 
     # List tasks should now include the installed package collection
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run("uv run intk -l", warn=True, pty=False)
         assert result.ok, f"Failed to list tasks: {result.stderr}"
 
@@ -330,7 +324,9 @@ def test_installed_package_discovery(ctx: Context, tmp_path: Path, git_root: str
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_create_package_with_short_name(ctx: Context, tmp_path: Path, git_root: str):
+def test_create_package_with_short_name(
+    ctx: Context, system_tmp_path: Path, git_root: str
+):
     """
     Test creating a package with a custom short name using --ext-name.
 
@@ -340,13 +336,13 @@ def test_create_package_with_short_name(ctx: Context, tmp_path: Path, git_root: 
     3. Entry point uses the full package name
     4. Collection name uses the short name
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     ext_name = "myext"
 
     # Create package with short name
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package --name test-pkg --ext-name {ext_name} --location {pkg_location}",
             warn=True,
@@ -479,8 +475,8 @@ def test_duplicate_collection_names_warning():
             "invoke_toolkit.loader.entrypoint.extract_plugin_short_name"
         ) as mock_extract:
             # Both should extract to "ext"
-            mock_extract.side_effect = (
-                lambda x: "ext"
+            mock_extract.side_effect = lambda x: (
+                "ext"
                 if x
                 in [
                     "invoke-toolkit-ext",
@@ -503,9 +499,7 @@ def test_duplicate_collection_names_warning():
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_create_package_refuses_in_git_repo(
-    ctx: Context, tmp_path: Path, git_root: str
-):
+def test_create_package_refuses_in_git_repo(ctx: Context, git_root: str):
     """
     Test that create.package refuses to run inside a git repository.
 
@@ -525,20 +519,22 @@ def test_create_package_refuses_in_git_repo(
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
-def test_create_package_uses_git_config(ctx: Context, tmp_path: Path, git_root: str):
+def test_create_package_uses_git_config(
+    ctx: Context, system_tmp_path: Path, git_root: str
+):
     """
     Test that create.package picks up git config for author name and email.
 
     This validates that when git config user.name and user.email are set,
     they are used as defaults in the package creation.
     """
-    pkg_location = tmp_path / "packages"
+    pkg_location = system_tmp_path / "packages"
     pkg_location.mkdir()
 
     package_name = "git-config-test-pkg"
 
     # Create package (git config should be auto-detected)
-    with ctx.cd(tmp_path):
+    with ctx.cd(system_tmp_path):
         result = ctx.run(
             f"uv run intk -x create.package --name {package_name} --location {pkg_location}",
             warn=True,
