@@ -1,0 +1,158 @@
+# Creating Packages
+
+Packages let you share invoke-toolkit tasks as installable Python packages. Once installed, your tasks become automatically available in `intk`.
+
+## Creating a Package
+
+Use the built-in template to scaffold a new package:
+
+```bash
+intk -x create.package
+```
+
+Or with the full command name:
+
+```bash
+invoke-toolkit -x create.package
+```
+
+This runs an interactive wizard that prompts you for:
+
+| Prompt | Description | Example |
+|--------|-------------|---------|
+| `package_name` | The pip-installable name | `invoke-toolkit-aws` |
+| `package_slug` | Python import name (auto-derived) | `invoke_toolkit_aws` |
+| `extension_short_name` | Short name for the collection | `aws` |
+| `collection_name` | How tasks appear in `intk -l` | `aws` |
+| `author_name` | Your name | `Jane Doe` |
+| `author_email` | Your email | `jane@example.com` |
+| `project_description` | Brief description | `AWS automation tasks` |
+| `python_version` | Minimum Python version | `3.10` |
+
+## Understanding the Generated Files
+
+After running the command, you'll have a complete package structure:
+
+```
+my-package/
+├── .copier-answers.yml    # Template answers (enables updates)
+├── .gitignore
+├── pyproject.toml         # Package metadata and entry point
+├── README.md
+└── src/
+    └── my_package/
+        ├── __init__.py    # Collection definition
+        └── tasks.py       # Your tasks
+```
+
+### Key Files
+
+**`pyproject.toml`** - Defines your package metadata and the entry point that makes tasks discoverable:
+
+```toml
+[project.entry-points."invoke_toolkit.collection"]
+"aws" = "invoke_toolkit_aws:collection"
+```
+
+**`src/{package_slug}/__init__.py`** - Creates a collection that auto-discovers tasks:
+
+```python
+collection = ToolkitCollection("aws")
+collection.add_flat_tasks_from_namespace("invoke_toolkit_aws")
+```
+
+**`src/{package_slug}/tasks.py`** - Where you define your tasks using the `@task` decorator.
+
+### The `.copier-answers.yml` File
+
+This file stores your answers from the template wizard:
+
+```yaml
+_src_path: gh:your-org/invoke-toolkit
+package_name: invoke-toolkit-aws
+package_slug: invoke_toolkit_aws
+# ... other answers
+```
+
+::: {.callout-warning}
+Do not delete `.copier-answers.yml` - it enables updating your package when the template changes.
+:::
+
+## Updating a Package from Template Changes
+
+When the invoke-toolkit template is updated with improvements or fixes, you can pull those changes into your package.
+
+### Running an Update
+
+From your package directory:
+
+```bash
+copier update
+```
+
+This will:
+
+1. Detect the template version your package was created from
+2. Download the latest template
+3. Re-apply your answers to generate updated files
+4. Merge changes with your local modifications
+
+### What Happens During an Update
+
+Copier performs a three-way merge:
+
+- **Template changes** are applied to files generated from `.jinja` templates
+- **Your local changes** to those files are preserved when possible
+- **Conflicts** are marked for manual resolution (like git conflicts)
+
+### Protected Files
+
+Some files are excluded from updates via `_preserve_paths` in the template:
+
+```yaml
+_preserve_paths:
+  - .gitignore
+```
+
+These files are only created once and never overwritten, even if the template changes.
+
+### Best Practices
+
+1. **Commit before updating** - Always have a clean git state before running `copier update`
+2. **Review the diff** - After updating, review changes with `git diff`
+3. **Test your tasks** - Run `intk -l` to verify tasks still load correctly
+4. **Resolve conflicts** - Look for conflict markers (`<<<<<<<`) and resolve manually
+
+## Troubleshooting
+
+### Tasks not appearing in `intk -l`
+
+- Verify the package is installed: `pip list | grep your-package`
+- Check the entry point in `pyproject.toml` matches your collection name
+- Ensure `__init__.py` exports the `collection` object
+
+### `copier update` fails
+
+- Ensure `.copier-answers.yml` exists in your package root
+- Check you have network access to the template repository
+- Try `copier update --trust` if prompted about unsafe operations
+
+### Import errors after update
+
+- The template may have changed the package structure
+- Check `__init__.py` imports match your actual module layout
+- Run `pip install -e .` to reinstall in development mode
+
+### Conflicts during update
+
+When you see conflict markers:
+
+```
+<<<<<<< HEAD
+your local changes
+=======
+template changes
+>>>>>>> template
+```
+
+Edit the file to keep the correct version, remove the markers, and commit.
