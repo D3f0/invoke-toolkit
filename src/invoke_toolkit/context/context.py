@@ -14,6 +14,7 @@ from typing import (
     NoReturn,
     Optional,
     Protocol,
+    TypeVar,
     Union,
 )
 
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
     from rich.console import Console
     from rich.status import Status
     # from rich.console import RenderableType, StyleType
+
+T = TypeVar("T")
 
 
 class ConfigProtocol(Protocol):
@@ -234,6 +237,48 @@ class ToolkitContext(Context, ConfigProtocol):
             )
             debug(f"restoring {stream_name=} {pattern_list=}")
             console.secret_patterns = pattern_list
+
+    def get_schema(self, schema_cls: type[T], path: str | None = None) -> T:
+        """Get typed config schema, falling back to defaults if not configured.
+
+        This is a convenience wrapper around `config.as_schema()` that handles
+        the case when the config path doesn't exist by returning schema defaults.
+
+        Args:
+            schema_cls: The ConfigSchema class to use
+            path: Config path (e.g., "app" or "app.database"). If None, uses
+                  the schema's registered collection name.
+
+        Returns:
+            Instance of schema_cls populated from config or with defaults
+
+        Example:
+            @config_schema("myapp")
+            class MyConfig(ConfigSchema):
+                debug: bool = False
+
+            @task
+            def mytask(ctx: Context) -> None:
+                config = ctx.get_schema(MyConfig)  # Uses "myapp" path
+                # or
+                config = ctx.get_schema(MyConfig, "custom.path")
+        """
+
+        # Determine path from schema if not provided
+        if path is None:
+            path = getattr(schema_cls, "__config_collection__", None)
+            if path is None:
+                raise ValueError(
+                    f"No path provided and {schema_cls.__name__} has no "
+                    "__config_collection__ attribute. Use @config_schema decorator "
+                    "or provide path explicitly."
+                )
+
+        try:
+            return self.config.as_schema(schema_cls, path)
+        except KeyError:
+            # Config path doesn't exist - return defaults
+            return schema_cls()
 
     @contextmanager
     def proctitle(self, title: str) -> Iterator[None]:

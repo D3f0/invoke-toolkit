@@ -1,6 +1,7 @@
 from invoke_toolkit import task, Context
 from invoke_toolkit.testing import TestingToolkitProgram
 from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.context import ToolkitContext
 
 
 @task()
@@ -76,3 +77,22 @@ def test_disable_status_flag(capsys):
     out = captured.out
     # When status is disabled, no status spinner should be shown
     assert "hello" in out
+
+
+def test_get_schema_with_defaults():
+    """ctx.get_schema() returns defaults when config path doesn't exist."""
+    from invoke_toolkit.config import config_schema, ConfigSchema, ToolkitConfig
+    from invoke_toolkit.config.registry import clear_registry
+
+    clear_registry()
+
+    @config_schema("test")
+    class TestConfig(ConfigSchema):
+        value: str = "default"
+
+    ctx = ToolkitContext(config=ToolkitConfig())
+    config = ctx.get_schema(TestConfig)
+
+    assert config.value == "default"
+
+    clear_registry()

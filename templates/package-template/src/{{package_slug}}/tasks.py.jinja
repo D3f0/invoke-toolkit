@@ -1,46 +1,11 @@
 """{{ project_description }}"""
 
+from typing import Annotated
+
 from invoke_toolkit import Context, task
-from invoke_toolkit.config import ConfigSchema, config_schema
 
 
-# =============================================================================
-# Config Schema
-# =============================================================================
-# Define a typed config schema using the @config_schema decorator.
-# The collection name is determined at runtime from the entry point.
-# This enables:
-#   - IDE autocomplete when accessing config
-#   - `intk config.schemas` to list available configuration
-#   - `intk config.set` validation against the schema
-
-
-@config_schema
-class {{ collection_name | title | replace('-', '') | replace('_', '') }}Config(ConfigSchema):
-    """Configuration for {{ collection_name }}.
-
-    Access in invoke.yaml:
-        {{ collection_name }}:
-          enabled: true
-    """
-
-    enabled: bool = True
-    # Add your config fields here
-    # example_option: str = "default"
-
-
-# =============================================================================
-# Tasks
-# =============================================================================
-
-
-@task(
-    help={
-        "name": "Name to greet",
-    }
-)
-def hello(ctx: Context, name: str = "World"):
-    """
-    Say hello
-    """
-    ctx.print_success(f"Hello, {name}!")
+@task
+def hello(ctx: Context, name: Annotated[str, "Name to greet"] = "World"):
+    """Say hello."""
+    ctx.print(f"[bold green]Hello, {name}![/bold green]")

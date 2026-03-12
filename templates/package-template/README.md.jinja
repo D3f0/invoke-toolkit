@@ -4,13 +4,26 @@
 
 ## Installation
 
+### Use the plugin from `git`
+
 ```bash
-pip install {{ package_name }}
+uv tool install invoke-toolkit --with git+https://github.com/YOUR_USERNAME/{{ package_name }}
+```
+
+### Use the plugin from a checkout
+
+Note that if you already ran this step for other plugins, you may want
+to add the `--with` or `--with-editable` of other plugins.
+
+```bash
+git clone https://github.com/YOUR_USERNAME/{{ package_name }}
+cd {{ package_name }}
+uv tool install invoke-toolkit --with-editable .
 ```
 
 ## Usage
 
-Once installed, the tasks from this package will be automatically available in invoke-toolkit:
+Once installed, the tasks from this package will be automatically available in `invoke-toolkit`/`intk`:
 
 ```bash
 intk -l
@@ -20,34 +33,12 @@ You should see a collection named `{{ collection_name }}` with the available tas
 
 ### Available Tasks
 
-- `hello` - Say hello to someone
+- `{{ collection_name }}.hello` - Say hello
 
 Example:
 
 ```bash
-intk {{ collection_name }}.hello --name "Alice"
-```
-
-## Running Standalone
-
-You can also run this package standalone without installing it system-wide, using `uvx`:
-
-```bash
-cd path/to/{{ package_slug }}
-uvx --from . invoke-toolkit -l
-```
-
-This allows you to test and use the package's tasks in an isolated environment without affecting your system Python installation.
-
-## Development
-
-To set up the development environment:
-
-```bash
-git clone <repository-url>
-cd {{ package_name }}
-uv venv
-uv pip install -e .
+intk {{ collection_name }}.hello --name "Developer"
 ```
 
 ## License

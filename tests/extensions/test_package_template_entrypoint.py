@@ -159,11 +159,11 @@ def test_generated_collection_module_structure(
     with open(tasks_file, encoding="utf-8") as f:
         tasks_content = f.read()
 
-        # Verify config_schema decorator
-        assert "@config_schema" in tasks_content, "Config schema decorator not found"
         # Verify task decorator and function exist
         assert "@task" in tasks_content, "No @task decorator found"
         assert "def hello" in tasks_content, "Sample hello task not found"
+        assert "ctx.print(" in tasks_content, "ctx.print not found in hello task"
+        assert "Annotated[str," in tasks_content, "Annotated type hint not found"
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
