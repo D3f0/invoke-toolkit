@@ -12,11 +12,15 @@ from invoke.util import debug
 from ..runners.rich import NoStdoutRunner
 
 if TYPE_CHECKING:
+    from invoke_toolkit.config.schema import ConfigSchema
     from invoke_toolkit.context import ToolkitContext
 
 
 # TypeVar for return type
 T = TypeVar("T")
+
+# TypeVar for schema conversion methods
+SchemaT = TypeVar("SchemaT", bound="ConfigSchema")
 
 
 def deep_merge(dict1, dict2):
@@ -104,6 +108,91 @@ class ToolkitConfig(Config):
         }
 
         return ret
+
+    def as_schema(self, schema_cls: type[SchemaT], path: str | None = None) -> SchemaT:
+        """Convert this config (or a nested section) to a typed attrs schema.
+
+        Enables type-safe access to configuration values by converting
+        the dict-like config to an attrs class instance.
+
+        Args:
+            schema_cls: An attrs class that extends ConfigSchema
+            path: Optional dot-separated path to a nested config section.
+                  If None, converts the entire config.
+
+        Returns:
+            Instance of schema_cls populated from this config
+
+        Raises:
+            TypeError: If schema_cls is not a ConfigSchema subclass
+            KeyError: If path doesn't exist in the config
+
+        Example:
+            @attrs.define
+            class DbConfig(ConfigSchema):
+                host: str = "localhost"
+
+            # Convert nested section using path
+            db = config.as_schema(DbConfig, "database")
+            print(db.host)  # Type-safe access
+
+            # Or convert entire config
+            app = config.as_schema(AppConfig)
+        """
+        from invoke_toolkit.config.schema import ConfigSchema
+
+        if not (isinstance(schema_cls, type) and issubclass(schema_cls, ConfigSchema)):
+            raise TypeError(
+                f"schema_cls must be a ConfigSchema subclass, got {schema_cls}"
+            )
+
+        if path is None:
+            data = dict(self.items())  # type: ignore[arg-type]
+        else:
+            # Navigate to the nested section
+            current: Any = self
+            for key in path.split("."):
+                current = current[key]
+            data = dict(current.items())  # type: ignore[arg-type]
+
+        return schema_cls.from_dict(data)
+
+    def update_from(self, schema: "ConfigSchema", path: str | None = None) -> None:
+        """Update config (or a nested section) from an attrs schema instance.
+
+        Applies values from a typed schema back to the dict-like config,
+        enabling modification through the type-safe interface.
+
+        Args:
+            schema: A ConfigSchema instance with values to apply
+            path: Optional dot-separated path to a nested config section.
+                  If None, updates the root config.
+
+        Raises:
+            TypeError: If schema is not a ConfigSchema instance
+            KeyError: If path doesn't exist in the config
+
+        Example:
+            db_config.host = "new-host"
+            config.update_from(db_config, "database")
+        """
+        from invoke_toolkit.config.schema import ConfigSchema
+
+        if not isinstance(schema, ConfigSchema):
+            raise TypeError(f"Expected ConfigSchema instance, got {type(schema)}")
+
+        data = schema.to_dict()
+
+        if path is None:
+            target = self
+        else:
+            # Navigate to the nested section
+            target = self
+            for key in path.split("."):
+                target = target[key]
+
+        for key, value in data.items():
+            target[key] = value
 
 
 class _NotFound:  # pylint: disable=R0903

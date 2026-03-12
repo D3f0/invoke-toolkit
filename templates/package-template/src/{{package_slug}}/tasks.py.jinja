@@ -1,15 +1,11 @@
 """{{ project_description }}"""
 
+from typing import Annotated
+
 from invoke_toolkit import Context, task
 
 
-@task(
-    help={
-        "name": "Name to greet",
-    }
-)
-def hello(ctx: Context, name: str = "World"):
-    """
-    Say hello
-    """
-    ctx.print_success(f"Hello, {name}!")
+@task
+def hello(ctx: Context, name: Annotated[str, "Name to greet"] = "World"):
+    """Say hello."""
+    ctx.print(f"[bold green]Hello, {name}![/bold green]")

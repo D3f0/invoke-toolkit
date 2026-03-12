@@ -37,6 +37,7 @@ dependencies = [
     "httpx>=0.28.1",
     "setproctitle>=1.3.7",
     "attrs>=24.1.0",
+    "cattrs>=24.1.0",
 ]
 
 # Git based versioning, uses git tags
@@ -200,15 +201,19 @@ per-file-ignores = [
     "src/**/__init__.py:missing-module-docstring,global-statement,useless-import-alias",
     "src/invoke_toolkit/scripts/loader.py:redefined-builtin",
     "src/**/tasks/*.py:unused-argument",
-    "src/invoke_toolkit/collections.py:logging-fstring-interpolation,missing-class-docstring",
+    "src/invoke_toolkit/collections.py:logging-fstring-interpolation,missing-class-docstring,redefined-outer-name,import-outside-toplevel,missing-function-docstring",
     "src/invoke_toolkit/utils/inspection.py:logging-fstring-interpolation",
     "**/types.py:too-many-arguments,too-few-public-methods,too-many-locals,missing-class-docstring",
     "**/context.py:too-few-public-methods",
     # This is for the list initialization of var-args in Invoke
     "**/*.py:dangerous-default-value,line-too-long,logging-format-interpolation,missing-module-docstring,missing-class-docstring,logging-fstring-interpolation,redefined-builtin,logging-not-lazy",
-    "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring,redefined-outer-name,import-outside-toplevel,protected-access,duplicate-code",
+    "tests/**/*.py:missing-function-docstring,unused-argument,missing-module-docstring,missing-class-docstring,redefined-outer-name,import-outside-toplevel,protected-access,duplicate-code,use-implicit-booleaness-not-comparison,unnecessary-lambda",
     "tests/conftest.py:missing-module-docstring,redefined-outer-name",
+    "tests/original_invoke/**:too-few-public-methods,unused-variable,invalid-name,use-implicit-booleaness-not-comparison,too-many-lines,unidiomatic-typecheck,unused-import",
     "src/invoke_toolkit/loader/entrypoint.py:missing-function-docstring,logging-fstring-interpolation,import-outside-toplevel,broad-exception-caught,unused-argument,arguments-differ",
+    "src/invoke_toolkit/config/config.py:import-outside-toplevel",
+    "src/invoke_toolkit/config/registry.py:import-outside-toplevel,unidiomatic-typecheck",
+    "src/invoke_toolkit/extensions/tasks/config.py:too-many-locals,import-outside-toplevel",
 ]
 
 
@@ -220,3 +225,6 @@ filterwarnings = []
 [tool.pyright]
 reportUnusedCallResult = false
 pythonVersion = "3.10"
+
+[tool.ty.src]
+exclude = ["tests/original_invoke/"]

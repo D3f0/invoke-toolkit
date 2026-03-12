@@ -564,6 +564,7 @@ def get(
         "value": "Value to set (supports literals via ast.literal_eval: lists, dicts, etc.)",
         "location": "Where to save: 'local' (default), 'user', or 'system'",
         "format_": "File format to use if creating new file: 'yaml' (default), 'json'",
+        "no_validate": "Skip schema validation",
     },
 )
 def set_(
@@ -572,6 +573,7 @@ def set_(
     value: str | None = None,
     location: ConfigLocation = ConfigLocation.LOCAL,
     format_: str = "yaml",
+    no_validate: bool = False,
 ):
     """
     Set a configuration value in a config file.
@@ -583,12 +585,17 @@ def set_(
     - Lists: [1, 2, 3] or ['a', 'b']
     - Dicts: {'key': 'value'}
 
+    If a schema is registered for the config path's collection, the value
+    will be validated against the expected type. Use --no-validate to skip.
+
     Examples:
         invoke-toolkit -x config.set run.echo True
         invoke-toolkit -x config.set custom.ports "[8080, 8443]"
         invoke-toolkit -x config.set custom.settings "{'debug': True}"
         invoke-toolkit -x config.set api.key "my-secret-key" --location user
     """
+    from invoke_toolkit.config.registry import get_field_type, validate_value
+
     # Validate required arguments
     if path is None or value is None:
         ctx.print_err(
@@ -601,7 +608,23 @@ def set_(
     # Parse the value
     parsed_value = _parse_value(value)
 
-    # Validate type against existing config value
+    # Validate against schema (if registered and not disabled)
+    if not no_validate:
+        is_valid, schema_error = validate_value(path, parsed_value)
+        if not is_valid:
+            ctx.print_err(f"[red]Validation error:[/red] {schema_error}")
+            ctx.print_err(f"[dim]Path: {path}[/dim]")
+            ctx.print_err(f"[dim]Value: {parsed_value!r}[/dim]")
+
+            # Show expected type hint
+            expected = get_field_type(path)
+            if expected:
+                type_name = getattr(expected, "__name__", str(expected))
+                ctx.print_err(f"[dim]Expected type: {type_name}[/dim]")
+
+            raise SystemExit(1)
+
+    # Validate type against existing config value (legacy behavior)
     expected_type = _get_expected_type(ctx, path)
     is_valid, error_msg = _validate_type(parsed_value, expected_type, path)
 
@@ -653,3 +676,127 @@ def set_(
 
     ctx.print(f"[green]✓[/green] Set [bold]{path}[/bold] = {repr(parsed_value)}")
     ctx.print(f"  [dim]Saved to: {config_path}[/dim]")
+
+
+def _print_nested_schema(
+    ctx: Context, prefix: str, data: dict, indent: int = 2
+) -> None:
+    """Print nested schema fields recursively."""
+    for key, value in data.items():
+        path = f"{prefix}.{key}"
+        spaces = " " * indent
+
+        if isinstance(value, dict):
+            ctx.print(f"{spaces}[green]{path}[/green]: [dim]{{...}}[/dim]")
+            _print_nested_schema(ctx, path, value, indent + 2)
+        elif isinstance(value, str):
+            ctx.print(f'{spaces}[green]{path}[/green] = [yellow]"{value}"[/yellow]')
+        else:
+            ctx.print(f"{spaces}[green]{path}[/green] = [yellow]{value}[/yellow]")
+
+
+@task(
+    name="schemas",
+    help={
+        "collection": "Filter to a specific collection",
+        "verbose": "Show full descriptions and nested schema details",
+    },
+)
+def schemas(  # pylint: disable=too-many-branches
+    ctx: Context, collection: str | None = None, verbose: bool = False
+) -> None:
+    """Show available config schemas.
+
+    Lists all registered config schemas with their fields and default values.
+
+    Args:
+        collection: Filter to a specific collection
+        verbose: Show full descriptions and nested schema details
+
+    Example:
+        intk -x config.schemas
+        intk -x config.schemas --collection weather
+        intk -x config.schemas --verbose
+    """
+    from invoke_toolkit.config.registry import (
+        get_all_schemas,
+        get_schema,
+        get_schema_info,
+    )
+
+    if collection:
+        schema = get_schema(collection)
+        if schema is None:
+            ctx.print_err(
+                f"[red]No schema registered for collection: {collection}[/red]"
+            )
+            raise SystemExit(1)
+        schemas_to_show = {collection: schema}
+    else:
+        schemas_to_show = get_all_schemas()
+
+    if not schemas_to_show:
+        ctx.print("[yellow]No config schemas registered.[/yellow]")
+        ctx.print(
+            "[dim]Schemas are registered when extensions with @config_schema are loaded.[/dim]"
+        )
+        return
+
+    for coll_name, schema_cls in sorted(schemas_to_show.items()):
+        info = get_schema_info(schema_cls)
+
+        # Header
+        ctx.print(
+            f"\n[bold cyan]{coll_name}[/bold cyan] [dim]({info['class_name']})[/dim]"
+        )
+
+        # Description
+        if info.get("description") and verbose:
+            desc = info["description"].strip().split("\n")[0]  # First line
+            ctx.print(f"  [dim]{desc}[/dim]")
+
+        # Fields
+        if info.get("fields"):
+            ctx.print()
+            for field in info["fields"]:
+                name = field["name"]
+                type_str = field["type"]
+                default = field["default"]
+                required = field["required"]
+
+                # Format the line
+                if required:
+                    marker = "[red]*[/red]"
+                else:
+                    marker = " "
+
+                # Format default value
+                if isinstance(default, dict):
+                    # Nested schema
+                    default_str = "[dim]{...}[/dim]"
+                    if verbose:
+                        ctx.print(
+                            f"  {marker} [green]{coll_name}.{name}[/green]: "
+                            f"[blue]{type_str}[/blue]"
+                        )
+                        _print_nested_schema(
+                            ctx, f"{coll_name}.{name}", default, indent=4
+                        )
+                        continue
+                elif default is None and not required:
+                    default_str = "[dim]None[/dim]"
+                elif isinstance(default, str):
+                    default_str = f'[yellow]"{default}"[/yellow]'
+                else:
+                    default_str = f"[yellow]{default}[/yellow]"
+
+                ctx.print(
+                    f"  {marker} [green]{coll_name}.{name}[/green]: "
+                    f"[blue]{type_str}[/blue] = {default_str}"
+                )
+
+        ctx.print()
+
+    # Legend
+    ctx.print("[dim]Legend: [red]*[/red] = required field[/dim]")
+    ctx.print("[dim]Use --verbose for full details[/dim]")
