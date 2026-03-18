@@ -195,6 +195,38 @@ def _set_nested_value(config_dict: dict, path: str, value: Any) -> dict:
     return config_dict
 
 
+def _remove_nested_value(config_dict: dict, path: str) -> dict:
+    """Remove a value from a nested dictionary using dot notation.
+    Args:
+        config_dict: The config dictionary to modify
+        path: Dot-separated path (e.g., 'group.subgroup.key')
+    Returns:
+        The modified config dictionary
+    """
+    keys = path.split(".")
+    path_dicts = [config_dict]
+    for key in keys[:-1]:
+        last_dict = path_dicts[-1]
+        if key in last_dict and isinstance(last_dict.get(key), dict):
+            path_dicts.append(last_dict[key])
+        else:
+            # Path doesn't exist
+            return config_dict
+
+    # Remove the final key
+    if keys[-1] in path_dicts[-1]:
+        del path_dicts[-1][keys[-1]]
+
+    # Clean up empty parent dictionaries
+    for i in range(len(path_dicts) - 2, -1, -1):
+        if not path_dicts[i + 1]:
+            del path_dicts[i][keys[i]]
+        else:
+            break
+
+    return config_dict
+
+
 def _load_config_file(path: Path) -> dict:
     """Load a config file and return its contents as a dictionary.
 
@@ -675,6 +707,55 @@ def set_(
     _save_config_file(config_path, config_dict)
 
     ctx.print(f"[green]✓[/green] Set [bold]{path}[/bold] = {repr(parsed_value)}")
+    ctx.print(f"  [dim]Saved to: {config_path}[/dim]")
+
+
+@task(
+    name="unset",
+    help={
+        "path": "Dot-separated path to unset (e.g., 'run.echo', 'custom.api_key')",
+        "location": "Where to save: 'local' (default), 'user', or 'system'",
+    },
+)
+def unset(
+    ctx: Context,
+    path: Annotated[str | None, _complete_config_path] = None,
+    location: ConfigLocation = ConfigLocation.LOCAL,
+):
+    """
+    Unset a configuration value in a config file.
+
+    Examples:
+        invoke-toolkit -x config.unset run.echo
+        invoke-toolkit -x config.unset custom.ports
+    """
+    if path is None:
+        ctx.print_err(
+            "[red]Error:[/red] 'path' is required.\n"
+            "[dim]Usage: config.unset <path>[/dim]\n"
+            "[dim]Use --help for more information.[/dim]"
+        )
+        return
+
+    config_path = _find_existing_config_file(ctx, location)
+    if not config_path or not config_path.exists():
+        ctx.print_err(
+            f"[yellow]No config file found at location '{location}'. Nothing to do.[/yellow]"
+        )
+        return
+
+    config_dict = _load_config_file(config_path)
+    original_config = config_dict.copy()
+    config_dict = _remove_nested_value(config_dict, path)
+
+    if config_dict == original_config:
+        ctx.print_err(
+            f"[yellow]Path '[bold]{path}[/bold]' not found in the configuration. Nothing to do.[/yellow]"
+        )
+        return
+
+    _save_config_file(config_path, config_dict)
+    ctx.print(f"[green]✓[/green] Unset [bold]{path}[/bold]")
     ctx.print(f"  [dim]Saved to: {config_path}[/dim]")
 
 
