@@ -7,6 +7,7 @@ from contextlib import _GeneratorContextManager, contextmanager
 from os import PathLike
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generator,
     Iterator,
@@ -16,6 +17,7 @@ from typing import (
     Protocol,
     TypeVar,
     Union,
+    overload,
 )
 
 import setproctitle
@@ -329,3 +331,87 @@ class ToolkitContext(Context, ConfigProtocol):
                     ["tmux", "rename-window", previous_tmux_title],
                     check=False,
                 )
+
+    # Type overloads for get_config_value - returns T when no exit params
+    @overload
+    def get_config_value(
+        self,
+        path: str,
+        default: T = ...,  # type: ignore[assignment]
+        exit_message: None = None,
+        exit_code: None = None,
+        required: bool = False,
+    ) -> Any | T: ...
+
+    # Type hints NoReturn when exit_message provided
+    @overload
+    def get_config_value(
+        self,
+        path: str,
+        default: Any = ...,
+        exit_message: str = ...,
+        exit_code: Optional[int] = None,
+        required: bool = False,
+    ) -> Any | NoReturn: ...
+
+    # Type hints NoReturn when exit_code provided
+    @overload
+    def get_config_value(
+        self,
+        path: str,
+        default: Any = ...,
+        exit_message: None = None,
+        exit_code: int = ...,
+        required: bool = False,
+    ) -> Any | NoReturn: ...
+
+    # Type hints NoReturn when required=True
+    @overload
+    def get_config_value(
+        self,
+        path: str,
+        default: Any = ...,
+        exit_message: Optional[str] = None,
+        exit_code: Optional[int] = None,
+        required: bool = True,
+    ) -> Any | NoReturn: ...
+
+    def get_config_value(
+        self,
+        path: str,
+        default: Any = ...,
+        exit_message: Optional[str] = None,
+        exit_code: Optional[int] = None,
+        required: bool = False,
+    ) -> Any:
+        """Get a configuration value from config with dot notation support.
+
+        This is a convenience method that wraps invoke_toolkit.config.get_config_value.
+        See that function for full documentation.
+
+        Args:
+            path: Dot-separated path to the config value (e.g., 'database.host')
+            default: Default value if path not found
+            exit_message: Custom message when value required but missing
+            exit_code: Exit code for ctx.rich_exit() when missing
+            required: Whether value is required (exits if missing)
+
+        Returns:
+            The config value if found, otherwise default value.
+
+        Example:
+            @task()
+            def my_task(ctx: Context) -> None:
+                db_host = ctx.get_config_value("database.host", default="localhost")
+                api_key = ctx.get_config_value("api.key", required=True)
+        """
+        # Import here to avoid circular imports
+        from invoke_toolkit.config.config import (  # pylint: disable=import-outside-toplevel
+            _UNDEFINED_DEFAULT,
+            get_config_value as _get_config_value,
+        )
+
+        # Handle the default sentinel - ellipsis means "use undefined default"
+        if default is ...:
+            default = _UNDEFINED_DEFAULT
+        return _get_config_value(self, path, default, exit_message, exit_code, required)

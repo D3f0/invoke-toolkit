@@ -404,10 +404,8 @@ def _complete_config_path(ctx: Context, incomplete: str) -> list[str]:
 
         def _complete_my_items(ctx: Context, incomplete: str) -> list[str]:
             '''Completion callback for my custom items.'''
-            from invoke_toolkit.config import get_config_value
-
-            # Get data from context or config
-            items = get_config_value(ctx, "my.items", default=[])
+            # Get data from config using context method (no import needed)
+            items = ctx.get_config_value("my.items", default=[])
 
             # Filter by incomplete prefix
             matching = [i for i in items if i.startswith(incomplete)]
