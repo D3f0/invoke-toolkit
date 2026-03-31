@@ -24,10 +24,6 @@ Key benefits:
 - Users can customize available options via config files
 - Same config values can be used by both tasks and completions
 - Supports user (~/.invoke.yaml), system (/etc/invoke.yaml), and project config
-
-Note: The completion callbacks receive a ToolkitContext with ToolkitConfig,
-which has access to the default config values. For project-specific config,
-you can use the @cached decorator to load config once and cache results.
 """
 
 from typing import Annotated
@@ -203,7 +199,7 @@ def show_config(ctx: Context) -> None:
 
     # Show database config
     ctx.print("\n[cyan]Database instances:[/cyan]")
-    instances = ctx.get_config_value("database.instances", default=[])
+    instances = ctx.get_g_config_value("database.instances", default=[])
     for instance in instances:
         ctx.print(f"  - {instance}")
 
