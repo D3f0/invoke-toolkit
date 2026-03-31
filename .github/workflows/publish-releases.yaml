@@ -33,6 +33,7 @@ jobs:
     environment: release
     permissions:
       id-token: write
+    if: github.event.release.prerelease == false
 
     steps:
       - uses: actions/checkout@v4
