@@ -176,7 +176,12 @@ def get_choices_for_argument(
         if arg_name in callbacks:
             try:
                 # Try to call the callback with context and incomplete
-                ctx = ToolkitContext(config=ToolkitConfig())
+                # Automatically load project config for completion callbacks
+                config = ToolkitConfig()
+                if hasattr(collection, "root") and collection.root:
+                    config.set_project_location(collection.root)
+                    config.load_project()
+                ctx = ToolkitContext(config=config)
 
                 # Get timeout from config (default: 10 seconds)
                 timeout = ctx.get_config_value(

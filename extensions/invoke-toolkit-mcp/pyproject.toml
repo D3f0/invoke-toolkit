@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "invoke-toolkit-mcp"
+version = "0.1.0"
+description = "MCP (Model Context Protocol) server for invoke-toolkit collections"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["mcp", "model-context-protocol", "invoke", "fastmcp", "llm"]
+authors = [
+    { name = "Nahuel Defossé", email = "D3f0@users.noreply.github.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "invoke-toolkit>=2.0.0",  # Core dependency - will be satisfied by workspace
+    "fastmcp>=2.14.5,<3.0.0",  # Pin to v2 for stability
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-cov>=5.0.0",
+    "pytest-html>=4.1.1",
+]
+
+[project.scripts]
+invoke-mcp = "invoke_toolkit_mcp.cli:main"
+
+[project.urls]
+Documentation = "https://github.com/D3f0/invoke-toolkit"
+Issues = "https://github.com/D3f0/invoke-toolkit/issues"
+Source = "https://github.com/D3f0/invoke-toolkit"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/invoke_toolkit_mcp"]
