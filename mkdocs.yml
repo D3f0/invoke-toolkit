@@ -1,0 +1,74 @@
+site_name: Invoke Toolkit Documentation
+site_description: A set of extended APIs for the venerable PyInvoke aimed at scripts composition, plugins and richer output
+site_url: https://github.com/D3f0/invoke-toolkit
+repo_url: https://github.com/D3f0/invoke-toolkit
+repo_name: D3f0/invoke-toolkit
+
+theme:
+  name: readthedocs
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+
+nav:
+  - Home: index.md
+  - User Guide:
+    - Installation: user-guide/installation.md
+    - Quick Start: user-guide/quickstart.md
+    - Configuration: user-guide/configuration.md
+  - Tasks:
+    - Overview: tasks/index.md
+    - Available Tasks: tasks/available.md
+  - API Reference: reference/
+  - Development:
+    - Contributing: development/contributing.md
+    - Testing: development/testing.md
+
+# markdown_extensions:
+#   - admonition
+#   - pymdownx.details
+#   - pymdownx.superfences
+#   - pymdownx.highlight:
+#       anchor_linenums: true
+#   - pymdownx.inlinehilite
+#   - pymdownx.snippets
+#   - pymdownx.tabbed:
+#       alternate_style: true
+#   - toc:
+#       permalink: true

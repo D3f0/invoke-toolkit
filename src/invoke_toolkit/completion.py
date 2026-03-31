@@ -20,7 +20,7 @@ from invoke.completion.complete import (
 from invoke.exceptions import Exit, ParseError
 from invoke.parser import Parser, ParserContext
 
-from invoke_toolkit.config import get_config_value
+from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.tasks import (
     _extract_enum_params,
@@ -176,11 +176,16 @@ def get_choices_for_argument(
         if arg_name in callbacks:
             try:
                 # Try to call the callback with context and incomplete
-                ctx = ToolkitContext()
+                # Automatically load project config for completion callbacks
+                config = ToolkitConfig()
+                if hasattr(collection, "root") and collection.root:
+                    config.set_project_location(collection.root)
+                    config.load_project()
+                ctx = ToolkitContext(config=config)
 
                 # Get timeout from config (default: 10 seconds)
-                timeout = get_config_value(
-                    ctx, "completion.callback_timeout", default=10.0
+                timeout = ctx.get_config_value(
+                    "completion.callback_timeout", default=10.0
                 )
 
                 # Execute callback with timeout

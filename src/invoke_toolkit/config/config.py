@@ -391,32 +391,30 @@ def get_config_value(  # pylint: disable=inconsistent-return-statements
         SystemExit: Raised via ctx.rich_exit() if required value is missing.
 
     Examples:
-        >>> from invoke_toolkit import task, Context
-        >>> from invoke_toolkit.config import get_config_value
-        >>> @task()
-        >>> def my_task(ctx: Context, db_host: str = "") -> None:
-        >>>     # Simple usage
-        >>>     db_host = db_host or get_config_value(
-        >>>         ctx, "database.host", default="localhost"
-        >>>     )
-        >>>
-        >>>     # With nested path and default
-        >>>     db_port = get_config_value(
-        >>>         ctx, "database.settings.port", default=5432
-        >>>     )
-        >>>
-        >>>     # Required value with custom message
-        >>>     api_key = get_config_value(
-        >>>         ctx, "api.key",
-        >>>         exit_code=2,
-        >>>         exit_message="API key must be configured in 'api.key'"
-        >>>     )
-        >>>
-        >>>     # Required value with auto-detected argument name
-        >>>     secret = get_config_value(
-        >>>         ctx, "secrets.token",
-        >>>         exit_code=1  # Auto-detects 'secret' parameter name
-        >>>     )
+        Preferred: Use the context method (no import needed)::
+
+            @task()
+            def my_task(ctx: Context) -> None:
+                # Simple usage with default
+                db_host = ctx.get_config_value("database.host", default="localhost")
+
+                # Required value - exits if missing
+                api_key = ctx.get_config_value("api.key", required=True)
+
+                # Required with custom exit code and message
+                secret = ctx.get_config_value(
+                    "secrets.token",
+                    exit_code=2,
+                    exit_message="Token must be configured"
+                )
+
+        Alternative: Use the standalone function (backward compatible)::
+
+            from invoke_toolkit.config import get_config_value
+
+            @task()
+            def my_task(ctx: Context) -> None:
+                db_host = get_config_value(ctx, "database.host", default="localhost")
     """
     # Mark as required if exit parameters are provided or if required=True
     has_exit_params = (exit_message is not None) or (exit_code is not None) or required

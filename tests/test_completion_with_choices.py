@@ -1126,3 +1126,47 @@ def test_completion_callback_cached_decorator_without_diskcache():
     # Check cache info shows no backend
     cache_info = no_cache_callback.cache_info()
     assert cache_info["backend"] == "none"
+
+
+def test_completion_callback_has_access_to_config():
+    """Test that completion callbacks have access to ToolkitConfig.
+
+    This test demonstrates that the fix for instantiating ToolkitConfig in completion
+    callbacks allows them to access the config object and read config values like
+    completion.callback_timeout with the correct defaults.
+
+    Before the fix, ctx.get_config_value() would only return default values because
+    ToolkitContext was instantiated without any config, causing it to use the
+    base invoke.config.Config instead of ToolkitConfig.
+    """
+
+    def config_aware_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that reads config values."""
+        # Uses ctx.get_config_value() method - no import needed
+        # This works because ctx has ToolkitConfig (not base Config)
+        timeout = ctx.get_config_value("completion.callback_timeout", default=999.0)
+
+        # With the fix, this should be 10.0 (the ToolkitConfig default)
+        # Without the fix, it would fall back to the default value (999.0)
+        return [f"timeout={timeout}"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def config_task(
+        ctx: Context,
+        option: Annotated[str, config_aware_callback],
+    ) -> None:
+        """Task that uses config in completion callback."""
+
+    coll.add_task(config_task)  # type: ignore[arg-type]
+
+    # Get completion choices
+    choices = get_choices_for_argument(coll, "config-task", "option", "")
+
+    # Verify the callback could access the ToolkitConfig default value
+    assert len(choices) == 1, f"Expected 1 choice, got {len(choices)}: {choices}"
+    # Should be the ToolkitConfig default (10.0), not the fallback default (999.0)
+    assert "timeout=10.0" in choices, (
+        f"Expected default timeout value (10.0) from ToolkitConfig, got: {choices}"
+    )

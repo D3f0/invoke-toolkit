@@ -1,0 +1,16 @@
+{
+    "peacock.color": "#9d4640",
+    "ruff.format.preview": true,
+    "ruff.lint.preview": true,
+    "ruff.showNotifications": "off",
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "files.exclude": {
+        ".venv": true,
+        ".ruff_cache": true,
+        ".pytest_cache": true
+    }
+}
