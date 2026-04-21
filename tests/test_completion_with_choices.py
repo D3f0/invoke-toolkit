@@ -1170,3 +1170,205 @@ def test_completion_callback_has_access_to_config():
     assert "timeout=10.0" in choices, (
         f"Expected default timeout value (10.0) from ToolkitConfig, got: {choices}"
     )
+
+
+def test_completion_callback_reads_config_from_project_file(tmp_path):
+    """Test that completion callbacks read config values from a project config file.
+
+    When get_choices_for_argument receives an already-loaded config (as passed by
+    the program after load_project()), the callback must see the project-level
+    invoke.yaml values, not just the built-in defaults.
+    """
+    from invoke_toolkit.config import ToolkitConfig
+
+    # Write a project-level invoke.yaml that overrides the default timeout
+    config_file = tmp_path / "invoke.yaml"
+    config_file.write_text("completion:\n  callback_timeout: 42.0\n")
+
+    def config_aware_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that reports the configured timeout."""
+        timeout = ctx.get_config_value("completion.callback_timeout", default=999.0)
+        return [f"timeout={timeout}"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def file_config_task(
+        ctx: Context,
+        option: Annotated[str, config_aware_callback],
+    ) -> None:
+        """Task whose callback reads config from a project file."""
+
+    coll.add_task(file_config_task)  # type: ignore[arg-type]
+
+    # Build the config exactly as the program does: set project location then merge
+    config = ToolkitConfig(project_location=tmp_path)
+    config.load_project()
+    config.merge()
+    assert config["completion"]["callback_timeout"] == 42.0, (
+        "Sanity check: invoke.yaml should override the default timeout"
+    )
+
+    # Pass the loaded config – the callback must now see 42.0, not 10.0 or 999.0
+    choices = get_choices_for_argument(
+        coll, "file-config-task", "option", "", config=config
+    )
+
+    assert len(choices) == 1, f"Expected 1 choice, got {len(choices)}: {choices}"
+    assert "timeout=42.0" in choices, (
+        f"Expected project-file value (42.0) from loaded config, got: {choices}"
+    )
+
+
+def test_completion_callback_without_config_uses_toolkit_defaults(tmp_path):
+    """Test that omitting config falls back to ToolkitConfig built-in defaults.
+
+    Callers that don't have a loaded config (e.g. direct unit tests) still get
+    sensible defaults rather than a bare invoke.Config.
+    """
+
+    # Write a project-level invoke.yaml – it must NOT affect the result here
+    config_file = tmp_path / "invoke.yaml"
+    config_file.write_text("completion:\n  callback_timeout: 42.0\n")
+
+    def config_aware_callback(ctx: Context, incomplete: str) -> list[str]:
+        timeout = ctx.get_config_value("completion.callback_timeout", default=999.0)
+        return [f"timeout={timeout}"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def no_config_task(
+        ctx: Context,
+        option: Annotated[str, config_aware_callback],
+    ) -> None:
+        """Task whose callback is called without an explicit config."""
+
+    coll.add_task(no_config_task)  # type: ignore[arg-type]
+
+    # No config kwarg → fresh ToolkitConfig() → built-in default (10.0)
+    choices = get_choices_for_argument(coll, "no-config-task", "option", "")
+
+    assert len(choices) == 1, f"Expected 1 choice, got {len(choices)}: {choices}"
+    assert "timeout=10.0" in choices, (
+        f"Expected ToolkitConfig built-in default (10.0), got: {choices}"
+    )
+
+
+def test_completion_callback_project_config_via_program(tmp_path):
+    """End-to-end test: program loads invoke.yaml and passes config to completion.
+
+    Simulates the full program flow so we can verify that the config threaded
+    from parse_cleanup → complete_with_choices → get_choices_for_argument
+    makes project-level invoke.yaml values visible inside a callback.
+    """
+    # Write a tasks.py with a completion callback that reads a custom config key
+    tasks_file = tmp_path / "tasks.py"
+    tasks_file.write_text(
+        "from typing import Annotated\n"
+        "from invoke_toolkit import Context, task\n"
+        "\n"
+        "def complete_envs(ctx: Context, incomplete: str) -> list[str]:\n"
+        "    allowed = ctx.get_config_value('deploy.allowed_envs', default=None)\n"
+        "    if allowed:\n"
+        "        return [e for e in allowed if e.startswith(incomplete)]\n"
+        "    return ['fallback']\n"
+        "\n"
+        "@task\n"
+        "def deploy(ctx: Context, env: Annotated[str, complete_envs] = '') -> None:\n"
+        "    '''Deploy to an environment.'''\n"
+        "    ctx.print(env)\n"
+    )
+
+    # Write an invoke.yaml that sets a custom deploy.allowed_envs list
+    (tmp_path / "invoke.yaml").write_text(
+        "deploy:\n  allowed_envs:\n    - staging\n    - production\n"
+    )
+
+    argv = ["intk", "--complete", "--", "intk", "deploy", "--env", ""]
+    program = TestingToolkitProgram()
+    stdout_capture = io.StringIO()
+    with redirect_stdout(stdout_capture):
+        try:
+            program.run(argv, exit=False)
+        except (SystemExit, Exit):
+            pass
+
+    # The program is run from the project root, not tmp_path, so the invoke.yaml
+    # won't be picked up automatically.  Drive the search-root explicitly instead.
+    argv = [
+        "intk",
+        "--complete",
+        "--",
+        "intk",
+        "--search-root",
+        str(tmp_path),
+        "deploy",
+        "--env",
+        "",
+    ]
+    program = TestingToolkitProgram()
+    stdout_capture = io.StringIO()
+    with redirect_stdout(stdout_capture):
+        try:
+            program.run(argv, exit=False)
+        except (SystemExit, Exit):
+            pass
+
+    output = stdout_capture.getvalue()
+    assert "staging" in output, (
+        f"Expected 'staging' from invoke.yaml allowed_envs, got: {output!r}"
+    )
+    assert "production" in output, (
+        f"Expected 'production' from invoke.yaml allowed_envs, got: {output!r}"
+    )
+    assert "fallback" not in output, (
+        f"Expected project config to be used (not fallback), got: {output!r}"
+    )
+
+
+def test_completion_callback_config_not_base_invoke_config(tmp_path):
+    """Test that completion callbacks receive ToolkitConfig, not base invoke Config.
+
+    The key invariant restored by the fix: the ctx passed to a completion callback
+    must have a ToolkitConfig (which knows about the 'completion' key) rather than
+    a plain invoke.config.Config (which does not define that key and would raise or
+    return the fallback).
+    """
+
+    received_config_types = []
+
+    def type_checking_callback(ctx: Context, incomplete: str) -> list[str]:
+        """A callback that records the type of ctx.config."""
+        received_config_types.append(type(ctx.config).__name__)
+        # Also confirm the 'completion' section is accessible without raising
+        timeout = ctx.get_config_value("completion.callback_timeout", default=None)
+        return [f"config_type={type(ctx.config).__name__}", f"timeout={timeout}"]
+
+    coll = ToolkitCollection()
+
+    @task
+    def type_task(
+        ctx: Context,
+        option: Annotated[str, type_checking_callback],
+    ) -> None:
+        """Task whose callback inspects the config type."""
+
+    coll.add_task(type_task)  # type: ignore[arg-type]
+
+    choices = get_choices_for_argument(coll, "type-task", "option", "")
+
+    assert len(choices) == 2, f"Expected 2 choices, got {len(choices)}: {choices}"
+
+    # ctx.config must be a ToolkitConfig (or subclass), never a bare BaseConfig
+    config_type_choice = next(c for c in choices if c.startswith("config_type="))
+    assert "ToolkitConfig" in config_type_choice, (
+        f"Expected ToolkitConfig in callback, got: {config_type_choice}"
+    )
+
+    # The 'completion.callback_timeout' key must resolve to the default (10.0),
+    # not fall through to None (which would happen with bare BaseConfig)
+    timeout_choice = next(c for c in choices if c.startswith("timeout="))
+    assert timeout_choice == "timeout=10.0", (
+        f"Expected timeout=10.0 from ToolkitConfig defaults, got: {timeout_choice}"
+    )

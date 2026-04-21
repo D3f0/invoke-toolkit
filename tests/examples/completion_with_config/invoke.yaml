@@ -1,0 +1,22 @@
+# Example invoke.yaml for the completion_with_config example.
+#
+# Place this file next to tasks.py so invoke picks it up automatically
+# when running from this directory, or use --search-root to point to it:
+#
+#   intk --search-root tests/examples/completion_with_config deploy --target <TAB>
+#   intk --search-root tests/examples/completion_with_config deploy --env <TAB>
+#
+# Edit allowed_envs below and re-run tab-completion to see the suggestions change.
+
+# Controls how long a completion callback may run before it is abandoned.
+# Increase this if your callback fetches data from a slow remote API.
+completion:
+  callback_timeout: 5.0 # default: 10.0
+
+# Custom section read by complete_targets() and complete_environments() in tasks.py.
+# List only the environments whose targets should appear in tab-completion.
+# Remove or comment out allowed_envs to show targets from all environments.
+deploy:
+  allowed_envs:
+    - staging
+    - production

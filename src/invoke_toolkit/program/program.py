@@ -591,6 +591,7 @@ class ToolkitProgram(Program):
                 # NOTE: can't reuse self.parser as it has likely been mutated
                 # between when it was set and now.
                 parser=self._make_parser(),
+                config=self.config if isinstance(self.config, ToolkitConfig) else None,
             )
 
         # Fallback behavior if no tasks were given & no default specified
