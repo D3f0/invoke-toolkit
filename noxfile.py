@@ -5,7 +5,7 @@ import nox  # type: ignore[import-untyped]  # pylint: disable=import-error
 if TYPE_CHECKING:
     from nox.sessions import Session  # type: ignore[import-untyped]
 # uv will handle any missing python versions
-python_versions = ["3.10", "3.11", "3.12", "3.13"]
+python_versions = ["3.11", "3.12", "3.13", "3.14"]
 
 
 @nox.session(python=python_versions, venv_backend="uv")

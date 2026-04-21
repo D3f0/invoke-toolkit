@@ -274,7 +274,7 @@ def _verify_python_requirement(lines):
     """Verify requires-python field exists and has correct value."""
     for line in lines:
         if "requires-python" in line:
-            assert ">=3.10" in line, f"Expected requires-python >=3.10, got: '{line}'"
+            assert ">=3.11" in line, f"Expected requires-python >=3.11, got: '{line}'"
             return
 
     raise AssertionError("requires-python field not found in metadata")
@@ -656,6 +656,144 @@ def test_package_uses_git_config_template(
         "Package directory should be created from git config template"
     )
     assert (pkg_dir / "pyproject.toml").exists(), "pyproject.toml should exist"
+
+
+def _assert_cli_examples_use_name(
+    short_name: str, pkg_dir: Path, package_slug: str
+) -> None:
+    """
+    Helper: asserts that the rendered README.md and __init__.py use ``short_name``
+    (the intk-visible collection name) in all CLI usage examples, and that no
+    raw Jinja placeholders leaked through.
+    """
+    # --- README.md checks ---
+    readme_path = pkg_dir / "README.md"
+    assert readme_path.exists(), "README.md was not generated"
+    readme = readme_path.read_text(encoding="utf-8")
+
+    assert f"collection named `{short_name}`" in readme, (
+        f"README should reference '{short_name}' in the collection listing sentence, "
+        f"but got:\n{readme}"
+    )
+    assert f"`{short_name}.hello`" in readme, (
+        f"README should reference '{short_name}' in the task list entry, "
+        f"but got:\n{readme}"
+    )
+    assert f"intk {short_name}.hello" in readme, (
+        f"README should reference '{short_name}' in the example command, "
+        f"but got:\n{readme}"
+    )
+    assert "{{ collection_name }}" not in readme, (
+        "Jinja variable {{ collection_name }} was not rendered in README.md"
+    )
+    assert "{{ package_name }}" not in readme, (
+        "Jinja variable {{ package_name }} was not rendered in README.md"
+    )
+
+    # --- __init__.py comment checks ---
+    init_path = pkg_dir / "src" / package_slug / "__init__.py"
+    assert init_path.exists(), "__init__.py was not generated"
+    init = init_path.read_text(encoding="utf-8")
+
+    assert f"intk {short_name}.hello" in init, (
+        f"__init__.py example comment should reference '{short_name}' for 'hello', "
+        f"but got:\n{init}"
+    )
+    assert f"intk {short_name}.my_task" in init, (
+        f"__init__.py example comment should reference '{short_name}' for 'my_task', "
+        f"but got:\n{init}"
+    )
+    assert f"intk {short_name}.tasks.hello" in init, (
+        f"__init__.py 'NOT' comment should reference '{short_name}' for nested 'tasks.hello', "
+        f"but got:\n{init}"
+    )
+    assert f"intk {short_name}.utils.my_task" in init, (
+        f"__init__.py 'NOT' comment should reference '{short_name}' for nested 'utils.my_task', "
+        f"but got:\n{init}"
+    )
+    assert "{{ collection_name }}" not in init, (
+        "Jinja variable {{ collection_name }} was not rendered in __init__.py"
+    )
+    assert "{{ package_name }}" not in init, (
+        "Jinja variable {{ package_name }} was not rendered in __init__.py"
+    )
+
+
+def test_template_cli_examples_use_collection_name_unprefixed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """
+    Regression test (non-prefixed package): verifies that the CLI usage examples
+    in README.md and __init__.py use the package slug as the collection name.
+
+    For a package named ``my-readme-pkg`` (no ``invoke-toolkit-`` prefix) the
+    intk-visible name is the full slug ``my_readme_pkg``.
+    """
+    import invoke_toolkit
+
+    invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+    default_template = (
+        invoke_toolkit_path.parent.parent / "templates" / "package-template"
+    )
+    if not default_template.exists():
+        pytest.skip("Default template not found in development setup")
+
+    monkeypatch.chdir(tmp_path)
+
+    package_name = "my-readme-pkg"
+    package_slug = package_name.replace("-", "_")
+    # Non-prefixed: collection_name == package_slug
+    expected_short_name = package_slug
+
+    x = TestingToolkitProgram()
+    x.run(["", "-x", "create.package", "--name", package_name])
+
+    _assert_cli_examples_use_name(
+        expected_short_name, tmp_path / package_name, package_slug
+    )
+
+
+def test_template_cli_examples_use_collection_name_prefixed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """
+    Regression test (invoke-toolkit-prefixed package): verifies that the CLI
+    usage examples use only the short name after stripping the ``invoke-toolkit-``
+    prefix, not the full package name.
+
+    For ``--name my-pkg --ext-name myext`` the full package name becomes
+    ``invoke-toolkit-myext``, but intk exposes it as ``myext``.
+    """
+    import invoke_toolkit
+
+    invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+    default_template = (
+        invoke_toolkit_path.parent.parent / "templates" / "package-template"
+    )
+    if not default_template.exists():
+        pytest.skip("Default template not found in development setup")
+
+    monkeypatch.chdir(tmp_path)
+
+    ext_name = "myext"
+    full_package_name = f"invoke-toolkit-{ext_name}"
+    package_slug = full_package_name.replace("-", "_")
+    # Prefixed: collection_name == ext_name (the part after "invoke-toolkit-")
+    expected_short_name = ext_name
+
+    x = TestingToolkitProgram()
+    x.run(["", "-x", "create.package", "--name", "ignored", "--ext-name", ext_name])
+
+    pkg_dir = tmp_path / full_package_name
+    _assert_cli_examples_use_name(expected_short_name, pkg_dir, package_slug)
+
+    # Extra guard: the full package name must NOT appear as the collection name
+    readme = (pkg_dir / "README.md").read_text(encoding="utf-8")
+    assert f"intk {full_package_name}.hello" not in readme, (
+        "README must not use the full prefixed package name as the collection name"
+    )
 
 
 def test_package_template_priority_explicit_over_git_config(

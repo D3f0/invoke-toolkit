@@ -65,7 +65,7 @@ def _get_template() -> str:
     script_template = dedent(rf"""
     #!/usr/bin/env -S uv run --script
     # /// script
-    # requires-python = ">=3.10"
+    # requires-python = ">=3.11"
     # dependencies = [
     #     "invoke-toolkit{version_for_template}",
     # ]
@@ -322,9 +322,9 @@ def package(
         template_data = {
             "package_name": actual_name,
             "package_slug": package_slug,
-            "collection_name": package_slug,
+            "collection_name": extension_short_name,
             "extension_short_name": extension_short_name,
-            "python_version": "3.10",
+            "python_version": "3.11",
         }
 
         run_copy(
@@ -342,9 +342,10 @@ def package(
             dedent(
                 f"""
                 [yellow]Next steps:[/yellow]
-                  cd {actual_name}
+                  cd {target_path}
                   uv sync
-                  uv pip install -e .
+                  # Test your package
+                  uv run --directory {target_path} -m invoke-toolkit -l
                 """
             ).strip()
         )
