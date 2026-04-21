@@ -633,17 +633,22 @@ def test_show_fzf_warning_only_shows_once(capsys):
     assert occurrences == 1
 
 
-def test_show_fzf_warning_respects_config(capsys):
+def test_show_fzf_warning_respects_config(capsys, caplog):
     """Test that warning can be disabled via config."""
-    ctx = Context()
-    ctx.config._config["fuzzy_finder"] = {"show_warnings": False}
+    import logging
 
-    # Reset the global warning flag
-    import invoke_toolkit.utils.fzf as fzf_module
+    # Suppress invoke's DEBUG log output so it doesn't leak into capsys.err
+    # when a root-level DEBUG handler is left active by earlier tests.
+    with caplog.at_level(logging.CRITICAL, logger="invoke"):
+        ctx = Context()
+        ctx.config._config["fuzzy_finder"] = {"show_warnings": False}
 
-    fzf_module._fzf_warning_shown = False
+        # Reset the global warning flag
+        import invoke_toolkit.utils.fzf as fzf_module
 
-    _show_fzf_warning(ctx, force_fallback=False)
+        fzf_module._fzf_warning_shown = False
+
+        _show_fzf_warning(ctx, force_fallback=False)
 
     # Should not output anything when warnings disabled
     captured = capsys.readouterr()
