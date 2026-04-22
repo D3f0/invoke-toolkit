@@ -1,0 +1,2 @@
+# Track the example invoke.yaml even though the root .gitignore excludes it.
+!invoke.yaml

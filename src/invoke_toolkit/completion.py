@@ -143,7 +143,11 @@ def _get_file_completions(
 
 
 def get_choices_for_argument(
-    collection, context_name: str, arg_name: str, incomplete: str = ""
+    collection,
+    context_name: str,
+    arg_name: str,
+    incomplete: str = "",
+    config: "ToolkitConfig | None" = None,
 ) -> List[str]:
     """
     Get available choices for an argument in a task.
@@ -159,6 +163,10 @@ def get_choices_for_argument(
         context_name: The task name
         arg_name: The argument name (without dashes)
         incomplete: The incomplete value typed by user (for callback filtering)
+        config: Optional already-loaded ToolkitConfig (e.g. from the program).
+                When provided the callbacks receive a context backed by this
+                config so project-level invoke.yaml values are visible.
+                Falls back to a fresh ToolkitConfig() when omitted.
 
     Returns:
         List of choice strings, or empty list if no choices defined
@@ -175,8 +183,12 @@ def get_choices_for_argument(
         callbacks = task._completion_callbacks  # pylint: disable=protected-access
         if arg_name in callbacks:
             try:
-                # Try to call the callback with context and incomplete
-                ctx = ToolkitContext(config=ToolkitConfig())
+                # Use the provided config (with project values loaded) or fall
+                # back to a plain ToolkitConfig so at least built-in defaults
+                # are available.
+                ctx = ToolkitContext(
+                    config=config if config is not None else ToolkitConfig()
+                )
 
                 # Get timeout from config (default: 10 seconds)
                 timeout = ctx.get_config_value(
@@ -331,6 +343,7 @@ def _handle_flag_completion(
     flag_name: str,
     collection,
     incomplete: str = "",
+    config: "ToolkitConfig | None" = None,
 ) -> bool:
     """
     Handle completion for a flag that takes a value.
@@ -340,6 +353,7 @@ def _handle_flag_completion(
         flag_name: The flag name (e.g., '--color')
         collection: The invoke collection
         incomplete: The incomplete value typed by user
+        config: Optional already-loaded ToolkitConfig forwarded to callbacks.
 
     Returns:
         True if choices were printed, False otherwise
@@ -370,7 +384,9 @@ def _handle_flag_completion(
     task_name = context.name
 
     if task_name:
-        choices = get_choices_for_argument(collection, task_name, arg_name, incomplete)
+        choices = get_choices_for_argument(
+            collection, task_name, arg_name, incomplete, config=config
+        )
         if choices:
             debug(f"Found choices for {arg_name}: {choices}")
             for choice in choices:
@@ -387,6 +403,7 @@ def _try_complete_flag_value(
     completing_new_token: bool,
     initial_context: ParserContext,
     collection,
+    config: "ToolkitConfig | None" = None,
 ) -> bool:
     """
     Try to complete a value for a flag that takes a value.
@@ -396,6 +413,7 @@ def _try_complete_flag_value(
         completing_new_token: Whether we're completing a new token (trailing space)
         initial_context: The core context with flag definitions
         collection: The invoke collection
+        config: Optional already-loaded ToolkitConfig forwarded to callbacks.
 
     Returns:
         True if completion was handled, False otherwise
@@ -418,7 +436,9 @@ def _try_complete_flag_value(
     # We're completing a value for this flag
     incomplete = tokens[-1] if not completing_new_token else ""
     debug(f"Completing value for flag {prev_token}, incomplete={incomplete!r}")
-    return _handle_flag_completion(initial_context, prev_token, collection, incomplete)
+    return _handle_flag_completion(
+        initial_context, prev_token, collection, incomplete, config=config
+    )
 
 
 def _get_positional_arg_index(context: ParserContext, tokens: List[str]) -> int:
@@ -474,6 +494,7 @@ def _handle_positional_completion(
     collection,
     positional_index: int,
     incomplete: str = "",
+    config: "ToolkitConfig | None" = None,
 ) -> tuple[bool, bool]:
     """
     Handle completion for positional arguments.
@@ -483,6 +504,7 @@ def _handle_positional_completion(
         collection: The invoke collection
         positional_index: Which positional argument we're completing (0-based)
         incomplete: The incomplete value typed by user
+        config: Optional already-loaded ToolkitConfig forwarded to callbacks.
 
     Returns:
         Tuple of (handled, should_suppress_fallback):
@@ -508,7 +530,9 @@ def _handle_positional_completion(
     debug(f"Completing positional arg {positional_index}: {arg_name}")
 
     # Try to get choices for this argument
-    choices = get_choices_for_argument(collection, task_name, arg_name, incomplete)
+    choices = get_choices_for_argument(
+        collection, task_name, arg_name, incomplete, config=config
+    )
     if choices:
         debug(f"Found choices for {arg_name}: {choices[:10]}...")
         for choice in choices:
@@ -527,12 +551,24 @@ def complete_with_choices(
     initial_context: ParserContext,
     collection,
     parser: Parser,
+    config: "ToolkitConfig | None" = None,
 ) -> Exit:
     """
     Enhanced completion function that supports Enum and Literal choices.
 
     This function extends invoke's basic completion to handle completing
     argument values for parameters with defined choices, including positional arguments.
+
+    Args:
+        names: Binary names for stripping the program name from the invocation.
+        core: The core parse result (provides remainder).
+        initial_context: The core ParserContext with global flags.
+        collection: The loaded task collection.
+        parser: A fresh Parser instance for re-parsing the invocation.
+        config: The already-loaded ToolkitConfig from the program.  When
+                provided, completion callbacks receive a context that has
+                access to project-level invoke.yaml values (e.g. custom keys
+                and overridden ``completion.callback_timeout``).
     """
     # Strip out program name
     invocation = _strip_program_name(names, core.remainder)
@@ -585,12 +621,14 @@ def complete_with_choices(
                     print(name)
         # Known flags complete w/ values or nothing
         else:
-            _handle_flag_completion(context, tail, collection, incomplete="")
+            _handle_flag_completion(
+                context, tail, collection, incomplete="", config=config
+            )
     # If not a flag, check if we're completing a flag value, positional args, or task names
     else:
         # Check if the previous token is a flag that takes a value
         if _try_complete_flag_value(
-            tokens, completing_new_token, initial_context, collection
+            tokens, completing_new_token, initial_context, collection, config=config
         ):
             raise Exit
 
@@ -634,7 +672,7 @@ def complete_with_choices(
 
             # Try to complete positional argument
             handled, suppress_fallback = _handle_positional_completion(
-                context, collection, positional_index, incomplete
+                context, collection, positional_index, incomplete, config=config
             )
             if handled or suppress_fallback:
                 # Either we printed completions, or we're in a positional arg
