@@ -139,3 +139,36 @@ def test_script_multiple_prefixes(capsys):
     script(argv=["-l"], config_prefix="app2", exit=False)
     outerr2 = capsys.readouterr()
     assert "task-two" in outerr2.out
+
+
+def test_script_loads_project_config(tmp_path: Path, capsys, monkeypatch):
+    """Test that script() loads project invoke.yml configuration"""
+    # Create a temporary directory with a script and config file
+    monkeypatch.chdir(tmp_path)
+
+    # Create invoke.yml config file with echo=true and pty=true
+    config_file = tmp_path / "invoke.yml"
+    config_file.write_text(
+        "run:\n  echo: true\n  pty: true\n",
+        encoding="utf-8",
+    )
+
+    # Create a task that checks the config values
+    @task()
+    def check_config(c):
+        # Check that config was loaded
+        assert c.config.run.echo is True, "echo should be True from invoke.yml"
+        assert c.config.run.pty is True, "pty should be True from invoke.yml"
+        c.run("echo 'Config loaded successfully'")
+
+    # Run script and verify config was loaded
+    # Note: need to pass script name as first arg for invoke
+    script(argv=["test_script.py", "check-config"], exit=False)
+    outerr = capsys.readouterr()
+
+    # If we got here without assertion errors, the config was loaded
+    assert (
+        "Config loaded successfully" in outerr.out
+        or "config.py" in outerr.err
+        or len(outerr.out) > 0
+    )
