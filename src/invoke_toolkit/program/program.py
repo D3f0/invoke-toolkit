@@ -235,6 +235,16 @@ class ToolkitProgram(Program):
 
         .. versionadded:: 1.0
         """
+        # When namespace is provided (e.g., via script()), we still need to load
+        # the project configuration BEFORE calling super().parse_collection()
+        # because super() won't call load_collection() when namespace is provided
+        if self.namespace is not None:
+            debug("Namespace provided, ensuring project config is loaded")
+            # Use current working directory as the project location
+            # since we don't have a loader to determine it
+            self.config.set_project_location(".")
+            self.config.load_project()
+
         super().parse_collection()
 
         if self.args["internal-col"].value:
