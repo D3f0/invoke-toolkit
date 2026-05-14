@@ -75,10 +75,17 @@ class ToolkitContext(Context, ConfigProtocol):
         self._set("_console", get_console())
         # Check if status is disabled in the config
         disabled = False
+        show_command_output = False
         if config and hasattr(config, "get"):
             disabled = config.get("disable_status", False)
+            show_command_output = config.get("show_command_output", False)
         self._set(
-            "_status_helper", StatusHelper(console=self._console, disabled=disabled)
+            "_status_helper",
+            StatusHelper(
+                console=self._console,
+                disabled=disabled,
+                show_command_output=show_command_output,
+            ),
         )
 
     @property

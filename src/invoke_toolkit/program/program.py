@@ -195,6 +195,11 @@ class ToolkitProgram(Program):
             debug("Disabling status context manager via CLI flag")
             self.config["disable_status"] = True  # type: ignore[index]
 
+        # Update config with show_command_output flag from CLI
+        if self.args["show_command_output"].value:
+            debug("Enabling command output display below status via CLI flag")
+            self.config["show_command_output"] = True  # type: ignore[index]
+
         # Update config with init_shell flag from CLI
         if self.args["init_shell"].value:
             debug("Initializing shell for runner via CLI flag")
@@ -350,6 +355,12 @@ class ToolkitProgram(Program):
                 kind=bool,
                 default=False,
                 help="Disables the rich status context manager for debugging (useful when debugging breakpoints or using REPL)",
+            ),
+            ToolkitArgument(
+                names=("show_command_output", "O"),
+                kind=bool,
+                default=False,
+                help="Shows last few lines of command output below the status spinner",
             ),
             ToolkitArgument(
                 names=("init_shell",),
