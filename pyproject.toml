@@ -158,7 +158,8 @@ dev = [
     "ty>=0.0.1a25",
 ]
 doc = [
-    "quartodoc>=0.11.1",
+    "zensical>=0.0.41",
+    "mkdocstrings-python>=1.0.0",
 ]
 
 [tool.pylint.main]

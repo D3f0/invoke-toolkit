@@ -331,6 +331,7 @@ def test_script_pep723_and_shebang_compliance(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     ctx: ToolkitContext,
+    git_root: Path,
 ):
     """
     Test that create.script generates a script compliant with:
@@ -362,7 +363,7 @@ def test_script_pep723_and_shebang_compliance(
     _verify_invoke_toolkit_version(lines)
     _verify_script_code(script_content)
 
-    result = ctx.run(f"uv run {script_path} hello-world", warn=True)
+    result = ctx.run(f"uv run --with {git_root} {script_path} hello-world", warn=True)
     assert result.ok, (
         f"Script execution failed. Return code: {result.return_code}. "
         f"Output: {result.stdout}"

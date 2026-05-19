@@ -211,72 +211,40 @@ def release(ctx: Context, skip_sync: bool = False) -> None:
 
 
 @task(aliases=["b"])
-def docs_api_build(
-    ctx: Context,
-    config: str = "",
-    filter_: str = "",
-    dry_run: bool = False,
-    watch: bool = False,
-    verbose: bool = False,
-    timeout: int = 0,
-):
+def docs_build(ctx: Context):
     """
-    Runs uv run quartodoc build with the provided arguments.
+    Builds documentation with [green]zensical[/green].
     """
-    # uv run quartodc build --help
-    #   --config TEXT  Change the path to the configuration file.  The default is
-    #                  `./_quarto.yml`
-    #   --filter TEXT  Specify the filter to select specific files. The default is
-    #                  '*' which selects all files.
-    #   --dry-run      If set, prevents new documents from being generated.
-    #   --watch        If set, the command will keep running and watch for changes
-    #                  in the package directory.
-    #   --verbose      Enable verbose logging.
-    #   --help         Show this message and exit.
-    args = ""
-    if config:
-        args = f"{args} --config {config}"
-    if filter_:
-        args = f"{args} --filter {filter_}"
-    if dry_run:
-        args = f"{args} --dry_run"
-    if watch:
-        args = f"{args} --watch"
-    if verbose:
-        args = f"{args} --verbose"
+    with ctx.cd(REPO_ROOT):
+        ctx.run("uv run --group doc zensical build")
 
-    with ctx.cd(REPO_ROOT / "docs"):
-        ctx.run(
-            f"uv run quartodoc build {args}", timeout=timeout if timeout > 0 else None
-        )
+
+@task(aliases=["p"])
+def docs_serve(ctx: Context):
+    """
+    Serves documentation locally with [green]zensical[/green].
+    """
+    with ctx.cd(REPO_ROOT):
+        ctx.run("uv run --group doc zensical serve", pty=True)
 
 
 @task()
-def docs_api_watch_entr(ctx: Context, timeout: int = 5):
-    """Uses entr to rebuild, when --watch doesn't detect changes. Requires entr CLI"""
+def docs_watch(ctx: Context):
+    """Uses entr to rebuild docs when source files change. Requires entr CLI"""
     with ctx.cd(REPO_ROOT):
         if not which("entr"):
             ctx.rich_exit("[bold]entr[/bold] not found in [green]$PATH[/green]")
         ctx.run(
             f"""
-            git ls-files **/*.py | entr -n {sys.argv[0]} -T {timeout} -e docs-api-build
+            git ls-files **/*.py | entr -n {sys.argv[0]} docs-build
             """,
             echo=True,
         )
 
 
-@task(aliases=["p"])
-def docs_preview(ctx: Context):
-    """
-    Runs [green]quarto preview[/green] to visualize the documentation.
-    """
-    with ctx.cd(REPO_ROOT / "docs"):
-        ctx.run("quarto preview")
-
-
 @task(autoprint=True)
 def find_container_tool(ctx: Context) -> str:
-    """Checks witch container tool is available (docker, podman, nerdctl)"""
+    """Checks which container tool is available (docker, podman, nerdctl)"""
     known_tools = ["docker", "podman", "nerdctl", "nerdctl.lima"]
     results: dict[str, Any] = {}
     for tool in known_tools:
@@ -285,7 +253,6 @@ def find_container_tool(ctx: Context) -> str:
             asynchronous=True,
             warn=True,
             in_stream=False,
-            # timeout=5,
         )
         results[tool] = promise
     for tool, promise in results.items():

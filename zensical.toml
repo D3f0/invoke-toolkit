@@ -1,0 +1,71 @@
+[project]
+site_name = "Invoke Toolkit"
+site_url = "https://d3f0.github.io/invoke-toolkit/"
+site_description = "A set of extended APIs for PyInvoke for composable scripts, plugins and richer output"
+site_author = "Nahuel Defossé"
+docs_dir = "docs"
+site_dir = "site"
+
+nav = [
+  {"Home" = "index.md"},
+  {"Scripts" = "scripts.md"},
+  {"Packages" = "packages.md"},
+  {"Programs" = "programs.md"},
+  {"Reference" = "reference/index.md"},
+]
+
+[project.theme]
+variant = "modern"
+features = [
+  "navigation.instant",
+  "navigation.tabs",
+  "navigation.sections",
+  "navigation.path",
+  "navigation.top",
+  "navigation.footer",
+  "content.code.copy",
+  "content.code.annotate",
+  "content.tabs.link",
+  "search.highlight",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+[project.extra]
+social = [
+  {icon = "fontawesome/brands/github", link = "https://github.com/D3f0/invoke-toolkit"},
+  {icon = "fontawesome/brands/python", link = "https://pypi.org/project/invoke-toolkit/"},
+]
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+show_source = true
+show_root_heading = true
+show_symbol_type_heading = true
+inherited_members = true
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+toc = {permalink = true}
+
+[project.markdown_extensions."pymdownx.highlight"]
+anchor_linenums = true
+
+[project.markdown_extensions."pymdownx.superfences"]
+[project.markdown_extensions."pymdownx.details"]
+[project.markdown_extensions."pymdownx.tabbed"]
+alternate_style = true
+
+[project.markdown_extensions."pymdownx.inlinehilite"]
+[project.markdown_extensions."pymdownx.snippets"]
+[project.markdown_extensions."pymdownx.emoji"]
+[project.markdown_extensions."pymdownx.tasklist"]
+custom_checkbox = true

@@ -1,0 +1,3 @@
+# Structured Data
+
+*Coming soon.*
