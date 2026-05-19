@@ -32,5 +32,6 @@ def list_my_issues(ctx: Context):
 script()
 ```
 
-> Tip: the lines in `#` are created with `uv add --script invoke-toolkit`, the 
-> rest of the script only need to call `script()`
+!!! tip
+    The lines in `#` are created with `uv add --script invoke-toolkit`, the
+    rest of the script only need to call `script()`

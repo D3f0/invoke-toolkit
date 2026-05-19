@@ -1,4 +1,4 @@
-# Programs {#sec-prg}
+# Programs
 
 Using `invoke_toolkit.program.ToolkitProgram` for your script allows you to
 modify more settings than what the CLI normally provides. Programs live inside Python packages so you will have a top level `pyproject.toml`.

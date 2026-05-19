@@ -3,10 +3,7 @@
 .ripgrep
 
 **/__pycache__/*
-**/_site/*
-docs/reference/
-**/.quarto/*
-docs/objects.json
+site/
 _tasks.py
 report.html
 _scratchpad.py
