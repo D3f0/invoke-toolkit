@@ -16,6 +16,9 @@ on:
         description: "Next version"
         value: ${{ jobs.check-release.outputs.next-version }}
 
+permissions:
+  contents: read
+
 jobs:
   check-release:
     runs-on: ubuntu-latest
