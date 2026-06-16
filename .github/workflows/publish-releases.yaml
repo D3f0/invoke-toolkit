@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -33,6 +36,7 @@ jobs:
     environment: release
     permissions:
       id-token: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
