@@ -1,19 +1,35 @@
 [project]
 name = "invoke-toolkit"
 dynamic = ["version"]
-description = "A set of extended APIs for PyInvoke for composable scripts, plugins and richer output"
+description = "Extended APIs for PyInvoke: composable task plugins, typed CLI args, Rich output, shell completion, and PEP 723 script support"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-keywords = []
+keywords = [
+  "invoke",
+  "task",
+  "cli",
+  "automation",
+  "plugin",
+  "completion",
+  "rich",
+  "pyinvoke",
+  "devtools",
+  "fzf",
+]
 authors = [
   { name = "Nahuel Defossé", email = "D3f0@users.noreply.github.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
+  "Intended Audience :: Developers",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Operating System :: POSIX",
   "Operating System :: Unix",
@@ -24,6 +40,9 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Topic :: System :: Software Distribution",
   "Topic :: System :: Systems Administration",
+  "Topic :: Terminals",
+  "Topic :: Utilities",
+  "Typing :: Typed",
 ]
 dependencies = [
     "invoke>=2.2.1",
@@ -32,7 +51,6 @@ dependencies = [
     "appdirs",
     "tomlkit>=0.13.3",
     "pyyaml>=6.0.3",
-    "pdbpp >=0.11.7",
     "platformdirs>=4.5.0",
     "httpx>=0.28.1",
     "setproctitle>=1.3.7",

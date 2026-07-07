@@ -15,3 +15,6 @@ _scratchpad.py
 _[a-z]*.py
 _test/*
 invoke.yaml
+# Makrdowns
+*.md
+!docs/**/*.md
