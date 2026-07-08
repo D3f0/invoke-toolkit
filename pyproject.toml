@@ -45,7 +45,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-    "invoke>=2.2.1",
+    "invoke>=3.0.3",
     "rich>=13",
     "typing-extensions>=4.13.2",
     "appdirs",

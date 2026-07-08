@@ -39,11 +39,16 @@ class ToolkitExecutor(Executor):
 
         :param core:
             An optional `.ParseResult` holding parsed core program arguments.
-            Defaults to ``None``.
+            Defaults to an empty `.ParseResult` if not given.
+
+        .. versionchanged:: invoke 3.0
+            ``self.core`` now defaults to ``ParseResult()`` instead of
+            ``None``, matching upstream ``Executor`` behaviour and ensuring
+            ``core_parse_result.remainder`` is always accessible.
         """
         self.collection = collection
         self.config = config if config is not None else ToolkitConfig()
-        self.core = core
+        self.core = core if core is not None else ParseResult()
 
     def execute(
         self, *tasks: Union[str, Tuple[str, Dict[str, Any]], ParserContext]
@@ -134,7 +139,7 @@ class ToolkitExecutor(Executor):
             # Get final context from the Call (which will know how to generate
             # an appropriate one; e.g. subclasses might use extra data from
             # being parameterized), handing in this config for use there.
-            context = call.make_context(config)  # type: ignore[attr-defined]
+            context = call.make_context(config, core_parse_result=self.core)  # type: ignore[attr-defined]
             args = (context, *call.args)  # type: ignore[attr-defined]
             result = call.task(*args, **call.kwargs)  # type: ignore[attr-defined]
             if autoprint:

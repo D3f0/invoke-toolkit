@@ -2,7 +2,7 @@
 Type annotated tasks and and overrides over invoke
 """
 
-# pylint: disable=too-many-statements
+# pylint: disable=too-many-statements,duplicate-code
 
 import inspect
 import os
@@ -822,9 +822,16 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
 
 
 class ToolkitCall(Call):
-    def make_context(self, config):
-        """Generates the Context for the task"""
-        return ToolkitContext(config=config)
+    def make_context(self, config, core_parse_result=None):
+        """Generates the Context for the task.
+
+        .. versionchanged:: invoke 3.0
+            Added the ``core_parse_result`` parameter so that
+            ``Context.remainder`` is populated from the CLI parser's remainder
+            value (text after a standalone ``--``).
+        """
+        remainder = core_parse_result.remainder if core_parse_result is not None else ""
+        return ToolkitContext(config=config, remainder=remainder)
 
 
 def call(task_: "Task", *args: Any, **kwargs: Any) -> "Call":
