@@ -146,10 +146,12 @@ def test_script_loads_project_config(tmp_path: Path, capsys, monkeypatch):
     # Create a temporary directory with a script and config file
     monkeypatch.chdir(tmp_path)
 
-    # Create invoke.yml config file with echo=true and pty=true
+    # Create invoke.yml config file with echo=true
+    # Note: pty=true is intentionally omitted — a PTY requires a real terminal
+    # and would cause pytest to raise OSError when output is captured.
     config_file = tmp_path / "invoke.yml"
     config_file.write_text(
-        "run:\n  echo: true\n  pty: true\n",
+        "run:\n  echo: true\n",
         encoding="utf-8",
     )
 
@@ -158,8 +160,7 @@ def test_script_loads_project_config(tmp_path: Path, capsys, monkeypatch):
     def check_config(c):
         # Check that config was loaded
         assert c.config.run.echo is True, "echo should be True from invoke.yml"
-        assert c.config.run.pty is True, "pty should be True from invoke.yml"
-        c.run("echo 'Config loaded successfully'")
+        c.run("echo 'Config loaded successfully'", in_stream=False)
 
     # Run script and verify config was loaded
     # Note: need to pass script name as first arg for invoke
