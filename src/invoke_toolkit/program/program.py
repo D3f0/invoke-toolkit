@@ -15,7 +15,7 @@ from importlib import metadata
 from importlib.util import module_from_spec
 from logging import getLogger
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 from rich.table import Table
 
@@ -81,6 +81,9 @@ class ToolkitProgram(Program):
             config_class,
             binary_names,
         )
+        # Names of sub-collections that were loaded from entry-point plugins.
+        # Populated in load_collection(); used by --list-tasks / --list-plugins.
+        self._plugin_collection_names: set[str] = set()
 
     def get_version(self) -> str:
         """Compute version
@@ -368,9 +371,91 @@ class ToolkitProgram(Program):
                 default=False,
                 help="Initializes shell for runner via CLI flag",
             ),
+            ToolkitArgument(
+                names=("list-tasks", "lt"),
+                kind=bool,
+                default=False,
+                help="List only the main tasks discovered in the current directory (excludes plugins)",
+            ),
+            ToolkitArgument(
+                names=("list-plugins", "lp"),
+                kind=bool,
+                default=False,
+                help="List only the plugin-provided task collections (excludes main tasks)",
+            ),
         ]
         args.extend(toolkit_program_arguments)
         return args
+
+    def _handle_list_flags(self) -> None:
+        """
+        Handle --list, --list-tasks, and --list-plugins flags.
+
+        Sets ``list_format`` / ``list_depth`` / ``scoped_collection`` as needed
+        and raises `Exit` when any listing flag is active.
+        """
+        self.list_format = self.args["list-format"].value
+        self.list_depth = self.args["list-depth"].value
+
+        # --list [root]: standard task listing (optionally scoped to a sub-collection)
+        list_root = self.args.list.value  # True or a string namespace
+        if list_root:
+            if isinstance(list_root, str):
+                self.list_root = list_root
+                try:
+                    sub = self.collection.subcollection_from_path(list_root)
+                    self.scoped_collection = sub
+                except KeyError:
+                    msg = "Sub-collection '{}' not found!"
+                    raise Exit(msg.format(list_root))
+            self.list_tasks()
+            raise Exit
+
+        # --list-tasks: show only main (non-plugin) tasks
+        if self.args["list-tasks"].value:
+            debug("Saw --list-tasks, listing main tasks only & exiting")
+            self.scoped_collection = self._make_filtered_collection("tasks")
+            self.list_tasks()
+            raise Exit
+
+        # --list-plugins: show only plugin-provided collections
+        if self.args["list-plugins"].value:
+            debug("Saw --list-plugins, listing plugin collections only & exiting")
+            if not self._plugin_collection_names:
+                raise Exit("No plugin collections found.")
+            self.scoped_collection = self._make_filtered_collection("plugins")
+            self.list_tasks()
+            raise Exit
+
+    def _make_filtered_collection(
+        self, mode: "Literal['tasks', 'plugins']"
+    ) -> "ToolkitCollection":
+        """
+        Return a shallow copy of ``self.scoped_collection`` containing only
+        the subset of tasks and sub-collections appropriate for *mode*.
+
+        - ``'tasks'``   – direct tasks + non-plugin sub-collections only
+        - ``'plugins'`` – plugin sub-collections only (no direct tasks)
+        """
+        source = self.scoped_collection
+        filtered = ToolkitCollection(source.name or "")
+        if mode == "tasks":
+            # Include all direct tasks on the scoped collection
+            for task_name, task in source.tasks.items():
+                filtered.add_task(task, name=task_name)
+            # Include sub-collections that are NOT from plugins
+            for coll_name, coll in source.collections.items():
+                if coll_name not in self._plugin_collection_names:
+                    filtered.add_collection(coll, name=coll_name)
+        else:  # mode == "plugins"
+            # Include only the plugin sub-collections
+            for coll_name, coll in source.collections.items():
+                if coll_name in self._plugin_collection_names:
+                    filtered.add_collection(coll, name=coll_name)
+        # Preserve the default task pointer when it still makes sense
+        if source.default and source.default in filtered.tasks:
+            filtered.default = source.default
+        return filtered
 
     def _load_entry_points_collection(self, start: str) -> "ToolkitCollection | None":
         """
@@ -453,6 +538,7 @@ class ToolkitProgram(Program):
                 debug("Merging entry point collections with tasks.py")
                 for name, collection in ep_collection.collections.items():
                     self.collection.add_collection(collection, name=name)
+                    self._plugin_collection_names.add(name)
         except CollectionNotFound as e:
             start = self.args["search-root"].value or "."
             # First try to load entry points (for packages without tasks.py)
@@ -460,6 +546,7 @@ class ToolkitProgram(Program):
             if ep_collection is not None:
                 debug("Loading collections from entry points")
                 self.collection = ep_collection
+                self._plugin_collection_names.update(ep_collection.collections.keys())
             else:
                 # If entry points weren't found, try local_tasks or fail
                 if not (Path(start) / "local_tasks.py").exists():
@@ -571,23 +658,8 @@ class ToolkitProgram(Program):
                 # should?
                 raise ParseError("No idea what '{}' is!".format(halp))
 
-        # Print discovered tasks if necessary
-        list_root = self.args.list.value  # will be True or string
-
-        self.list_format = self.args["list-format"].value
-        self.list_depth = self.args["list-depth"].value
-        if list_root:
-            # Not just --list, but --list some-root - do moar work
-            if isinstance(list_root, str):
-                self.list_root = list_root
-                try:
-                    sub = self.collection.subcollection_from_path(list_root)
-                    self.scoped_collection = sub
-                except KeyError:
-                    msg = "Sub-collection '{}' not found!"
-                    raise Exit(msg.format(list_root))
-            self.list_tasks()
-            raise Exit
+        # Handle --list / --list-tasks / --list-plugins (raises Exit if triggered)
+        self._handle_list_flags()
 
         # Print completion helpers if necessary
         if self.args.complete.value:
