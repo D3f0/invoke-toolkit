@@ -18,3 +18,4 @@ invoke.yaml
 # Makrdowns
 *.md
 !docs/**/*.md
+.worktrees/
