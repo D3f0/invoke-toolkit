@@ -70,8 +70,10 @@ class ToolkitContext(Context, ConfigProtocol):
         [Union[PathLike[str], str]], _GeneratorContextManager[None, None, None]
     ]
 
-    def __init__(self, config: Optional[ToolkitConfig] = None) -> None:
-        super().__init__(config)
+    def __init__(
+        self, config: Optional[ToolkitConfig] = None, remainder: str = ""
+    ) -> None:
+        super().__init__(config, remainder=remainder)
         self._set("_console", get_console())
         # Check if status is disabled in the config
         disabled = False
