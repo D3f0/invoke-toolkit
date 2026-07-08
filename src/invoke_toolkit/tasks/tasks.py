@@ -6,6 +6,7 @@ Type annotated tasks and and overrides over invoke
 
 import inspect
 import os
+import warnings
 import subprocess
 import types
 from enum import Enum
@@ -774,7 +775,22 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         if name is not None:
             task_kwargs["name"] = name
         if aliases:
-            task_kwargs["aliases"] = aliases
+            # Normalize a name to invoke's canonical form (underscores → hyphens).
+            effective_name = (name or getattr(f, "__name__", "")).replace("_", "-")
+            filtered_aliases = [
+                a for a in aliases if a.replace("_", "-") != effective_name
+            ]
+            skipped = set(aliases) - set(filtered_aliases)
+            if skipped:
+                warnings.warn(
+                    f"Task '{effective_name}': alias(es) {sorted(skipped)!r} "
+                    "match the task name and will be ignored to prevent a "
+                    "RecursionError at runtime.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            if filtered_aliases:
+                task_kwargs["aliases"] = filtered_aliases
         if positional:
             task_kwargs["positional"] = positional
         if optional:
