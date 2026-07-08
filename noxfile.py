@@ -28,7 +28,6 @@ def tests(session: "Session"):
         "pytest",
         "tests/",
         "-v",  # verbose output
-        "-s",  # don't capture output
         "--tb=short",  # shorter traceback format
         "--strict-markers",  # treat unregistered markers as errors
         "-n",

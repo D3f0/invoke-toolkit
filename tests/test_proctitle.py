@@ -176,22 +176,25 @@ def test_proctitle_visible_in_ps(tmp_path: Path):
     tasks_file.write_text(tasks_content)
 
     # Start the task in a subprocess
-    with subprocess.Popen(
+    proc = subprocess.Popen(  # pylint: disable=consider-using-with
         [sys.executable, "-m", "invoke_toolkit", "-r", str(tmp_path), "test-proctitle"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-    ) as proc:
+    )
+    try:
         # Wait for the task to signal it's ready
-        timeout = 10
+        startup_timeout = 10
         start = time.time()
         while not signal_file.exists():
-            if time.time() - start > timeout:
-                raise TimeoutError("Task did not start in time")
+            if time.time() - start > startup_timeout:
+                proc.kill()
+                proc.wait(timeout=5)
+                pytest.fail("Task did not start in time")
             if proc.poll() is not None:
                 stdout, stderr = proc.communicate()
-                raise RuntimeError(
+                pytest.fail(
                     f"Process exited early: {proc.returncode}\n"
-                    + f"stdout: {stdout.decode()}\nstderr: {stderr.decode()}"
+                    f"stdout: {stdout.decode()}\nstderr: {stderr.decode()}"
                 )
             time.sleep(0.05)
 
@@ -210,7 +213,12 @@ def test_proctitle_visible_in_ps(tmp_path: Path):
 
         # Signal the task to finish
         done_file.write_text("done")
-        proc.wait(timeout=5)
+        proc.wait(timeout=10)
+    finally:
+        # Ensure the subprocess is always cleaned up
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
 
 
 @pytest.fixture
