@@ -212,3 +212,34 @@ def test_load_local_tasks_without_main_tasks(tmp_path: Path):
 
     # Verify task is in the local collection
     assert "standalone-task" in local_col.tasks
+
+
+def test_load_local_tasks_from_multiple_directories_without_module_collision(
+    tmp_path: Path,
+):
+    """Loading local task files from different directories keeps both modules distinct."""
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    (first / "local_tasks.py").write_text(
+        "from invoke_toolkit import task\n\n@task()\ndef first_task(ctx):\n    pass\n"
+    )
+    (second / "local_tasks.py").write_text(
+        "from invoke_toolkit import task\n\n@task()\ndef second_task(ctx):\n    pass\n"
+    )
+
+    local_module_names_before = {
+        name for name in sys.modules if name.startswith("_invoke_toolkit_local_tasks_")
+    }
+    first_collection = ToolkitCollection()
+    second_collection = ToolkitCollection()
+    first_collection.load_local_tasks(search_path=first)
+    second_collection.load_local_tasks(search_path=second)
+
+    assert "first-task" in first_collection.collections["local"].tasks
+    assert "second-task" in second_collection.collections["local"].tasks
+    local_module_names_after = {
+        name for name in sys.modules if name.startswith("_invoke_toolkit_local_tasks_")
+    }
+    assert len(local_module_names_after - local_module_names_before) == 2
