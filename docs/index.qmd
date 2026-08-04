@@ -80,4 +80,45 @@ def build(ctx: Context):
     ctx.run("quarto build")
 ```
 
+## Async tasks and commands
+
+Task functions declared with `async def` are supported automatically:
+
+```{.python}
+import asyncio
+from invoke_toolkit import Context, task
+
+@task
+async def build(ctx: Context):
+    result = await ctx.run("quarto build", hide=True)
+    await ctx.run_async("printf done")
+    return result
+```
+
+Inside an async task, `ctx.run()` is awaitable and uses the native asyncio
+subprocess path. `ctx.run_async()` is the explicit coroutine API. Synchronous
+tasks keep Invoke's normal blocking `ctx.run()` behavior, including its
+`asynchronous=True` Promise API.
+
+Use `ctx.gather()` when a task needs explicit concurrent command or coroutine
+work. Submitted work starts immediately; `gather.results` is ordered by
+submission:
+
+```{.python}
+@task
+async def parallel(ctx: Context):
+    async with ctx.gather() as gather:
+        gather(ctx.run_async("first", hide=True))
+        gather(ctx.run_async("second", hide=True))
+    return gather.results
+```
+
+Async task execution remains sequential by default. Async execution supports
+configured shell, environment, command prefixes, output hiding/streaming,
+`warn`, `dry`, timeout, and cancellation cleanup. Native async commands reject
+PTY mode, interactive stdin, and Invoke stream watchers; use synchronous
+`ctx.run()` for those features. Task argument parsing, aliases, help, shell
+completion callbacks, and file completion markers remain available for async
+tasks.
+
 ## Built in collections

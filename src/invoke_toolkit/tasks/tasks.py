@@ -590,151 +590,121 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         path_params = _extract_path_params(f)
         param_names = list(inspect.signature(f).parameters.keys())
 
-        # Create a wrapper that Invoke can work with
-        @wraps(f)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Get context from args[0] for error handling
+        def prepare_call(args: tuple[Any, ...], kwargs: dict[str, Any]):
             ctx = args[0] if args and isinstance(args[0], ToolkitContext) else None
-
-            # Convert string enum values to enum instances with validation
-            if enum_params:
-                # Convert positional args
-                args_list = list(args)
-                for i, arg in enumerate(args_list):
-                    if i < len(param_names):
-                        param_name = param_names[i]
-                        if param_name in enum_params and isinstance(arg, str):
-                            enum_class = enum_params[param_name]
-                            try:
-                                args_list[i] = enum_class(arg)
-                            except ValueError as exc:
-                                valid_values = ", ".join(
-                                    str(m.value) for m in enum_class
-                                )
-                                try:
-                                    _handle_validation_error(
-                                        ctx, param_name, arg, valid_values
-                                    )
-                                except ValueError as validation_err:
-                                    raise validation_err from exc
-                args = tuple(args_list)
-
-                # Convert kwargs
-                for param_name, enum_class in enum_params.items():
-                    if param_name in kwargs and isinstance(kwargs[param_name], str):
-                        try:
-                            kwargs[param_name] = enum_class(kwargs[param_name])
-                        except ValueError as exc:
-                            valid_values = ", ".join(str(m.value) for m in enum_class)
-                            try:
-                                _handle_validation_error(
-                                    ctx, param_name, kwargs[param_name], valid_values
-                                )
-                            except ValueError as validation_err:
-                                raise validation_err from exc
-
-            # Validate literal values
-            if literal_params:
-                for param_name, literal_values in literal_params.items():
-                    # Check kwargs
-                    if param_name in kwargs:
-                        if kwargs[param_name] not in literal_values:
-                            valid_values = ", ".join(str(v) for v in literal_values)
-                            _handle_validation_error(
-                                ctx, param_name, kwargs[param_name], valid_values
-                            )
-
-                    # Check positional args
-                    for i, param in enumerate(param_names):
-                        if param == param_name and i < len(args):
-                            if args[i] not in literal_values:
-                                valid_values = ", ".join(str(v) for v in literal_values)
-                                _handle_validation_error(
-                                    ctx, param_name, args[i], valid_values
-                                )
-
-            # Convert string path values to pathlib.Path instances
-            if path_params:
-                # Convert positional args
-                args_list = list(args)
-                for i, arg in enumerate(args_list):
-                    if i < len(param_names):
-                        param_name = param_names[i]
-                        if param_name in path_params and isinstance(arg, str):
-                            args_list[i] = PathlibPath(arg)
-                args = tuple(args_list)
-
-                # Convert kwargs
-                for param_name in path_params:
-                    if param_name in kwargs and isinstance(kwargs[param_name], str):
-                        kwargs[param_name] = PathlibPath(kwargs[param_name])
-
-            # Validate file paths if exists=True is set
-            if file_completion_markers:
-                for marker_param_name, marker in file_completion_markers.items():
-                    if not marker.exists:
-                        continue
-
-                    # Get the value from kwargs or args
-                    value = kwargs.get(marker_param_name)
-                    if value is None and marker_param_name in param_names:
-                        idx = param_names.index(marker_param_name)
-                        if idx < len(args):
-                            value = args[idx]
-
-                    if value is None:
-                        continue
-
-                    path = PathlibPath(value) if isinstance(value, str) else value
-                    if not path.exists():
-                        from invoke.exceptions import Exit
-
-                        raise Exit(f"Path does not exist: {value}", code=1)
-
-                    # Validate file_okay/dir_okay constraints
-                    if path.is_file() and not marker.file_okay:
-                        from invoke.exceptions import Exit
-
-                        raise Exit(f"Expected a directory, not a file: {value}", code=1)
-                    if path.is_dir() and not marker.dir_okay:
-                        from invoke.exceptions import Exit
-
-                        raise Exit(f"Expected a file, not a directory: {value}", code=1)
-
-            # Handle proctitle: set process title while task runs
-            if proctitle is not None:
-                previous_title = setproctitle.getproctitle()
-                in_tmux = os.environ.get("TMUX")
-                previous_tmux_title = None
-
-                if in_tmux:
-                    # Save current tmux window name
-                    result = subprocess.run(
-                        ["tmux", "display-message", "-p", "#W"],
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    if result.returncode == 0:
-                        previous_tmux_title = result.stdout.strip()
-                    # Set new tmux window name
-                    subprocess.run(
-                        ["tmux", "rename-window", proctitle],
-                        check=False,
-                    )
-
+            args_list = list(args)
+            for index, arg in enumerate(args_list):
+                if index >= len(param_names):
+                    continue
+                param_name = param_names[index]
+                if param_name in enum_params and isinstance(arg, str):
+                    enum_class = enum_params[param_name]
+                    try:
+                        args_list[index] = enum_class(arg)
+                    except ValueError as exc:
+                        valid_values = ", ".join(
+                            str(member.value) for member in enum_class
+                        )
+                        _handle_validation_error(ctx, param_name, arg, valid_values)
+                        raise ValueError(valid_values) from exc
+                if param_name in path_params and isinstance(arg, str):
+                    args_list[index] = PathlibPath(arg)
+            kwargs = dict(kwargs)
+            for param_name, enum_class in enum_params.items():
+                if param_name not in kwargs or not isinstance(kwargs[param_name], str):
+                    continue
                 try:
-                    setproctitle.setproctitle(proctitle)
+                    kwargs[param_name] = enum_class(kwargs[param_name])
+                except ValueError as exc:
+                    valid_values = ", ".join(str(member.value) for member in enum_class)
+                    _handle_validation_error(
+                        ctx, param_name, kwargs[param_name], valid_values
+                    )
+                    raise ValueError(valid_values) from exc
+            for param_name in path_params:
+                if param_name in kwargs and isinstance(kwargs[param_name], str):
+                    kwargs[param_name] = PathlibPath(kwargs[param_name])
+            for param_name, literal_values in literal_params.items():
+                value = kwargs.get(param_name)
+                if value is None and param_name in param_names:
+                    index = param_names.index(param_name)
+                    value = args_list[index] if index < len(args_list) else None
+                if value is not None and value not in literal_values:
+                    _handle_validation_error(
+                        ctx, param_name, value, ", ".join(map(str, literal_values))
+                    )
+            for marker_name, marker in file_completion_markers.items():
+                if not marker.exists:
+                    continue
+                value = kwargs.get(marker_name)
+                if value is None and marker_name in param_names:
+                    index = param_names.index(marker_name)
+                    value = args_list[index] if index < len(args_list) else None
+                if value is None:
+                    continue
+                path = PathlibPath(value)
+                if not path.exists():
+                    from invoke.exceptions import Exit
+
+                    raise Exit(f"Path does not exist: {value}", code=1)
+                if path.is_file() and not marker.file_okay:
+                    from invoke.exceptions import Exit
+
+                    raise Exit(f"Expected a directory, not a file: {value}", code=1)
+                if path.is_dir() and not marker.dir_okay:
+                    from invoke.exceptions import Exit
+
+                    raise Exit(f"Expected a file, not a directory: {value}", code=1)
+            return tuple(args_list), kwargs
+
+        def set_title() -> tuple[str | None, str | None, str | None]:
+            if proctitle is None:
+                return None, None, None
+            previous = setproctitle.getproctitle()
+            previous_tmux = None
+            if os.environ.get("TMUX"):
+                result = subprocess.run(
+                    ["tmux", "display-message", "-p", "#W"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    previous_tmux = result.stdout.strip()
+                subprocess.run(["tmux", "rename-window", proctitle], check=False)
+            setproctitle.setproctitle(proctitle)
+            return previous, previous_tmux, proctitle
+
+        def restore_title(
+            previous_state: tuple[str | None, str | None, str | None],
+        ) -> None:
+            previous, previous_tmux, _ = previous_state
+            if previous is None:
+                return
+            setproctitle.setproctitle(previous)
+            if previous_tmux is not None:
+                subprocess.run(["tmux", "rename-window", previous_tmux], check=False)
+
+        if inspect.iscoroutinefunction(f):
+
+            @wraps(f)
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
+                args, kwargs = prepare_call(args, kwargs)
+                previous = set_title()
+                try:
+                    return await f(*args, **kwargs)
+                finally:
+                    restore_title(previous)
+        else:
+
+            @wraps(f)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                args, kwargs = prepare_call(args, kwargs)
+                previous = set_title()
+                try:
                     return f(*args, **kwargs)
                 finally:
-                    setproctitle.setproctitle(previous_title)
-                    if in_tmux and previous_tmux_title is not None:
-                        subprocess.run(
-                            ["tmux", "rename-window", previous_tmux_title],
-                            check=False,
-                        )
-            else:
-                return f(*args, **kwargs)
+                    restore_title(previous)
 
         # Preserve the type hints on the wrapper
         wrapper.__annotations__ = f.__annotations__

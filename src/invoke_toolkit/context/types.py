@@ -3,12 +3,18 @@ Type annotations for finding out what's there in ctx.attribute
 """
 
 import sys
-from typing import IO, Any, Optional, Union
+from typing import IO, Any, Awaitable, Optional, Union
 
 from invoke.runners import Result
 from invoke.watchers import StreamWatcher
 from rich.console import JustifyMethod, OverflowMethod, Style
 from typing_extensions import Annotated, Protocol
+
+
+class AsyncContextRunProtocol(Protocol):
+    """Coroutine API for native asyncio command execution."""
+
+    def __call__(self, command: str, **kwargs: Any) -> Awaitable[Result]: ...
 
 
 class BoundPrintProtocol(Protocol):
