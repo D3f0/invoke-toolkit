@@ -1,4 +1,6 @@
 import ast
+import os
+import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
@@ -243,3 +245,40 @@ def test_load_local_tasks_from_multiple_directories_without_module_collision(
         name for name in sys.modules if name.startswith("_invoke_toolkit_local_tasks_")
     }
     assert len(local_module_names_after - local_module_names_before) == 2
+
+
+def test_local_tasks_discovery_prefers_project_over_home(tmp_path: Path):
+    """A project's local_tasks.py wins over an unrelated one in the home directory.
+
+    Reproduces ``~/code/project_1/{tasks.py,local_tasks.py}`` while ``~`` also
+    holds a ``local_tasks.py``. Running from the project must load the project's
+    tasks and local tasks, never the home-directory local tasks.
+    """
+    fake_home = tmp_path / "home"
+    project = fake_home / "code" / "project_1"
+    project.mkdir(parents=True)
+
+    (fake_home / "local_tasks.py").write_text(
+        "from invoke_toolkit import task\n\n@task()\ndef home_local(ctx):\n    pass\n"
+    )
+    (project / "tasks.py").write_text(
+        "from invoke_toolkit import task\n\n@task()\ndef project_main(ctx):\n    pass\n"
+    )
+    (project / "local_tasks.py").write_text(
+        "from invoke_toolkit import task\n\n@task()\ndef project_local(ctx):\n    pass\n"
+    )
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+    env = {**os.environ, "HOME": str(fake_home)}
+    result = subprocess.run(
+        [sys.executable, "-m", "invoke_toolkit", "--list"],
+        cwd=project,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "project-main" in result.stdout
+    assert "local.project-local" in result.stdout
+    assert "home-local" not in result.stdout
