@@ -19,3 +19,6 @@ invoke.yaml
 *.md
 !docs/**/*.md
 .worktrees/
+
+# Ship the local_tasks discovery example (local_tasks.py is globally ignored)
+!tests/examples/local_tasks/local_tasks.py
