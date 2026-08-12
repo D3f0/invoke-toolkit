@@ -29,7 +29,8 @@ from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.config.status_helper import StatusHelper
 from invoke_toolkit.output.console import get_console
 
-from .types import BoundPrintProtocol, ContextRunProtocol
+from .types import AsyncContextRunProtocol, BoundPrintProtocol, ContextRunProtocol
+from .async_tools import AsyncGatherScope, in_async_task_context, run_async_command
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -58,10 +59,10 @@ class ConfigProtocol(Protocol):
 
 
 class ToolkitContext(Context, ConfigProtocol):
-    """Type annotated override"""
+    """Type annotated override with async task support."""
 
     run: ContextRunProtocol
-    _console: "Console"
+    run_async: AsyncContextRunProtocol
     _config: ToolkitConfig
     _status_helper: StatusHelper
 
@@ -93,8 +94,22 @@ class ToolkitContext(Context, ConfigProtocol):
     @property
     def console(self) -> "Console":
         """A console instance to do rich output"""
-        console = get_console()
-        return console
+        return get_console()
+
+    def run(self, command: str, **kwargs: Any):
+        """Run a command synchronously, or return a coroutine in async tasks."""
+        if in_async_task_context() and not kwargs.get("asynchronous", False):
+            return self.run_async(command, **kwargs)
+        runner = self.config.runners.local(self)
+        return self._run(runner, command, **kwargs)
+
+    async def run_async(self, command: str, **kwargs: Any):
+        """Run a command without blocking the current asyncio event loop."""
+        return await run_async_command(self, command, **kwargs)
+
+    def gather(self) -> AsyncGatherScope:
+        """Return an async context manager for explicit concurrent work."""
+        return AsyncGatherScope()
 
     # @contextmanager
     @property

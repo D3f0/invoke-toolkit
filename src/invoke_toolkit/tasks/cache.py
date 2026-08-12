@@ -9,6 +9,7 @@ Provides optional caching for task results with:
 """
 
 import hashlib
+import inspect
 import subprocess
 from dataclasses import dataclass, field
 from functools import wraps
@@ -171,6 +172,37 @@ def cached_task_wrapper(
     if not DISKCACHE_AVAILABLE:
         debug(f"diskcache not installed, caching disabled for {func_name}")
         return func
+    if inspect.iscoroutinefunction(func):
+
+        @wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            cache = get_cache()
+            if cache is None:
+                return await func(*args, **kwargs)
+            try:
+                cache_args = args[1:] if args else ()
+                key = make_cache_key(
+                    func_name=f"{config.key_prefix}{func_name}",
+                    args=cache_args,
+                    kwargs=kwargs,
+                    ignore_args=config.ignore_args,
+                )
+                result = cache.get(key, default=None)
+                if result is not None:
+                    debug(f"Cache HIT for {func_name} (key: {key[:50]}...)")
+                    return result
+                debug(f"Cache MISS for {func_name} (key: {key[:50]}...)")
+                result = await func(*args, **kwargs)
+                if result is not None:
+                    cache.set(key, result, expire=config.ttl)
+                return result
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                debug(f"Cache error for {func_name}: {exc}, running without cache")
+                return await func(*args, **kwargs)
+            finally:
+                cache.close()
+
+        return async_wrapper  # type: ignore[return-value]
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -197,19 +229,12 @@ def cached_task_wrapper(
                 return result
 
             debug(f"Cache MISS for {func_name} (key: {key[:50]}...)")
-
-            # Execute function and cache result
             result = func(*args, **kwargs)
-
-            # Only cache non-None results
             if result is not None:
                 cache.set(key, result, expire=config.ttl)
-                debug(f"Cached result for {func_name} (ttl: {config.ttl})")
-
             return result
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            # On any cache error, just run the function
-            debug(f"Cache error for {func_name}: {e}, running without cache")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            debug(f"Cache error for {func_name}: {exc}, running without cache")
             return func(*args, **kwargs)
         finally:
             cache.close()

@@ -7,11 +7,12 @@ It allows three classes to be parametrized: Loader, Config and Executor
 __all__ = ["ToolkitProgram"]
 
 import ast
+import asyncio
 import inspect
 import os
 import re
 import sys
-from importlib import metadata
+from importlib import import_module, metadata
 from importlib.util import module_from_spec
 from logging import getLogger
 from pathlib import Path
@@ -129,13 +130,12 @@ class ToolkitProgram(Program):
             self.parse_tasks()
             # End of parsing (typically bailout stuff like --list, --help)
             self.parse_cleanup()
-            # Update the earlier Config with new values from the parse step -
-            # runtime config file contents and flag-derived overrides (e.g. for
-            # run()'s echo, warn, etc options.)
+            # Apply runtime config and CLI-derived overrides before execution.
             self.update_config()
-            # Create an Executor, passing in the data resulting from the prior
-            # steps, then tell it to execute the tasks.
-            self.execute()
+            if self._contains_async_task():
+                asyncio.run(self._execute_async())
+            else:
+                self.execute()
         except (UnexpectedExit, Exit, ParseError) as e:
             debug("Received a possibly-skippable exception: {!r}".format(e))
             # Print error messages from parser, runner, etc if necessary;
@@ -161,6 +161,31 @@ class ToolkitProgram(Program):
                 debug("Invoked as run(..., exit=False), ignoring exception")
         except KeyboardInterrupt:
             sys.exit(1)  # Same behavior as Python itself outside of REPL
+
+    def _contains_async_task(self) -> bool:
+        """Return whether the requested task graph contains coroutine work."""
+        for parser_context in self.tasks:
+            task = self.collection[parser_context.name]
+            calls = [task, *task.pre, *task.post]
+            if any(inspect.iscoroutinefunction(call.body) for call in calls):
+                return True
+        default = self.collection.default
+        return bool(
+            default and inspect.iscoroutinefunction(self.collection[default].body)
+        )
+
+    async def _execute_async(self) -> None:
+        """Execute parsed tasks through the async executor path."""
+        klass = self.executor_class
+        config_path = self.config.tasks.executor_class
+        if config_path is not None:
+            module_path, _, class_name = config_path.rpartition(".")
+            module = import_module(module_path)
+            klass = getattr(module, class_name)
+        executor = klass(self.collection, self.config, self.core)
+        if not hasattr(executor, "execute_async"):
+            raise TypeError("Async tasks require an executor with execute_async()")
+        await executor.execute_async(*self.tasks)  # ty: ignore[call-non-callable]
 
     def setup_consoles(self):
         """Pre-populate the console objects"""
