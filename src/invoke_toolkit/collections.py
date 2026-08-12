@@ -1,6 +1,6 @@
 """Extended collection with package inspection"""
 
-import importlib
+import hashlib
 import importlib.util
 import pkgutil
 import sys
@@ -257,12 +257,16 @@ class ToolkitCollection(Collection):
             sys.path.insert(0, search_path_str)
 
         try:
-            spec = importlib.util.spec_from_file_location(
-                "local_tasks", local_tasks_file
+            module_name = (
+                "_invoke_toolkit_local_tasks_"
+                + hashlib.sha256(
+                    str(local_tasks_file.resolve()).encode("utf-8")
+                ).hexdigest()
             )
+            spec = importlib.util.spec_from_file_location(module_name, local_tasks_file)
             if spec and spec.loader:
                 local_tasks_module = importlib.util.module_from_spec(spec)
-                sys.modules["local_tasks"] = local_tasks_module
+                sys.modules[module_name] = local_tasks_module
                 spec.loader.exec_module(local_tasks_module)
 
                 # Create a collection from the local_tasks module
