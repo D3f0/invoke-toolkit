@@ -67,3 +67,8 @@ class ToolkitArgument(InvokeArgument):
 
         # Store completion callback
         self.complete = complete
+
+    @property
+    def was_explicitly_set(self) -> bool:
+        """Whether parsing supplied a value instead of using the default."""
+        return self.got_value

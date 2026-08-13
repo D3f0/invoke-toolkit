@@ -106,6 +106,47 @@ To enable caching, install with the cache extra:
 pip install invoke-toolkit[cache]
 ```
 
+## Dynamic task defaults
+
+Use `Field` when an argument default must be computed from the final task
+context or resolved by an installed URI provider. Explicit command-line values
+always take precedence.
+
+```python
+from invoke_toolkit import Context, Field, FilePath, task
+
+
+ExistingFile = FilePath(exists=True, dir_okay=False)
+
+
+@task
+def deploy(
+    ctx: Context,
+    password: str = Field(default="op://Vault/app/password"),
+    config: ExistingFile = Field(default="op://Vault/app/config"),
+) -> None:
+    ...
+```
+
+`Field(default_factory=callback)` calls `callback(ctx)` once when the argument
+is omitted. URI defaults are grouped by scheme and sent to the matching
+provider once per task invocation. If no provider is installed, invoke-toolkit
+warns and leaves the reference unchanged. Field factories and providers never
+run during help, listing, or shell completion; `Path`/`FilePath` completion
+continues to work normally for explicit values.
+
+Create a resolver-only provider package with:
+
+```console
+intk -x create.package --provider op
+```
+
+This creates `invoke-toolkit-op-provider` with an
+`invoke_toolkit.field_resolver` entry point and a batched `resolve(ctx,
+requests)` skeleton. Provider packages expose no task collection. Providers
+which materialize secret file contents are responsible for permissions,
+lifetime, and cleanup, and should never log references or resolved values.
+
 ## Development
 
 This project utilizes the `pre-commit` framework, make sure you run:
