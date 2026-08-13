@@ -190,9 +190,9 @@ def _result(
 def _write_streams(result: Result, options: dict[str, Any]) -> None:
     out_stream = options.get("out_stream") or sys.stdout
     err_stream = options.get("err_stream") or sys.stderr
-    if "out" not in result.hide and out_stream is not False:
+    if "stdout" not in result.hide and out_stream is not False:
         out_stream.write(result.stdout)
         out_stream.flush()
-    if "err" not in result.hide and err_stream is not False:
+    if "stderr" not in result.hide and err_stream is not False:
         err_stream.write(result.stderr)
         err_stream.flush()

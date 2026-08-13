@@ -3,8 +3,9 @@ Custom executor class to for Syntax highlighted output
 """
 
 import inspect
+from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from invoke.executor import Executor
 from invoke.parser import ParserContext, ParseResult
@@ -73,7 +74,12 @@ class ToolkitExecutor(Executor):
             config.load_shell_env()
             context = call.make_context(config, core_parse_result=self.core)
             args = (context, *call.args)
-            with async_task_context():
+            context_manager = (
+                async_task_context()
+                if inspect.iscoroutinefunction(call.task.body)
+                else nullcontext()
+            )
+            with context_manager:
                 result = call.task(*args, **call.kwargs)
                 if inspect.isawaitable(result):
                     result = await result
@@ -181,6 +187,9 @@ class ToolkitExecutor(Executor):
         """
         ret = []
         for call in calls:
+            if isinstance(call, (list, tuple)):
+                ret.extend(self.expand_calls(cast(List[ToolkitCall], call)))
+                continue
             # Normalize to Call (this method is sometimes called with pre/post
             # task lists, which may contain 'raw' Task objects)
             if isinstance(call, Task):
