@@ -1,0 +1,164 @@
+---
+title: "Async tasks"
+---
+
+Invoke Toolkit lets you write tasks as coroutines with `async def`. This is
+useful when a task spends most of its time waiting — on subprocesses, network
+calls, or other I/O — and you want to run several of those waits concurrently
+without threads.
+
+Async support is layered on top of Invoke. Synchronous tasks keep Invoke's
+normal blocking behaviour unchanged; the async machinery only engages when the
+requested task graph actually contains a coroutine task.
+
+## A first async task
+
+```{.python}
+from invoke_toolkit import Context, task
+
+
+@task
+async def build(ctx: Context):
+    result = await ctx.run("quarto render", hide=True)
+    await ctx.run_async("printf done")
+    return result
+```
+
+Run it exactly like any other task:
+
+```bash
+inv build
+```
+
+When Invoke Toolkit sees that `build` (or any of its pre/post tasks) is a
+coroutine function, it runs the whole invocation inside `asyncio.run(...)` and
+awaits each coroutine task's result.
+
+## How `ctx.run` behaves inside an async task
+
+Inside an `async def` task, `ctx.run(...)` returns an **awaitable** and uses a
+native `asyncio` subprocess under the hood:
+
+```{.python}
+@task
+async def check(ctx: Context):
+    result = await ctx.run("pytest -q", hide=True)   # awaitable here
+    return result.exited
+```
+
+`ctx.run_async(...)` is the explicit coroutine form and always returns an
+awaitable, regardless of context:
+
+```{.python}
+result = await ctx.run_async("pytest -q", hide=True)
+```
+
+In a **synchronous** task, `ctx.run(...)` is unchanged — it blocks and returns a
+`Result`, and Invoke's `asynchronous=True` promise API still works there.
+
+::: {.callout-important}
+## `await` your commands
+
+Because `ctx.run(...)` returns a coroutine inside an async task, forgetting the
+`await` means **the command never runs**. Python will emit
+`RuntimeWarning: coroutine 'ToolkitContext.run_async' was never awaited`, but the
+task otherwise appears to succeed. Treat that warning as an error.
+
+```{.python}
+@task
+async def deploy(ctx: Context):
+    ctx.run("terraform apply")          # BUG: never executes, no error raised
+    await ctx.run("terraform apply")    # correct
+```
+:::
+
+## Running commands concurrently with `ctx.gather()`
+
+`ctx.gather()` is an async context manager for launching several awaitables and
+collecting their results together. Submitted work starts **immediately**;
+`gather.results` is populated in submission order when the block exits:
+
+```{.python}
+@task
+async def fanout(ctx: Context):
+    async with ctx.gather() as gather:
+        gather(ctx.run_async("./slow-a.sh", hide=True))
+        gather(ctx.run_async("./slow-b.sh", hide=True))
+        gather(ctx.run_async("./slow-c.sh", hide=True))
+    return [r.stdout for r in gather.results]
+```
+
+Each `gather(...)` call returns the underlying `asyncio` task, so you can also
+await an individual one early. If any submitted awaitable raises, the remaining
+scheduled work is cancelled and the exception propagates out of the `async with`
+block.
+
+You can also use plain `asyncio` primitives — `asyncio.gather`,
+`asyncio.create_task`, `asyncio.TaskGroup` — with `ctx.run_async(...)`.
+`ctx.gather()` is just a small convenience wrapper that preserves submission
+order and cleans up on failure.
+
+## What the async command path supports
+
+`ctx.run_async` (and `ctx.run` inside an async task) replicates most of
+Invoke's `run` options:
+
+| Supported | Notes |
+|---|---|
+| `env`, `replace_env` | Same semantics as Invoke. |
+| `shell` | Defaults to `bash`. |
+| `encoding` | Defaults to Invoke's `default_encoding()`. |
+| `echo`, `echo_format` | Printed before execution, as with Invoke. |
+| `dry` | Returns a `Result` with `exited=0`; nothing runs. |
+| `warn` | Returns the failed `Result` instead of raising `UnexpectedExit`. |
+| `timeout` | Raises `CommandTimedOut` on expiry and terminates the process. |
+| `ctx.cd(...)`, `ctx.prefix(...)` | Honoured — the command is prefixed just like the sync path. |
+| Cancellation | Cancelling the awaiting task terminates the subprocess. |
+
+### What is **not** supported in the async path
+
+These raise a `ValueError`/`TypeError` when passed to `run_async`:
+
+- `pty=True` — no pseudo-terminal support.
+- `watchers=[...]` — no stream watchers / auto-responders.
+- `echo_stdin=True` and any interactive `in_stream` — stdin is wired to
+  `/dev/null`. Async commands are non-interactive.
+- `asynchronous=True` / `disown=True` — these are the sync runner's own
+  background modes and are rejected here.
+
+For any of those, call the synchronous `ctx.run(...)` from a synchronous task.
+
+::: {.callout-warning}
+## Known limitations and sharp edges
+
+The async support is functional but young. Be aware of the following in the
+current release:
+
+**Output is buffered, not streamed.** The async runner collects all output and
+writes it *after* the process exits. Long-running commands show no live/
+incremental output (no progress bars, no tailing), and very large output is
+held in memory. On timeout, output captured before the timeout is not returned.
+
+**Sync helper functions called from an async task have the same trap.** The
+"async context" is tracked with a `contextvars` flag that propagates into
+`asyncio.create_task(...)`. A plain synchronous helper you call from an async
+task that itself calls `ctx.run(...)` will get a coroutine it never awaits.
+Await commands directly in the async task, or make the helper `async` and
+`await` it.
+
+**`ctx.sudo(...)` does not work inside an async task.** `sudo` relies on a
+stream watcher to answer the password prompt, which the async path rejects. Use
+a synchronous task for `sudo`.
+
+:::
+
+## When to reach for async
+
+Use async tasks when the task is **I/O-bound** and you can overlap the waits —
+firing off several independent subprocesses, or awaiting several HTTP calls.
+For CPU-bound work, or when you need PTY/interactive/`sudo`/streaming behaviour,
+a synchronous task is the better fit.
+
+Task argument parsing, aliases, `--help`, enum/`Literal` validation, shell
+completion callbacks, and file-completion markers all work identically for async
+tasks — only the execution model changes.

@@ -16,7 +16,7 @@ from importlib import import_module, metadata
 from importlib.util import module_from_spec
 from logging import getLogger
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Union
 
 from rich.table import Table
 
@@ -56,6 +56,15 @@ from invoke_toolkit.loader.entrypoint import EntryPointLoader
 from invoke_toolkit.parser import ToolkitArgument
 
 EMPTY_COLLECTION_NAME = "_empty"
+
+
+def _task_bodies(items: Sequence[Any]) -> Iterator[Any]:
+    """Yield task bodies, recursively flattening grouped pre/post entries."""
+    for item in items:
+        if isinstance(item, (list, tuple)):
+            yield from _task_bodies(item)
+        elif hasattr(item, "body"):
+            yield item.body
 
 
 class ToolkitProgram(Program):
@@ -167,7 +176,7 @@ class ToolkitProgram(Program):
         for parser_context in self.tasks:
             task = self.collection[parser_context.name]
             calls = [task, *task.pre, *task.post]
-            if any(inspect.iscoroutinefunction(call.body) for call in calls):
+            if any(inspect.iscoroutinefunction(body) for body in _task_bodies(calls)):
                 return True
         default = self.collection.default
         return bool(
