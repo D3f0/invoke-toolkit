@@ -915,17 +915,31 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
 
         task_decorated: Any = None
 
-        @wraps(f)
-        def field_wrapper(*args: Any, **kwargs: Any) -> Any:
-            field_definitions = (
-                getattr(task_decorated, "_field_definitions", {})
-                if task_decorated is not None
-                else {}
-            )
-            materialized_args, materialized_kwargs = _materialize_field_arguments(
-                f, args, kwargs, field_definitions
-            )
-            return execution_wrapper(*materialized_args, **materialized_kwargs)
+        def field_definitions() -> dict[str, tuple[_Field, Any]]:
+            if task_decorated is None:
+                return {}
+            return getattr(task_decorated, "_field_definitions", {})
+
+        if inspect.iscoroutinefunction(execution_wrapper):
+
+            @wraps(f)
+            async def field_wrapper(*args: Any, **kwargs: Any) -> Any:
+                materialized_args, materialized_kwargs = _materialize_field_arguments(
+                    f, args, kwargs, field_definitions()
+                )
+                return await execution_wrapper(
+                    *materialized_args, **materialized_kwargs
+                )
+        else:
+
+            @wraps(f)
+            def field_wrapper(*args: Any, **kwargs: Any) -> Any:
+                if not field_definitions():
+                    return execution_wrapper(*args, **kwargs)
+                materialized_args, materialized_kwargs = _materialize_field_arguments(
+                    f, args, kwargs, field_definitions()
+                )
+                return execution_wrapper(*materialized_args, **materialized_kwargs)
 
         field_wrapper.__signature__ = inspect.signature(f)  # type: ignore[attr-defined]
         task_decorated = invoke_task(field_wrapper, klass=klass, **task_kwargs)
