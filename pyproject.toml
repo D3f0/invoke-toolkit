@@ -158,7 +158,6 @@ ci = [
     "nox>=2025.10.16",
 ]
 dev = [
-
     "copier>=9.16.0",
     "diskcache>=5.6.0",
     "hunter>=3.7.0",
@@ -167,6 +166,7 @@ dev = [
     "pre-commit-uv>=4.2.0",
     "pylint>=3.2.7",
     "pylint-per-file-ignores>=1.0.0",
+    "pyright>=1.1.404",
     "pytest>=9.1.1",
     "pytest-cov>=5.0.0",
     "pytest-html>=4.1.1",

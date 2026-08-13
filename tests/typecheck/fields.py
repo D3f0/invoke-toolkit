@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Annotated
 
-from invoke_toolkit import Context, Field, FilePath, task
+from invoke_toolkit import Context, Field, task
 from invoke_toolkit.tasks.types import _FileCompletionMarker
 
 
@@ -28,13 +28,3 @@ def typed_fields(
     required: str = Field(),
 ) -> None:
     del ctx, name, count, dynamic_name, dynamic_path, secret_file, required
-
-
-ExistingFile = FilePath(exists=True, dir_okay=False)
-
-
-@task
-def alias_field(
-    ctx: Context, config: ExistingFile = Field(default="op://Vault/config")
-):
-    del ctx, config
