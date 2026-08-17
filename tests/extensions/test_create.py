@@ -407,6 +407,7 @@ def _verify_script_code(script_content):
     assert "script()" in script_content, "Script does not call script() function"
 
 
+@pytest.mark.requires_published_release
 def test_script_pep723_and_shebang_compliance(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

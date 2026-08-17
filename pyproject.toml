@@ -252,6 +252,9 @@ per-file-ignores = [
 testpaths = ["tests"]
 addopts = "--cov=invoke_toolkit --cov=tests --html=report.html --self-contained-html"
 filterwarnings = []
+markers = [
+    "requires_published_release: runs a generated script against the released PyPI package",
+]
 
 [tool.pyright]
 reportUnusedCallResult = false

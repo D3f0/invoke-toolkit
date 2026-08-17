@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups --all-extras
 
-      - name: Run tests with nox
-        run: uv run nox
+      - name: Run tests without unpublished-release dependency checks
+        run: uv run nox -- -m "not requires_published_release"
 
   publish:
     runs-on: ubuntu-latest
