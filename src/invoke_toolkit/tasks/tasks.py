@@ -6,9 +6,10 @@ Type annotated tasks and and overrides over invoke
 
 import inspect
 import os
-import warnings
 import subprocess
 import types
+import warnings
+from collections.abc import Iterable
 from enum import Enum
 from functools import wraps
 from typing import (
@@ -29,10 +30,9 @@ from typing import (
 )
 
 import setproctitle
-from invoke import task as invoke_task
-from invoke.tasks import Call, Task
+from invoke.tasks import Call, Task, task as invoke_task
 from invoke_toolkit.parser import ToolkitArgument
-from invoke_toolkit.tasks.fields import _DeferredField, _Field, is_field
+from invoke_toolkit.tasks.fields import UNSET, _DeferredField, _Field, is_field
 
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.cache import (
@@ -357,11 +357,15 @@ def _extract_path_params(func: Any) -> dict[str, bool]:
 
     try:
         sig = inspect.signature(func)
+        try:
+            type_hints = get_type_hints(func, include_extras=True)
+        except (NameError, TypeError):
+            type_hints = {}
         for param_name, param in sig.parameters.items():
             if param_name.startswith("_") or param_name in ("ctx", "c"):
                 continue
 
-            annotation = param.annotation
+            annotation = type_hints.get(param_name, param.annotation)
             if annotation == inspect.Parameter.empty:
                 continue
 
@@ -430,7 +434,7 @@ class ToolkitTask(Task):
     _field_definitions: dict[str, tuple[_Field, Any]]
 
     def fill_implicit_positionals(
-        self, positional: Optional[Sequence[str]]
+        self, positional: Optional[Iterable[str]]
     ) -> Sequence[str]:
         if positional is None:
             positional = [
@@ -463,10 +467,7 @@ class ToolkitTask(Task):
             return str
         return annotation if annotation in (str, int, float, list) else str
 
-    def get_arguments(
-        self, ignore_unknown_help: Optional[bool] = None
-    ) -> list[ToolkitArgument]:
-        """Build toolkit parser arguments while preserving Field markers."""
+    def get_arguments(self, ignore_unknown_help: Optional[bool] = None) -> list[Any]:
         sig = self.argspec(self.body)
         self._field_definitions = {}
         try:
@@ -474,10 +475,10 @@ class ToolkitTask(Task):
         except (NameError, TypeError):
             type_hints = {}
         taken_names = set(sig.parameters.keys())
-        arguments: list[ToolkitArgument] = []
+        arguments: list[Any] = []
         for parameter in sig.parameters.values():
             default = parameter.default
-            field = default if isinstance(default, _Field) else None
+            field = default if is_field(default) else None
             annotation = type_hints.get(parameter.name, parameter.annotation)
             effective_default = (
                 inspect.Signature.empty
@@ -522,6 +523,18 @@ class ToolkitTask(Task):
         return arguments
 
 
+def _field_context_value(context: ToolkitContext, parameter: str, field: _Field) -> Any:
+    """Return an omitted Field's environment, config, or declared default."""
+    environment_value = os.environ.get(f"INVOKE_{parameter.upper()}")
+    if environment_value is not None:
+        return environment_value
+    configured_value = context.config.get(parameter, UNSET)
+    if configured_value is not UNSET:
+        return configured_value
+    factory = field.default_factory
+    return factory(context) if callable(factory) else field.default
+
+
 def _materialize_field_arguments(
     func: Callable[..., Any],
     args: tuple[Any, ...],
@@ -535,31 +548,36 @@ def _materialize_field_arguments(
     context = bound.arguments.get(next(iter(signature.parameters)))
     if not isinstance(context, ToolkitContext):
         return bound.args, bound.kwargs
+    try:
+        type_hints = get_type_hints(func, include_extras=True)
+    except (NameError, TypeError):
+        type_hints = {}
 
     field_values: dict[str, Any] = {}
     annotations: dict[str, Any] = {}
+    fields: dict[str, _Field] = {}
     for name, parameter in signature.parameters.items():
         current = bound.arguments.get(name)
         if isinstance(current, _DeferredField):
-            field, annotation = field_definitions[current.parameter]
-            annotation, _ = _annotation_parts(annotation)
-        elif isinstance(current, _Field):
-            field = current
-            annotation, _ = _annotation_parts(parameter.annotation)
+            field, fallback_annotation = field_definitions[current.parameter]
+        elif is_field(current):
+            field, fallback_annotation = current, parameter.annotation
         else:
             continue
-        if field.required:
+        resolved_field = cast(_Field, field)
+        if resolved_field.required:
             raise TypeError(f"Missing required task argument: '{name}'")
-        factory = field.default_factory
-        value = factory(context) if callable(factory) else field.default
-        field_values[name] = value
+        field_values[name] = _field_context_value(context, name, resolved_field)
+        annotation, _ = _annotation_parts(type_hints.get(name, fallback_annotation))
         annotations[name] = annotation
+        fields[name] = resolved_field
 
     if field_values:
         from invoke_toolkit.field_resolvers import resolve_field_references
 
-        resolved = resolve_field_references(context, field_values, annotations)
-        bound.arguments.update(resolved)
+        bound.arguments.update(
+            resolve_field_references(context, field_values, annotations, fields)
+        )
     return bound.args, bound.kwargs
 
 
@@ -811,23 +829,27 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         if inspect.iscoroutinefunction(f):
 
             @wraps(f)
-            async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 args, kwargs = prepare_call(args, kwargs)
                 previous = set_title()
                 try:
                     return await f(*args, **kwargs)
                 finally:
                     restore_title(previous)
+
+            wrapper = async_wrapper
         else:
 
             @wraps(f)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 args, kwargs = prepare_call(args, kwargs)
                 previous = set_title()
                 try:
                     return f(*args, **kwargs)
                 finally:
                     restore_title(previous)
+
+            wrapper = sync_wrapper
 
         # Preserve the type hints on the wrapper
         wrapper.__annotations__ = f.__annotations__
@@ -923,30 +945,90 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         if inspect.iscoroutinefunction(execution_wrapper):
 
             @wraps(f)
-            async def field_wrapper(*args: Any, **kwargs: Any) -> Any:
-                materialized_args, materialized_kwargs = _materialize_field_arguments(
-                    f, args, kwargs, field_definitions()
+            async def async_field_wrapper(*args: Any, **kwargs: Any) -> Any:
+                from invoke_toolkit.field_resolvers import FieldCleanupManager
+
+                context = (
+                    args[0] if args and isinstance(args[0], ToolkitContext) else None
                 )
-                return await execution_wrapper(
-                    *materialized_args, **materialized_kwargs
-                )
+                if context is None:
+                    materialized_args, materialized_kwargs = (
+                        _materialize_field_arguments(
+                            f, args, kwargs, field_definitions()
+                        )
+                    )
+                    return await execution_wrapper(
+                        *materialized_args, **materialized_kwargs
+                    )
+                owner = not hasattr(context, "_field_cleanup")
+                if owner:
+                    context._field_cleanup = FieldCleanupManager()
+                failed = False
+                try:
+                    with context._field_cleanup.task_scope():
+                        materialized_args, materialized_kwargs = (
+                            _materialize_field_arguments(
+                                f, args, kwargs, field_definitions()
+                            )
+                        )
+                        return await execution_wrapper(
+                            *materialized_args, **materialized_kwargs
+                        )
+                except BaseException:
+                    failed = True
+                    raise
+                finally:
+                    if owner:
+                        context._field_cleanup.close_pipeline(failed)
+                        del context._field_cleanup
+
+            field_wrapper = async_field_wrapper
         else:
 
             @wraps(f)
-            def field_wrapper(*args: Any, **kwargs: Any) -> Any:
-                if not field_definitions():
-                    return execution_wrapper(*args, **kwargs)
-                materialized_args, materialized_kwargs = _materialize_field_arguments(
-                    f, args, kwargs, field_definitions()
+            def sync_field_wrapper(*args: Any, **kwargs: Any) -> Any:
+                from invoke_toolkit.field_resolvers import FieldCleanupManager
+
+                context = (
+                    args[0] if args and isinstance(args[0], ToolkitContext) else None
                 )
-                return execution_wrapper(*materialized_args, **materialized_kwargs)
+                if context is None:
+                    materialized_args, materialized_kwargs = (
+                        _materialize_field_arguments(
+                            f, args, kwargs, field_definitions()
+                        )
+                    )
+                    return execution_wrapper(*materialized_args, **materialized_kwargs)
+                owner = not hasattr(context, "_field_cleanup")
+                if owner:
+                    context._field_cleanup = FieldCleanupManager()
+                failed = False
+                try:
+                    with context._field_cleanup.task_scope():
+                        materialized_args, materialized_kwargs = (
+                            _materialize_field_arguments(
+                                f, args, kwargs, field_definitions()
+                            )
+                        )
+                        return execution_wrapper(
+                            *materialized_args, **materialized_kwargs
+                        )
+                except BaseException:
+                    failed = True
+                    raise
+                finally:
+                    if owner:
+                        context._field_cleanup.close_pipeline(failed)
+                        del context._field_cleanup
+
+            field_wrapper = sync_field_wrapper
 
         field_wrapper.__signature__ = inspect.signature(f)  # type: ignore[attr-defined]
         task_decorated = invoke_task(field_wrapper, klass=klass, **task_kwargs)
 
         task_decorated._field_definitions = {}  # type: ignore[attr-defined]
         for parameter in inspect.signature(f).parameters.values():
-            if isinstance(parameter.default, _Field):
+            if is_field(parameter.default):
                 task_decorated._field_definitions[parameter.name] = (  # type: ignore[attr-defined]
                     parameter.default,
                     parameter.annotation,
@@ -967,14 +1049,10 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
 
 
 class ToolkitCall(Call):
-    def make_context(self, config, core_parse_result=None):
-        """Generates the Context for the task.
-
-        .. versionchanged:: invoke 3.0
-            Added the ``core_parse_result`` parameter so that
-            ``Context.remainder`` is populated from the CLI parser's remainder
-            value (text after a standalone ``--``).
-        """
+    def make_context(
+        self, config: Any, core_parse_result: Any = None
+    ) -> ToolkitContext:
+        """Generate a toolkit context with the parser remainder."""
         remainder = core_parse_result.remainder if core_parse_result is not None else ""
         return ToolkitContext(config=config, remainder=remainder)
 

@@ -1,7 +1,6 @@
 """{{ project_description }}."""
 
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 from invoke_toolkit import Context, FieldResolutionRequest
 
@@ -9,14 +8,13 @@ from invoke_toolkit import Context, FieldResolutionRequest
 def resolve(
     ctx: Context,
     requests: Sequence[FieldResolutionRequest],
-) -> Mapping[str, Any]:
+) -> Mapping[str, str]:
     """Resolve one batch of {{ provider_scheme }} URI field references.
 
-    Return exactly one final value per requested parameter. Use ``ctx`` for
-    consumer configuration and ``request.annotation`` when provider behavior
-    depends on the requested runtime type.
+    Return exactly one string per requested parameter. Invoke-toolkit passes the
+    string through to scalar fields and materializes it into a temporary file
+    for ``Path``-annotated fields.
     """
-    del ctx, requests
     raise NotImplementedError(
         "Implement resolve() to resolve {{ provider_scheme }} field references."
     )

@@ -15,9 +15,10 @@ uv run pytest
 
 Implement `{{ package_slug }}.resolve`. Invoke-toolkit calls it once per task
 invocation with all omitted fields that use the `{{ provider_scheme }}://` scheme.
-Return a mapping containing exactly one final value for every request parameter.
-A request provides the parameter name, complete URI reference, and annotation;
-providers may use the annotation to return typed values such as `pathlib.Path`.
+Return a mapping containing exactly one string value for every request parameter.
+A request provides the parameter name, complete URI reference, and annotation.
+For `Path` fields, invoke-toolkit writes that string to a managed temporary file;
+providers do not create or return paths.
 
 Install this provider in the same environment as the consumer application after
 implementing and testing it.
@@ -26,7 +27,6 @@ implementing and testing it.
 
 ```python
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 from invoke_toolkit import Context, FieldResolutionRequest
 
@@ -34,7 +34,7 @@ from invoke_toolkit import Context, FieldResolutionRequest
 def resolve(
     ctx: Context,
     requests: Sequence[FieldResolutionRequest],
-) -> Mapping[str, Any]:
+) -> Mapping[str, str]:
     ...
 ```
 

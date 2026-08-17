@@ -233,7 +233,8 @@ per-file-ignores = [
     "src/invoke_toolkit/config/registry.py:import-outside-toplevel,unidiomatic-typecheck",
     "src/invoke_toolkit/extensions/tasks/config.py:too-many-locals,import-outside-toplevel",
     "src/invoke_toolkit/extensions/tasks/create.py:too-many-locals,too-many-branches",
-    "src/invoke_toolkit/field_resolvers.py:too-many-locals",
+    "src/invoke_toolkit/executor.py:too-many-locals,protected-access",
+    "src/invoke_toolkit/field_resolvers.py:too-many-locals,too-many-branches",
     "src/invoke_toolkit/tasks/fields.py:invalid-name,too-few-public-methods",
     "tests/typecheck/fields.py:invalid-name",
 ]

@@ -17,6 +17,7 @@ from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.context.async_tools import async_task_context
 from invoke_toolkit.output import get_console
+from invoke_toolkit.field_resolvers import FieldCleanupManager
 from invoke_toolkit.tasks.tasks import ToolkitCall, ToolkitTask
 
 
@@ -66,36 +67,44 @@ class ToolkitExecutor(Executor):
             dedupe = True
         calls = self.dedupe(expanded) if dedupe else expanded
         results: Dict["ToolkitTask", Any] = {}
-        for call in calls:
-            autoprint = call in direct and call.autoprint
-            config = self.config
-            collection_config = self.collection.configuration(call.called_as)
-            config.load_collection(collection_config)
-            config.load_shell_env()
-            context = call.make_context(config, core_parse_result=self.core)
-            args = (context, *call.args)
-            context_manager = (
-                async_task_context()
-                if inspect.iscoroutinefunction(call.task.body)
-                else nullcontext()
-            )
-            with context_manager:
-                result = call.task(*args, **call.kwargs)
-                if inspect.isawaitable(result):
-                    result = await result
-            if autoprint:
-                if isinstance(result, (str, Path)):
-                    print(result)
-                else:
-                    get_console("out").print(result)
-            results[call.task] = result  # ty: ignore[invalid-assignment]
-        return results
+        cleanup = FieldCleanupManager()
+        failed = False
+        try:
+            for call in calls:
+                autoprint = call in direct and call.autoprint
+                config = self.config
+                collection_config = self.collection.configuration(call.called_as)
+                config.load_collection(collection_config)
+                config.load_shell_env()
+                context = call.make_context(config, core_parse_result=self.core)
+                context._field_cleanup = cleanup
+                args = (context, *call.args)
+                context_manager = (
+                    async_task_context()
+                    if inspect.iscoroutinefunction(call.task.body)
+                    else nullcontext()
+                )
+                with context_manager:
+                    result = call.task(*args, **call.kwargs)
+                    if inspect.isawaitable(result):
+                        result = await result
+                if autoprint:
+                    if isinstance(result, (str, Path)):
+                        print(result)
+                    else:
+                        get_console("out").print(result)
+                results[call.task] = result  # ty: ignore[invalid-assignment]
+            return results
+        except BaseException:
+            failed = True
+            raise
+        finally:
+            cleanup.close_pipeline(failed)
 
     def execute(
         self, *tasks: Union[str, Tuple[str, Dict[str, Any]], ParserContext]
     ) -> Dict["ToolkitTask", "Result"]:
         """Execute one or more tasks in sequence."""
-        # Normalize input
         debug("Examining top level tasks {!r}".format(list(tasks)))
         calls = self.normalize(tasks)
         direct = list(calls)
@@ -106,22 +115,31 @@ class ToolkitExecutor(Executor):
             dedupe = True
         calls = self.dedupe(expanded) if dedupe else expanded
         results = {}
-        for call in calls:
-            autoprint = call in direct and call.autoprint
-            config = self.config
-            collection_config = self.collection.configuration(call.called_as)
-            config.load_collection(collection_config)
-            config.load_shell_env()
-            context = call.make_context(config, core_parse_result=self.core)
-            args = (context, *call.args)
-            result = call.task(*args, **call.kwargs)
-            if autoprint:
-                if isinstance(result, (str, Path)):
-                    print(result)
-                else:
-                    get_console("out").print(result)
-            results[call.task] = result
-        return results
+        cleanup = FieldCleanupManager()
+        failed = False
+        try:
+            for call in calls:
+                autoprint = call in direct and call.autoprint
+                config = self.config
+                collection_config = self.collection.configuration(call.called_as)
+                config.load_collection(collection_config)
+                config.load_shell_env()
+                context = call.make_context(config, core_parse_result=self.core)
+                context._field_cleanup = cleanup
+                args = (context, *call.args)
+                result = call.task(*args, **call.kwargs)
+                if autoprint:
+                    if isinstance(result, (str, Path)):
+                        print(result)
+                    else:
+                        get_console("out").print(result)
+                results[call.task] = result
+            return results
+        except BaseException:
+            failed = True
+            raise
+        finally:
+            cleanup.close_pipeline(failed)
 
     def normalize(
         self,

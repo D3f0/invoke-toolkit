@@ -57,6 +57,67 @@ def test_explicit_values_bypass_field_factory():
     factory.assert_not_called()
 
 
+def test_field_uses_environment_config_then_declared_default(monkeypatch):
+    received: list[str] = []
+
+    @task
+    def sample(ctx: Context, value: str = Field(default="declared")) -> None:
+        received.append(value)
+
+    collection = ToolkitCollection()
+    collection.configure({"value": "configured"})
+    collection.add_task(sample)  # type: ignore[arg-type]
+    TestingToolkitProgram(namespace=collection).run(["", "sample"])
+    assert received == ["configured"]
+
+    monkeypatch.setenv("INVOKE_VALUE", "environment")
+    TestingToolkitProgram(namespace=collection).run(["", "sample"])
+    assert received == ["configured", "environment"]
+
+
+def test_configured_uri_uses_local_resolver():
+    calls: list[tuple[FieldResolutionRequest, ...]] = []
+
+    def resolve_bw(ctx, requests):
+        calls.append(requests)
+        return {request.parameter: "resolved" for request in requests}
+
+    bitwarden_field = Field(resolver=resolve_bw)
+    received: list[str] = []
+
+    @task
+    def sample(
+        ctx: Context, password: str = bitwarden_field(default="fallback")
+    ) -> None:
+        received.append(password)
+
+    collection = ToolkitCollection()
+    collection.configure({"password": "bw://PASSWORD"})  # pragma: allowlist secret
+    collection.add_task(sample)  # type: ignore[arg-type]
+    TestingToolkitProgram(namespace=collection).run(["", "sample"])
+    assert received == ["resolved"]
+    assert [request.reference for request in calls[0]] == ["bw://PASSWORD"]
+
+
+def test_environment_uri_uses_local_resolver(monkeypatch):
+    resolver = Mock(return_value={"password": "resolved"})  # pragma: allowlist secret
+    bitwarden_field = Field(resolver=resolver)
+    received: list[str] = []
+
+    @task
+    def sample(
+        ctx: Context, password: str = bitwarden_field(default="fallback")
+    ) -> None:
+        received.append(password)
+
+    monkeypatch.setenv("INVOKE_PASSWORD", "bw://PASSWORD")
+    run_task(sample)
+    assert received == ["resolved"]
+    assert [request.reference for request in resolver.call_args.args[1]] == [
+        "bw://PASSWORD"
+    ]
+
+
 def test_field_uses_annotation_as_parser_kind():
     @task
     def sample(ctx: Context, count: int = Field(default=4)) -> None: ...
@@ -72,6 +133,26 @@ def test_required_field_is_positional():
     argument = sample.get_arguments()[0]  # type: ignore[attr-defined]
     assert argument.positional
     assert argument.default is None
+
+
+def test_environment_value_overrides_configured_uri(monkeypatch):
+    resolver = Mock(return_value={"password": "resolved"})  # pragma: allowlist secret
+    field = Field(resolver=resolver)
+    received: list[str] = []
+
+    @task
+    def sample(ctx: Context, password: str = field(default="fallback")) -> None:
+        received.append(password)
+
+    collection = ToolkitCollection()
+    collection.configure({"password": "bw://configured"})  # pragma: allowlist secret
+    collection.add_task(sample)  # type: ignore[arg-type]
+    monkeypatch.setenv("INVOKE_PASSWORD", "bw://environment")
+    TestingToolkitProgram(namespace=collection).run(["", "sample"])
+    assert received == ["resolved"]
+    assert [request.reference for request in resolver.call_args.args[1]] == [
+        "bw://environment"
+    ]
 
 
 def test_field_rejects_two_default_sources():
@@ -162,13 +243,27 @@ def test_path_field_keeps_file_completion_and_converts_value(tmp_path, monkeypat
     assert isinstance(received[0], Path)
 
 
-def test_path_uri_provider_can_return_path(tmp_path, monkeypatch):
-    output = tmp_path / "private-config"
-    output.write_text("secret", encoding="utf-8")
+def test_postponed_path_annotation_converts_explicit_field_value():  # pylint: disable=exec-used
+    namespace: dict[str, object] = {}
+    exec(  # pylint: disable=exec-used
+        "from __future__ import annotations\n"
+        "from pathlib import Path\n"
+        "from invoke_toolkit import Context, Field, task\n"
+        "received = []\n"
+        "@task\n"
+        "def sample(ctx: Context, config: Path = Field(default='default')):\n"
+        "    received.append(config)\n",
+        namespace,
+    )
+    sample = namespace["sample"]
+    run_task(sample, "--config", "explicit")
+    assert namespace["received"] == [Path("explicit")]
 
+
+def test_path_uri_provider_materializes_temporary_file(monkeypatch):
     def resolver(ctx, requests):
         assert requests[0].annotation is Path
-        return {"config": output}
+        return {"config": "secret"}  # pragma: allowlist secret
 
     entry_point = Mock()
     entry_point.name = "op"
@@ -176,7 +271,7 @@ def test_path_uri_provider_can_return_path(tmp_path, monkeypatch):
         "invoke_toolkit.field_resolvers._load_resolver",
         lambda scheme: (resolver, entry_point),
     )
-    received: list[Path] = []
+    received: list[tuple[Path, str]] = []
 
     @task
     def sample(
@@ -185,10 +280,22 @@ def test_path_uri_provider_can_return_path(tmp_path, monkeypatch):
             Path, _FileCompletionMarker(exists=True, dir_okay=False)
         ] = Field(default="op://Vault/config"),
     ) -> None:
-        received.append(config)
+        received.append((config, config.read_text(encoding="utf-8")))
 
     run_task(sample)
-    assert received == [output]
+    assert received[0][1] == "secret"
+    assert not received[0][0].exists()
+
+
+def test_local_resolver_rejects_non_string_result():
+    field = Field(resolver=lambda ctx, requests: {"config": Path("unexpected")})
+    with pytest.raises(Exit, match="non-string value"):
+        resolve_field_references(
+            Context(),
+            {"config": "bw://config"},
+            {"config": Path},
+            {"config": field},
+        )
 
 
 def test_direct_python_call_uses_factory_and_explicit_kwarg_wins():
@@ -542,3 +649,247 @@ def test_parser_does_not_deepcopy_field_factory():
 
     run_task(sample)
     assert received == ["value"]
+
+
+def test_local_resolver_batches_scalars_and_bypasses_global(monkeypatch):
+    calls: list[tuple[FieldResolutionRequest, ...]] = []
+
+    def resolve_bw(ctx, requests):
+        calls.append(requests)
+        return {request.parameter: f"value-{request.parameter}" for request in requests}
+
+    bitwarden_field = Field(resolver=resolve_bw)
+    global_loader = Mock(side_effect=AssertionError("global resolver must not run"))
+    monkeypatch.setattr(
+        "invoke_toolkit.field_resolvers._load_resolver",
+        lambda scheme: (global_loader, Mock(name="global")),
+    )
+    received: list[tuple[str, str]] = []
+
+    @task
+    def sample(
+        ctx: Context,
+        username: str = bitwarden_field(default="bw://username"),
+        password: str = bitwarden_field(default="bw://password"),
+    ) -> None:
+        received.append((username, password))
+
+    run_task(sample)
+    assert received == [("value-username", "value-password")]
+    assert [request.parameter for request in calls[0]] == ["username", "password"]
+    global_loader.assert_not_called()
+
+
+def test_local_resolver_factory_and_non_uri_default():
+    resolver = Mock(return_value={"secret": "resolved"})  # pragma: allowlist secret
+    local_field = Field(resolver=resolver)
+    received: list[tuple[str, str]] = []
+
+    @task
+    def sample(
+        ctx: Context,
+        secret: str = local_field(default_factory=lambda current: "bw://secret"),
+        literal: str = local_field(default="literal"),
+    ) -> None:
+        received.append((secret, literal))
+
+    run_task(sample)
+    assert received == [("resolved", "literal")]
+    resolver.assert_called_once()
+
+
+def test_local_callbacks_with_same_scheme_do_not_mix():
+    first = Mock(return_value={"one": "one"})
+    second = Mock(return_value={"two": "two"})
+    one_field = Field(resolver=first)
+    two_field = Field(resolver=second)
+
+    @task
+    def sample(
+        ctx: Context,
+        one: str = one_field(default="bw://one"),
+        two: str = two_field(default="bw://two"),
+    ) -> None: ...
+
+    run_task(sample)
+    assert [request.parameter for request in first.call_args.args[1]] == ["one"]
+    assert [request.parameter for request in second.call_args.args[1]] == ["two"]
+
+
+def test_local_file_cleanup_lifetimes(tmp_path):
+    created: list[Path] = []
+
+    class TemporaryField(Field):  # type: ignore[invalid-base]
+        def create_temporary_file(self, request, value):
+            path = tmp_path / f"{request.parameter}-{len(created)}"
+            path.write_text(value, encoding="utf-8")
+            created.append(path)
+            return path
+
+    def resolve_bw(ctx, requests):
+        return {request.parameter: "content" for request in requests}
+
+    pipeline_field = TemporaryField(resolver=resolve_bw)
+    seen: list[bool] = []
+
+    @task
+    def sample(
+        ctx: Context,
+        config: Annotated[
+            Path, _FileCompletionMarker(exists=True, dir_okay=False)
+        ] = pipeline_field(default="bw://config"),
+    ) -> None:
+        seen.append(config.exists())
+
+    run_task(sample)
+    assert seen == [True]
+    assert not created[0].exists()
+
+    task_field = TemporaryField(resolver=resolve_bw)
+
+    @task
+    def task_scoped(
+        ctx: Context,
+        config: Annotated[
+            Path, _FileCompletionMarker(exists=True, dir_okay=False)
+        ] = task_field(default="bw://config", cleanup="task"),
+    ) -> None:
+        assert config.exists()
+
+    run_task(task_scoped)
+    assert not created[1].exists()
+
+
+def test_local_field_validation_errors():
+    def resolver(ctx, requests):
+        del ctx, requests
+        return {}
+
+    template = Field(resolver=resolver)
+    with pytest.raises(TypeError, match="cannot be called"):
+        template(default="value")(default="again")
+    with pytest.raises(TypeError, match="resolver must be callable"):
+        Field(resolver=object())  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="cleanup must be"):
+        Field(cleanup="forever")  # type: ignore[arg-type]
+
+
+def test_legacy_global_provider_warning_is_once(monkeypatch):
+    from invoke_toolkit import field_resolvers
+
+    resolver = Mock(return_value={"token": "resolved"})
+    entry_point = Mock(name="provider")
+    entry_point.name = "op"
+    entry_point.value = "provider:resolve"
+    monkeypatch.setattr(
+        field_resolvers,
+        "_load_resolver",
+        lambda scheme: (resolver, entry_point),
+    )
+    field_resolvers.reset_field_resolver_cache()
+    with pytest.warns(
+        RuntimeWarning, match="Using globally installed"
+    ) as warnings_seen:
+        resolve_field_references(  # pragma: allowlist secret
+            Context(),
+            {"token": "op://token"},
+            {"token": str},
+        )
+        resolve_field_references(  # pragma: allowlist secret
+            Context(),
+            {"token": "op://token"},
+            {"token": str},
+        )
+    assert len(warnings_seen) == 1
+
+
+def test_pipeline_cleanup_waits_for_pre_and_post_tasks(tmp_path):
+    created: list[Path] = []
+    calls: list[tuple[str, bool]] = []
+
+    class TemporaryField(Field):  # type: ignore[invalid-base]
+        def create_temporary_file(self, request, value):
+            path = tmp_path / request.parameter
+            path.write_text(value, encoding="utf-8")
+            created.append(path)
+            return path
+
+    def resolve_bw(ctx, requests):
+        return {request.parameter: "content" for request in requests}
+
+    field = TemporaryField(resolver=resolve_bw)
+
+    @task
+    def before(ctx: Context) -> None:
+        calls.append(("before", bool(created) and created[0].exists()))
+
+    @task
+    def after(ctx: Context) -> None:
+        calls.append(("after", created[0].exists()))
+
+    @task(pre=[before], post=[after])
+    def sample(
+        ctx: Context,
+        config: Annotated[
+            Path, _FileCompletionMarker(exists=True, dir_okay=False)
+        ] = field(default="bw://config"),
+    ) -> None:
+        calls.append(("main", config.exists()))
+
+    run_task(sample)
+    assert calls == [("before", False), ("main", True), ("after", True)]
+    assert not created[0].exists()
+
+
+def test_local_cleanup_handles_failure_and_symlink(tmp_path):
+    target = tmp_path / "target"
+    link = tmp_path / "secret-link"
+    target.write_text("content", encoding="utf-8")
+    link.symlink_to(target)
+
+    class LinkField(Field):  # type: ignore[invalid-base]
+        def create_temporary_file(self, request, value):
+            del request, value
+            return link
+
+    def resolve_bw(ctx, requests):
+        return {request.parameter: "content" for request in requests}
+
+    field = LinkField(resolver=resolve_bw)
+
+    @task
+    def sample(
+        ctx: Context,
+        config: Annotated[
+            Path, _FileCompletionMarker(exists=True, dir_okay=False)
+        ] = field(default="bw://config"),
+    ) -> None:
+        assert config.is_symlink()
+        raise RuntimeError("body failure")
+
+    with pytest.raises(RuntimeError, match="body failure"):
+        run_task(sample)
+    assert not link.exists()
+    assert target.exists()
+
+
+def test_local_cleanup_does_not_delete_directory(tmp_path):
+    directory = tmp_path / "resolved-directory"
+    directory.mkdir()
+
+    class DirectoryField(Field):  # type: ignore[invalid-base]
+        def create_temporary_file(self, request, value):
+            del request, value
+            return directory
+
+    def resolve_bw(ctx, requests):
+        return {request.parameter: "content" for request in requests}
+
+    field = DirectoryField(resolver=resolve_bw)
+
+    @task
+    def sample(ctx: Context, config: Path = field(default="bw://config")) -> None:
+        assert config.is_dir()
+
+    run_task(sample)
+    assert directory.is_dir()

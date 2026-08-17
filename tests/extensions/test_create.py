@@ -121,7 +121,8 @@ def test_new_provider_package_is_resolver_only(
     assert "def resolve" in init
     assert "Context" in init
     assert "Sequence[FieldResolutionRequest]" in init
-    assert "Mapping[str, Any]" in init
+    assert "Mapping[str, str]" in init
+    assert "del ctx, requests" not in init
     assert (package_dir / "tests" / "test_resolver.py").is_file()
     assert (package_dir / "README.md").is_file()
 

@@ -65,6 +65,7 @@ class ToolkitContext(Context, ConfigProtocol):
 
     _config: ToolkitConfig
     _status_helper: StatusHelper
+    _field_cleanup: Any
 
     # Override cd with proper type annotation to fix PathLike[Unknown] issue
     cd: Callable[
