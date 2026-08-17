@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from typing_extensions import Annotated
+from typing import Annotated
 
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.tasks import _extract_annotated_help, task

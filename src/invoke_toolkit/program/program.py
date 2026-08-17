@@ -16,7 +16,8 @@ from importlib import import_module, metadata
 from importlib.util import module_from_spec
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Literal
+from collections.abc import Iterator, Sequence
 
 from rich.table import Table
 
@@ -102,7 +103,7 @@ class ToolkitProgram(Program):
         """
         return metadata.version("invoke-toolkit")
 
-    def run(self, argv: Optional[List[str]] = None, exit: bool = True) -> None:
+    def run(self, argv: list[str] | None = None, exit: bool = True) -> None:
         """
         Execute main CLI logic, based on ``argv``.
 
@@ -146,7 +147,7 @@ class ToolkitProgram(Program):
             else:
                 self.execute()
         except (UnexpectedExit, Exit, ParseError) as e:
-            debug("Received a possibly-skippable exception: {!r}".format(e))
+            debug(f"Received a possibly-skippable exception: {e!r}")
             # Print error messages from parser, runner, etc if necessary;
             # prevents messy traceback but still clues interactive user into
             # problems.
@@ -217,8 +218,8 @@ class ToolkitProgram(Program):
             debug(f"Setting secret redactbing in stderr with {patterns=}")
             get_console("err").secret_patterns = patterns
 
-    def parse_core(self, argv: Optional[List[str]]) -> None:
-        debug("argv given to Program.run: {!r}".format(argv))  # pylint: disable=W1202
+    def parse_core(self, argv: list[str] | None) -> None:
+        debug(f"argv given to Program.run: {argv!r}")  # pylint: disable=W1202
         self.normalize_argv(argv)
 
         # Obtain core args (sets self.core)
@@ -353,7 +354,7 @@ class ToolkitProgram(Program):
             print(self.leading_indent + "none")
             print("")
 
-    def core_args(self) -> List["Argument"]:
+    def core_args(self) -> list["Argument"]:
         """
         Return default core `.Argument` objects, as a list.
 
@@ -597,11 +598,9 @@ class ToolkitProgram(Program):
                         and not is_completion_mode
                     ):
                         raise Exit(
-                            (
-                                "Can't find any collection named [red]{name!r}[/red].\n"
-                                "You can create a script with [yellow]{cmd} -x create.script --help[/yellow]\n"
-                                "You can create a script with [yellow]{cmd} -x create.package --help[/yellow]\n"
-                            ).format(name=e.name, cmd=self.command_name)
+                            f"Can't find any collection named [red]{e.name!r}[/red].\n"
+                            f"You can create a script with [yellow]{self.command_name} -x create.script --help[/yellow]\n"
+                            f"You can create a script with [yellow]{self.command_name} -x create.package --help[/yellow]\n"
                         )
                     debug("No collection found, will checking for internal")
                 else:
@@ -627,7 +626,7 @@ class ToolkitProgram(Program):
         return cmd
 
     @property
-    def flat_args(self) -> Dict[str, Union[bool, int, str, List[str]]]:
+    def flat_args(self) -> dict[str, bool | int | str | list[str]]:
         """Flat arguments"""
         return {name: arg.value for name, arg in self.args.items()}
 
@@ -690,7 +689,7 @@ class ToolkitProgram(Program):
             else:
                 # TODO: feels real dumb to factor this out of Parser, but...we
                 # should?
-                raise ParseError("No idea what '{}' is!".format(halp))
+                raise ParseError(f"No idea what '{halp}' is!")
 
         # Handle --list / --list-tasks / --list-plugins (raises Exit if triggered)
         self._handle_list_flags()
@@ -729,11 +728,11 @@ class ToolkitProgram(Program):
             self.no_tasks_given()
 
     def display_with_columns(
-        self, pairs: Sequence[Tuple[str, Optional[str]]], extra: str = ""
+        self, pairs: Sequence[tuple[str, str | None]], extra: str = ""
     ) -> None:
         print = get_console("out").print
         root = self.list_root
-        print("{}:\n".format(self.task_list_opener(extra=extra)))
+        print(f"{self.task_list_opener(extra=extra)}:\n")
         self.print_columns(pairs)
         # TODO: worth stripping this out for nested? since it's signified with
         # asterisk there? ugggh
@@ -741,7 +740,7 @@ class ToolkitProgram(Program):
         if default:
             specific = ""
             if root:
-                specific = " '{}'".format(root)
-                default = ".{}".format(default)
+                specific = f" '{root}'"
+                default = f".{default}"
             # TODO: trim/prefix dots
-            print("Default{} task: [bold]{}[bold]\n".format(specific, default))
+            print(f"Default{specific} task: [bold]{default}[bold]\n")

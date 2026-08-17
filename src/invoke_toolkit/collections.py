@@ -1,13 +1,15 @@
 """Extended collection with package inspection"""
 
+# pylint: disable=ungrouped-imports
 import hashlib
 import importlib.util
 import pkgutil
 import sys
+from collections.abc import Callable
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, overload
+from typing import TYPE_CHECKING, Any, overload
 
 try:
     from typing import override  # type: ignore[attr-defined]
@@ -288,17 +290,19 @@ class ToolkitCollection(Collection):
             )
 
     @override
+    # pylint: disable=arguments-renamed
     def configure(
         self,
         mapping: dict[str, Any] | None = None,
         *,
         schema: "type[ConfigSchema] | ConfigSchema | None" = None,
+        **kwargs: Any,
     ) -> None:
         """Configure collection with optional attrs schema.
-
         Args:
             mapping: Traditional dict config (existing behavior)
             schema: Attrs class (uses defaults) or instance (uses provided values)
+            **kwargs: Additional compatibility keyword arguments.
 
         Examples:
             # Traditional dict
@@ -337,9 +341,14 @@ class ToolkitCollection(Collection):
             if self.name and self._config_schema:
                 register_schema(self.name, self._config_schema)
 
-        if mapping:
-            # Merge mapping over schema defaults (mapping wins)
-            self._deep_merge(final_mapping, mapping)
+        options = kwargs.pop("options", mapping)
+        if kwargs:
+            unexpected = next(iter(kwargs))
+            raise TypeError(f"unexpected keyword argument: {unexpected!r}")
+
+        if options:
+            # Merge options over schema defaults (options wins)
+            self._deep_merge(final_mapping, options)
 
         if final_mapping:
             super().configure(final_mapping)
@@ -395,7 +404,7 @@ class ToolkitCollection(Collection):
                 register_schema(name, schema)
 
             config = getattr(module, "config", None)
-            collection: "ToolkitCollection" = ns.from_module(module)
+            collection: ToolkitCollection = ns.from_module(module)
             clean_collection(collection=collection)
             # TODO: Namespaced configuration seems to be an not present when merged!§
             # if config and isinstance(config, (dict, )):

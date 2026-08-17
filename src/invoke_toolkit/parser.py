@@ -5,7 +5,8 @@ This module provides an enhanced Argument class that supports completion callbac
 while maintaining backward compatibility with invoke's Argument.
 """
 
-from typing import Any, Callable, Optional
+from typing import Any
+from collections.abc import Callable
 
 from invoke.parser import Argument as InvokeArgument
 
@@ -25,16 +26,16 @@ class ToolkitArgument(InvokeArgument):
 
     def __init__(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         names=(),
         kind=str,
-        default: Optional[Any] = None,
-        help: Optional[str] = None,
+        default: Any | None = None,
+        help: str | None = None,
         positional: bool = False,
         optional: bool = False,
         incrementable: bool = False,
-        attr_name: Optional[str] = None,
-        complete: Optional[Callable[[Any, str], list[str]]] = None,
+        attr_name: str | None = None,
+        complete: Callable[[Any, str], list[str]] | None = None,
     ):
         """
         Initialize an Argument with optional completion callback.

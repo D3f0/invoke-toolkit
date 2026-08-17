@@ -8,7 +8,8 @@ import contextvars
 import os
 import sys
 from contextlib import contextmanager
-from typing import Any, Awaitable, Iterator
+from typing import Any
+from collections.abc import Awaitable, Iterator
 
 from invoke.exceptions import CommandTimedOut, UnexpectedExit
 from invoke.runners import Result, default_encoding, normalize_hide
@@ -45,7 +46,7 @@ class AsyncGatherScope:
         self._tasks: list[asyncio.Future[Any]] = []
         self.results: tuple[Any, ...] = ()
 
-    async def __aenter__(self) -> "AsyncGatherScope":
+    async def __aenter__(self) -> AsyncGatherScope:
         return self
 
     def __call__(self, awaitable: Awaitable[Any]) -> asyncio.Future[Any]:

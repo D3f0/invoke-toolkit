@@ -4,7 +4,7 @@ This module defines some functions/callables
 """
 
 import inspect as frame_inspect
-from typing import TYPE_CHECKING, Any, Dict, NoReturn, Optional, TypeVar, overload
+from typing import TYPE_CHECKING, Any, NoReturn, TypeVar, overload
 
 from invoke.config import Config
 from invoke.util import debug
@@ -52,10 +52,10 @@ class ToolkitConfig(Config):
 
     def __init_subclass__(
         cls,
-        prefix: Optional[str] = None,
-        file_prefix: Optional[str] = None,
-        env_prefix: Optional[str] = None,
-        extra_defaults: Optional[Dict[str, Any]] = None,
+        prefix: str | None = None,
+        file_prefix: str | None = None,
+        env_prefix: str | None = None,
+        extra_defaults: dict[str, Any] | None = None,
         **kwargs,
     ):
         super().__init_subclass__(**kwargs)
@@ -70,13 +70,13 @@ class ToolkitConfig(Config):
         else:
             cls.extra_defaults = None
 
-    extra_defaults: Optional[Dict[str, Any]]
+    extra_defaults: dict[str, Any] | None
 
     # This method is a static method in the super class
     # but it's converted to class method here, so we can
     # a reference to the attribute set by __init_subclass__
     @classmethod
-    def global_defaults(cls) -> Dict[str, Any]:
+    def global_defaults(cls) -> dict[str, Any]:
         """
         Return the core default settings for Invoke.
 
@@ -89,7 +89,7 @@ class ToolkitConfig(Config):
 
         .. versionadded:: 1.0
         """
-        ret: Dict[str, Any] = Config.global_defaults()
+        ret: dict[str, Any] = Config.global_defaults()
         extra_defaults = getattr(cls, "extra_defaults", None)
         if extra_defaults:
             debug(f"Using {cls} extra defaults: {extra_defaults}")
@@ -239,7 +239,7 @@ def _navigate_config_path(config: "ToolkitConfig", path: str) -> tuple[Any, bool
     return current, True
 
 
-def _get_task_argument_name(path: str, depth: int = 3) -> Optional[str]:  # pylint: disable=too-many-return-statements
+def _get_task_argument_name(path: str, depth: int = 3) -> str | None:  # pylint: disable=too-many-return-statements
     """
     Try to infer the task argument name from the call stack.
 
@@ -324,7 +324,7 @@ def get_config_value(
     path: str,
     default: Any = _UNDEFINED_DEFAULT,
     exit_message: str = ...,
-    exit_code: Optional[int] = None,
+    exit_code: int | None = None,
     required: bool = False,
 ) -> Any | NoReturn: ...
 
@@ -347,8 +347,8 @@ def get_config_value(
     ctx: "ToolkitContext",
     path: str,
     default: Any = _UNDEFINED_DEFAULT,
-    exit_message: Optional[str] = None,
-    exit_code: Optional[int] = None,
+    exit_message: str | None = None,
+    exit_code: int | None = None,
     required: bool = True,
 ) -> Any | NoReturn: ...
 
@@ -357,8 +357,8 @@ def get_config_value(  # pylint: disable=inconsistent-return-statements
     ctx: "ToolkitContext",
     path: str,
     default: Any = _UNDEFINED_DEFAULT,
-    exit_message: Optional[str] = None,
-    exit_code: Optional[int] = None,
+    exit_message: str | None = None,
+    exit_code: int | None = None,
     required: bool = False,
 ) -> Any:
     """

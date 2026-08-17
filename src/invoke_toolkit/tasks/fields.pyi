@@ -36,7 +36,7 @@ class _Field:
         cleanup: Literal["pipeline", "task"] | None = ...,
     ) -> T: ...
     def create_temporary_file(
-        self, request: "FieldResolutionRequest", value: str
+        self, request: FieldResolutionRequest, value: str
     ) -> Path: ...
 
 @overload
@@ -53,7 +53,7 @@ def Field(
 def Field(
     *,
     resolver: Callable[
-        [ToolkitContext, Sequence["FieldResolutionRequest"]], Mapping[str, str]
+        [ToolkitContext, Sequence[FieldResolutionRequest]], Mapping[str, str]
     ],
     cleanup: Literal["pipeline", "task"] = ...,
 ) -> _Field: ...

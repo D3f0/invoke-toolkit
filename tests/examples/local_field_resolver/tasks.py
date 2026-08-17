@@ -13,7 +13,8 @@ is removed when the invocation pipeline finishes.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping, Sequence, cast
+from typing import cast
+from collections.abc import Mapping, Sequence
 
 from invoke.runners import Result
 from invoke_toolkit import Context, Field, FieldResolutionRequest, task

@@ -2,7 +2,8 @@
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, Awaitable, cast
+from typing import Annotated, cast
+from collections.abc import Awaitable
 
 import pytest
 from invoke.runners import Result

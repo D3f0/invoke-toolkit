@@ -4,29 +4,26 @@ Type annotated tasks and and overrides over invoke
 
 # pylint: disable=too-many-statements,duplicate-code
 
+# pylint: disable=ungrouped-imports
 import inspect
 import os
 import subprocess
 import types
 import warnings
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Sequence
 from enum import Enum
 from functools import wraps
 from typing import (
     Annotated,
     Any,
-    Callable,
     Literal,
-    Optional,
-    Sequence,
-    Type,
     TypeVar,
     Union,
     cast,
     get_args,
     get_origin,
-    overload,
     get_type_hints,
+    overload,
 )
 
 import setproctitle
@@ -43,7 +40,7 @@ from invoke_toolkit.tasks.cache import (
 from invoke_toolkit.tasks.types import _FileCompletionMarker
 
 # Type alias for cache parameter
-CacheParam = Union[bool, dict, CacheConfig, None]
+CacheParam = bool | dict | CacheConfig | None
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -230,7 +227,7 @@ def _is_union_type(annotation: Any) -> bool:
     return origin is Union or isinstance(annotation, types.UnionType)
 
 
-def _extract_enum_from_union(annotation: Any) -> Type[Enum] | None:
+def _extract_enum_from_union(annotation: Any) -> type[Enum] | None:
     """
     Extract enum type from a Union type (e.g., Enum | None).
 
@@ -255,7 +252,7 @@ def _extract_enum_from_union(annotation: Any) -> Type[Enum] | None:
     return None
 
 
-def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
+def _extract_enum_params(func: Any) -> dict[str, type[Enum]]:
     """
     Extract enum type parameters from function signature.
 
@@ -268,7 +265,7 @@ def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
     Returns:
         Dictionary mapping parameter names to their enum classes
     """
-    enum_params: dict[str, Type[Enum]] = {}
+    enum_params: dict[str, type[Enum]] = {}
 
     try:
         sig = inspect.signature(func)
@@ -379,7 +376,7 @@ def _extract_path_params(func: Any) -> dict[str, bool]:
     return path_params
 
 
-def _enum_choices_help(enum_class: Type[Enum]) -> str:
+def _enum_choices_help(enum_class: type[Enum]) -> str:
     """Generate help text with available enum choices."""
     values = ", ".join(str(member.value) for member in enum_class)
     return f"Options: {values}"
@@ -392,7 +389,7 @@ def _literal_choices_help(literal_values: tuple[Any, ...]) -> str:
 
 
 def _handle_validation_error(
-    ctx: Optional[ToolkitContext],
+    ctx: ToolkitContext | None,
     param_name: str,
     invalid_value: Any,
     valid_values: str,
@@ -434,7 +431,7 @@ class ToolkitTask(Task):
     _field_definitions: dict[str, tuple[_Field, Any]]
 
     def fill_implicit_positionals(
-        self, positional: Optional[Iterable[str]]
+        self, positional: Iterable[str] | None
     ) -> Sequence[str]:
         if positional is None:
             positional = [
@@ -467,7 +464,7 @@ class ToolkitTask(Task):
             return str
         return annotation if annotation in (str, int, float, list) else str
 
-    def get_arguments(self, ignore_unknown_help: Optional[bool] = None) -> list[Any]:
+    def get_arguments(self, ignore_unknown_help: bool | None = None) -> list[Any]:
         sig = self.argspec(self.body)
         self._field_definitions = {}
         try:
@@ -511,9 +508,7 @@ class ToolkitTask(Task):
             taken_names.update(argument.names)
         if self.help and not ignore_unknown_help:
             raise ValueError(
-                "Help field was set for param(s) that don't exist: {}".format(
-                    list(self.help.keys())
-                )
+                f"Help field was set for param(s) that don't exist: {list(self.help.keys())}"
             )
         for positional_name in reversed(list(self.positional)):
             for index, argument in enumerate(arguments):
@@ -585,20 +580,20 @@ def _materialize_field_arguments(
 def task(
     func: F,
     *,
-    name: Optional[str] = None,
-    default: Optional[bool] = False,
-    aliases: Optional[Sequence[str]] = None,
-    positional: Optional[Sequence[str]] = None,
-    optional: Optional[Sequence[str]] = None,
-    iterable: Optional[Sequence[str]] = None,
-    incrementable: Optional[Sequence[str]] = None,
+    name: str | None = None,
+    default: bool | None = False,
+    aliases: Sequence[str] | None = None,
+    positional: Sequence[str] | None = None,
+    optional: Sequence[str] | None = None,
+    iterable: Sequence[str] | None = None,
+    incrementable: Sequence[str] | None = None,
     bool_flags: tuple[str, ...] = (),
     autoprint: bool = False,
-    help: Optional[dict[str, str]] = None,
-    pre: Optional[list[Callable[..., Any] | Call]] = None,
-    post: Optional[list[Callable[..., Any] | Call]] = None,
-    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
-    proctitle: Optional[str] = None,
+    help: dict[str, str] | None = None,
+    pre: list[Callable[..., Any] | Call] | None = None,
+    post: list[Callable[..., Any] | Call] | None = None,
+    klass: type["ToolkitTask"] | None = ToolkitTask,
+    proctitle: str | None = None,
     cache: CacheParam = None,
 ) -> F: ...
 
@@ -607,41 +602,41 @@ def task(
 def task(
     func: None = None,
     *,
-    name: Optional[str] = None,
-    default: Optional[bool] = False,
-    aliases: Optional[Sequence[str]] = None,
-    positional: Optional[Sequence[str]] = None,
-    optional: Optional[Sequence[str]] = None,
-    iterable: Optional[Sequence[str]] = None,
-    incrementable: Optional[Sequence[str]] = None,
+    name: str | None = None,
+    default: bool | None = False,
+    aliases: Sequence[str] | None = None,
+    positional: Sequence[str] | None = None,
+    optional: Sequence[str] | None = None,
+    iterable: Sequence[str] | None = None,
+    incrementable: Sequence[str] | None = None,
     bool_flags: tuple[str, ...] = (),
     autoprint: bool = False,
-    help: Optional[dict[str, str]] = None,
-    pre: Optional[list[Callable[..., Any] | Call]] = None,
-    post: Optional[list[Callable[..., Any] | Call]] = None,
-    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
-    proctitle: Optional[str] = None,
+    help: dict[str, str] | None = None,
+    pre: list[Callable[..., Any] | Call] | None = None,
+    post: list[Callable[..., Any] | Call] | None = None,
+    klass: type["ToolkitTask"] | None = ToolkitTask,
+    proctitle: str | None = None,
     cache: CacheParam = None,
 ) -> Callable[[F], F]: ...
 
 
 def task(  # pylint: disable=too-many-arguments,too-many-branches
-    func: Optional[F] = None,
+    func: F | None = None,
     *,
-    name: Optional[str] = None,
-    default: Optional[bool] = False,
-    aliases: Optional[Sequence[str]] = None,
-    positional: Optional[Sequence[str]] = None,
-    optional: Optional[Sequence[str]] = None,
-    iterable: Optional[Sequence[str]] = None,
-    incrementable: Optional[Sequence[str]] = None,
+    name: str | None = None,
+    default: bool | None = False,
+    aliases: Sequence[str] | None = None,
+    positional: Sequence[str] | None = None,
+    optional: Sequence[str] | None = None,
+    iterable: Sequence[str] | None = None,
+    incrementable: Sequence[str] | None = None,
     bool_flags: tuple[str, ...] = (),
     autoprint: bool = False,
-    help: Optional[dict[str, str]] = None,  # pylint: disable=redefined-builtin
-    pre: Optional[list[Callable[..., Any] | Call]] = None,
-    post: Optional[list[Callable[..., Any] | Call]] = None,
-    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
-    proctitle: Optional[str] = None,
+    help: dict[str, str] | None = None,  # pylint: disable=redefined-builtin
+    pre: list[Callable[..., Any] | Call] | None = None,
+    post: list[Callable[..., Any] | Call] | None = None,
+    klass: type["ToolkitTask"] | None = ToolkitTask,
+    proctitle: str | None = None,
     cache: CacheParam = None,
 ) -> Any:
     """

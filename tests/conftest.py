@@ -6,7 +6,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Protocol, Union
+from typing import Any, Protocol
 
 import attrs
 import pytest
@@ -69,7 +69,7 @@ def package_in_venv(git_root, ctx: Context, venv: Path) -> None:
     ctx.run(f"uv pip install --editable {git_root}")
 
 
-def add_entrypoint(pth: Union[str, Path], name: str, value: Any) -> None:
+def add_entrypoint(pth: str | Path, name: str, value: Any) -> None:
     """Adds an entry-point to a pyproject.toml file defined by pth"""
     if isinstance(pth, (str, Path)):
         with open(pth, encoding="utf-8") as fp:
@@ -148,8 +148,7 @@ class TempVenv:
         result = subprocess.run(
             command,
             shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             env=self._uv_venv,
             cwd=cwd,
             check=False,
@@ -185,8 +184,7 @@ def temp_venv(tmp_path_factory, monkeypatch: pytest.MonkeyPatch) -> TempVenv:
         f"uv venv .venv --python={version}",
         cwd=tmp_path,
         shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     assert proc.returncode == 0, "Can't create a virtual environment"
@@ -228,8 +226,7 @@ def shell_run_tmp(
         return subprocess.run(
             command,
             shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             cwd=cwd or tmp_path_factory.mktemp("shell_run_tmp"),
             text=True,
             check=False,

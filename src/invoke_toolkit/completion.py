@@ -11,7 +11,6 @@ import re
 import shlex
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
-from typing import List
 
 from invoke.completion.complete import (
     debug,
@@ -32,7 +31,7 @@ from invoke_toolkit.tasks.types import _FileCompletionMarker
 def _get_file_completions(
     marker: "_FileCompletionMarker",
     incomplete: str,
-) -> List[str]:
+) -> list[str]:
     """
     Get file completions based on marker configuration.
 
@@ -96,7 +95,7 @@ def _get_file_completions(
     # Determine prefix to prepend to results
     dir_prefix = "" if base_dir == "." else base_dir + "/"
 
-    files: List[str] = []
+    files: list[str] = []
 
     try:
         if marker.pattern:
@@ -148,7 +147,7 @@ def get_choices_for_argument(
     arg_name: str,
     incomplete: str = "",
     config: "ToolkitConfig | None" = None,
-) -> List[str]:
+) -> list[str]:
     """
     Get available choices for an argument in a task.
 
@@ -244,7 +243,7 @@ def get_choices_for_argument(
     return []
 
 
-def _strip_program_name(names: List[str], remainder: str) -> str:
+def _strip_program_name(names: list[str], remainder: str) -> str:
     """
     Strip the program name from the invocation string.
 
@@ -274,7 +273,7 @@ def _strip_program_name(names: List[str], remainder: str) -> str:
     return invocation
 
 
-def _get_directory_completions(incomplete: str) -> List[str]:
+def _get_directory_completions(incomplete: str) -> list[str]:
     """
     Get directory completions for path arguments like --search-root.
 
@@ -310,7 +309,7 @@ def _get_directory_completions(incomplete: str) -> List[str]:
     else:
         dir_prefix = base_dir + "/"
 
-    directories: List[str] = []
+    directories: list[str] = []
 
     try:
         if not os.path.isdir(base_dir):
@@ -399,7 +398,7 @@ def _handle_flag_completion(
 
 
 def _try_complete_flag_value(
-    tokens: List[str],
+    tokens: list[str],
     completing_new_token: bool,
     initial_context: ParserContext,
     collection,
@@ -441,7 +440,7 @@ def _try_complete_flag_value(
     )
 
 
-def _get_positional_arg_index(context: ParserContext, tokens: List[str]) -> int:
+def _get_positional_arg_index(context: ParserContext, tokens: list[str]) -> int:
     """
     Determine which positional argument we're completing based on tokens.
 
@@ -546,7 +545,7 @@ def _handle_positional_completion(
 
 
 def complete_with_choices(
-    names: List[str],
+    names: list[str],
     core,
     initial_context: ParserContext,
     collection,
@@ -572,7 +571,7 @@ def complete_with_choices(
     """
     # Strip out program name
     invocation = _strip_program_name(names, core.remainder)
-    debug("Completing for invocation: {!r}".format(invocation))
+    debug(f"Completing for invocation: {invocation!r}")
 
     # Check if invocation ends with space (user wants to complete next token)
     completing_new_token = invocation.rstrip() != invocation
@@ -583,32 +582,28 @@ def complete_with_choices(
     # Handle flags (partial or otherwise)
     if tokens and tokens[-1].startswith("-"):
         tail = tokens[-1]
-        debug("Invocation's tail {!r} is flag-like".format(tail))
+        debug(f"Invocation's tail {tail!r} is flag-like")
 
         # Parse invocation to obtain current context
-        contexts: List[ParserContext]
+        contexts: list[ParserContext]
         try:
-            debug("Seeking context name in tokens: {!r}".format(tokens))
+            debug(f"Seeking context name in tokens: {tokens!r}")
             contexts = parser.parse_argv(tokens)
         except ParseError as e:
-            debug(
-                "Got parser error ({!r}), grabbing last-seen context {!r}".format(
-                    e, e.context
-                )
-            )
+            debug(f"Got parser error ({e!r}), grabbing last-seen context {e.context!r}")
             contexts = [e.context] if e.context is not None else []
 
         # Fall back to core context if no context seen
-        debug("Parsed invocation, contexts: {!r}".format(contexts))
+        debug(f"Parsed invocation, contexts: {contexts!r}")
         if not contexts or not contexts[-1]:
             context = initial_context
         else:
             context = contexts[-1]
 
-        debug("Selected context: {!r}".format(context))
+        debug(f"Selected context: {context!r}")
 
         # Check if this flag is known
-        debug("Looking for {!r} in {!r}".format(tail, context.flags))
+        debug(f"Looking for {tail!r} in {context.flags!r}")
         if tail not in context.flags:
             debug("Not found, completing with flag names")
             # Long flags - partial or just the dashes
@@ -633,16 +628,12 @@ def complete_with_choices(
             raise Exit
 
         # Try to parse to get the current context
-        contexts: List[ParserContext] = []
+        contexts: list[ParserContext] = []
         try:
-            debug("Parsing tokens for positional completion: {!r}".format(tokens))
+            debug(f"Parsing tokens for positional completion: {tokens!r}")
             contexts = parser.parse_argv(tokens)
         except ParseError as e:
-            debug(
-                "Got parser error ({!r}), grabbing last-seen context {!r}".format(
-                    e, e.context
-                )
-            )
+            debug(f"Got parser error ({e!r}), grabbing last-seen context {e.context!r}")
             contexts = [e.context] if e.context is not None else []
 
         # Check if we have a task context (not just core context)

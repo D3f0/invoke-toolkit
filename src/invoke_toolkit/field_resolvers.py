@@ -33,7 +33,7 @@ class _ResolvedFileCleanup:
 class _TaskCleanupScope:  # pylint: disable=too-few-public-methods
     """Scope marker used to release task-lifetime resolved files."""
 
-    def __init__(self, manager: "FieldCleanupManager", start: int) -> None:
+    def __init__(self, manager: FieldCleanupManager, start: int) -> None:
         self.manager = manager
         self.start = start
 

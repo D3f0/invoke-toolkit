@@ -20,10 +20,10 @@ class _Unset:
     def __repr__(self) -> str:
         return "UNSET"
 
-    def __copy__(self) -> "_Unset":
+    def __copy__(self) -> _Unset:
         return self
 
-    def __deepcopy__(self, memo: object) -> "_Unset":
+    def __deepcopy__(self, memo: object) -> _Unset:
         return self
 
 
@@ -35,7 +35,7 @@ class Field:
     """Deferred task default, optionally bound to a local URI resolver."""
 
     default: Any = UNSET
-    default_factory: Callable[["ToolkitContext"], Any] | _Unset = UNSET
+    default_factory: Callable[[ToolkitContext], Any] | _Unset = UNSET
     resolver: FieldResolver | None = None
     cleanup: Literal["pipeline", "task"] = "pipeline"
 
@@ -58,9 +58,9 @@ class Field:
         self,
         *,
         default: Any = UNSET,
-        default_factory: Callable[["ToolkitContext"], Any] | _Unset = UNSET,
+        default_factory: Callable[[ToolkitContext], Any] | _Unset = UNSET,
         cleanup: Literal["pipeline", "task"] | None = None,
-    ) -> "Field":
+    ) -> Field:
         """Bind a default to a resolver template exactly once."""
         if not self.required:
             raise TypeError("A Field with a default cannot be called")
@@ -72,7 +72,7 @@ class Field:
         )
 
     def create_temporary_file(
-        self, request: "FieldResolutionRequest", value: str
+        self, request: FieldResolutionRequest, value: str
     ) -> Path:
         """Materialize a resolved string for a Path-annotated field.
 
@@ -111,7 +111,7 @@ class FieldResolver(Protocol):
 
     def __call__(
         self,
-        ctx: "ToolkitContext",
+        ctx: ToolkitContext,
         requests: Sequence[FieldResolutionRequest],
     ) -> Mapping[str, str]: ...
 

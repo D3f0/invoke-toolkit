@@ -7,7 +7,8 @@ used with task parameters via Annotated type hints.
 
 import hashlib
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar, cast
+from typing import Any, TypeVar, cast
+from collections.abc import Callable
 
 from invoke import Context
 from invoke.util import debug
@@ -30,7 +31,7 @@ F = TypeVar("F", bound=Callable[[Context, str], list[str]])
 
 def cached(  # pylint: disable=too-many-statements
     ttl: float = 300.0,
-    maxsize: Optional[int] = None,
+    maxsize: int | None = None,
 ) -> Callable[[F], F]:
     """
     Decorator for caching completion callback results using persistent disk cache.
@@ -156,7 +157,7 @@ def cached(  # pylint: disable=too-many-statements
         func_name = getattr(func, "__name__", repr(func))
 
         # Setup disk cache if available
-        disk_cache: Optional[Any] = None
+        disk_cache: Any | None = None
         if DISKCACHE_AVAILABLE:
             try:
                 cache_dir = get_cache_directory() / "completions"

@@ -21,7 +21,7 @@ import json
 from enum import Enum
 from os.path import expanduser
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 import yaml
 
@@ -116,9 +116,7 @@ def _get_config_file_paths(ctx: Context, location: ConfigLocation) -> list[Path]
     return paths
 
 
-def _find_existing_config_file(
-    ctx: Context, location: ConfigLocation
-) -> Optional[Path]:
+def _find_existing_config_file(ctx: Context, location: ConfigLocation) -> Path | None:
     """Find an existing config file at the given location.
 
     Returns the first config file that exists, or None if none found.
@@ -309,7 +307,7 @@ def _parse_value(value_str: str) -> Any:
 _BASIC_TYPES = (bool, int, float, str, list, dict, type(None))
 
 
-def _get_expected_type(ctx: Context, path: str) -> Optional[type]:
+def _get_expected_type(ctx: Context, path: str) -> type | None:
     """Get the expected type for a config path based on current config.
 
     Args:
@@ -339,7 +337,7 @@ def _get_expected_type(ctx: Context, path: str) -> Optional[type]:
 
 
 def _validate_type(
-    value: Any, expected_type: Optional[type], path: str
+    value: Any, expected_type: type | None, path: str
 ) -> tuple[bool, str]:
     """Validate that a value matches the expected type.
 

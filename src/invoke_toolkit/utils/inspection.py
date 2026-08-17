@@ -2,7 +2,6 @@
 
 import inspect
 from pathlib import Path
-from typing import Optional
 
 from invoke.util import debug
 
@@ -20,7 +19,7 @@ def print_rich_frames(frames: list):
     get_console().print(frames)
 
 
-def get_calling_file_path(find_call_text: str) -> Optional[str]:
+def get_calling_file_path(find_call_text: str) -> str | None:
     """Returns the containing folder of the module where the find_call_text is located"""
 
     # Get the frame object of the caller

@@ -597,8 +597,7 @@ def test_create_package_create_venv_install_intk_and_package_and_list(
         f"invoke-toolkit -x create.package --name {package_name} --location {tmp_pkg_loc}",
         shell=True,
         check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         cwd=tmp_work_dir,
     )
     # First we add invoke-toolkit

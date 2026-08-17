@@ -222,11 +222,10 @@ class TestOptionalTypeHandling:
 
     def test_optional_field_type(self):
         """Optional[X] unwraps to X for validation."""
-        from typing import Optional
 
         @attrs.define
         class ConfigWithOptional(ConfigSchema):
-            optional_field: Optional[str] = None
+            optional_field: str | None = None
 
         register_schema("opttest", ConfigWithOptional)
         field_type = get_field_type("opttest.optional_field")
@@ -234,11 +233,10 @@ class TestOptionalTypeHandling:
 
     def test_union_with_none(self):
         """Union[X, None] unwraps to X for validation."""
-        from typing import Union
 
         @attrs.define
         class ConfigWithUnion(ConfigSchema):
-            union_field: Union[int, None] = None
+            union_field: int | None = None
 
         register_schema("uniontest", ConfigWithUnion)
         field_type = get_field_type("uniontest.union_field")

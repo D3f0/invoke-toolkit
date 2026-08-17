@@ -5,7 +5,7 @@ Custom executor class to for Syntax highlighted output
 import inspect
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Optional, cast
 
 from invoke.executor import Executor
 from invoke.parser import ParserContext, ParseResult
@@ -55,8 +55,8 @@ class ToolkitExecutor(Executor):
         self.core = core if core is not None else ParseResult()
 
     async def execute_async(
-        self, *tasks: Union[str, Tuple[str, Dict[str, Any]], ParserContext]
-    ) -> Dict["ToolkitTask", Any]:
+        self, *tasks: str | tuple[str, dict[str, Any]] | ParserContext
+    ) -> dict["ToolkitTask", Any]:
         """Execute task calls in order, awaiting coroutine task results."""
         calls = self.normalize(tasks)
         direct = list(calls)
@@ -66,7 +66,7 @@ class ToolkitExecutor(Executor):
         except AttributeError:
             dedupe = True
         calls = self.dedupe(expanded) if dedupe else expanded
-        results: Dict["ToolkitTask", Any] = {}
+        results: dict[ToolkitTask, Any] = {}
         cleanup = FieldCleanupManager()
         failed = False
         try:
@@ -102,10 +102,10 @@ class ToolkitExecutor(Executor):
             cleanup.close_pipeline(failed)
 
     def execute(
-        self, *tasks: Union[str, Tuple[str, Dict[str, Any]], ParserContext]
-    ) -> Dict["ToolkitTask", "Result"]:
+        self, *tasks: str | tuple[str, dict[str, Any]] | ParserContext
+    ) -> dict["ToolkitTask", "Result"]:
         """Execute one or more tasks in sequence."""
-        debug("Examining top level tasks {!r}".format(list(tasks)))
+        debug(f"Examining top level tasks {list(tasks)!r}")
         calls = self.normalize(tasks)
         direct = list(calls)
         expanded = self.expand_calls(calls)
@@ -143,8 +143,8 @@ class ToolkitExecutor(Executor):
 
     def normalize(
         self,
-        tasks: Tuple[Union[str, Tuple[str, Dict[str, Any]], ParserContext], ...],
-    ) -> List["ToolkitCall"]:
+        tasks: tuple[str | tuple[str, dict[str, Any]] | ParserContext, ...],
+    ) -> list["ToolkitCall"]:
         """
         Transform arbitrary task list w/ various types, into `.Call` objects.
 
@@ -154,7 +154,7 @@ class ToolkitExecutor(Executor):
         """
         calls = []
         for task in tasks:
-            name: Optional[str]
+            name: str | None
             kwargs: dict[str, Any]
             if isinstance(task, str):
                 name = task
@@ -170,7 +170,7 @@ class ToolkitExecutor(Executor):
             calls = [ToolkitCall(self.collection[self.collection.default])]
         return calls
 
-    def dedupe(self, calls: List["ToolkitCall"]) -> List["ToolkitCall"]:
+    def dedupe(self, calls: list["ToolkitCall"]) -> list["ToolkitCall"]:
         """
         Deduplicate a list of `tasks <.Call>`.
 
@@ -184,13 +184,13 @@ class ToolkitExecutor(Executor):
         debug("Deduplicating tasks...")
         for call in calls:
             if call not in deduped:
-                debug("{!r}: no duplicates found, ok".format(call))
+                debug(f"{call!r}: no duplicates found, ok")
                 deduped.append(call)
             else:
-                debug("{!r}: found in list already, skipping".format(call))
+                debug(f"{call!r}: found in list already, skipping")
         return deduped
 
-    def expand_calls(self, calls: List["ToolkitCall"]) -> List["ToolkitCall"]:
+    def expand_calls(self, calls: list["ToolkitCall"]) -> list["ToolkitCall"]:
         """
         Expand a list of `.Call` objects into a near-final list of same.
 
@@ -206,13 +206,13 @@ class ToolkitExecutor(Executor):
         ret = []
         for call in calls:
             if isinstance(call, (list, tuple)):
-                ret.extend(self.expand_calls(cast(List[ToolkitCall], call)))
+                ret.extend(self.expand_calls(cast(list[ToolkitCall], call)))
                 continue
             # Normalize to Call (this method is sometimes called with pre/post
             # task lists, which may contain 'raw' Task objects)
             if isinstance(call, Task):
                 call = ToolkitCall(call)
-            debug("Expanding task-call {!r}".format(call))
+            debug(f"Expanding task-call {call!r}")
             # TODO: this is where we _used_ to call Executor.config_for(call,
             # config)...
             # TODO: now we may need to preserve more info like where the call

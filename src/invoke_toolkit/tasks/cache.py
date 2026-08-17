@@ -14,7 +14,8 @@ import subprocess
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Optional, TypeVar
+from collections.abc import Callable
 
 import platformdirs
 from invoke.util import debug
@@ -36,14 +37,14 @@ class CacheConfig:
     """Configuration for task caching."""
 
     enabled: bool = True
-    ttl: Optional[float] = None  # Time-to-live in seconds, None means no expiration
+    ttl: float | None = None  # Time-to-live in seconds, None means no expiration
     key_prefix: str = ""  # Optional prefix for cache keys
     ignore_args: list[str] = field(
         default_factory=list
     )  # Arguments to exclude from cache key
 
 
-def get_git_root() -> Optional[Path]:
+def get_git_root() -> Path | None:
     """
     Get the root directory of the current git repository.
 
@@ -115,7 +116,7 @@ def make_cache_key(
     )
 
 
-def get_cache(cache_dir: Optional[Path] = None) -> Optional["diskcache.Cache"]:
+def get_cache(cache_dir: Path | None = None) -> Optional["diskcache.Cache"]:
     """
     Get or create the diskcache Cache instance.
 
@@ -209,8 +210,8 @@ def cached_task_wrapper(
 
 
 def parse_cache_config(
-    cache_param: Union[bool, dict, CacheConfig, None],
-) -> Optional[CacheConfig]:
+    cache_param: bool | dict | CacheConfig | None,
+) -> CacheConfig | None:
     """
     Parse the cache parameter into a CacheConfig.
 
@@ -244,7 +245,7 @@ def parse_cache_config(
     return None
 
 
-def clear_task_cache(task_name: Optional[str] = None) -> int:
+def clear_task_cache(task_name: str | None = None) -> int:
     """
     Clear the task cache.
 

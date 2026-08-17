@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Union
+import types
+from typing import TYPE_CHECKING, Any, Union, get_origin
 
 import attrs
 
@@ -187,12 +188,12 @@ def _unwrap_optional_type(type_hint: Any) -> type | None:
     Returns:
         The unwrapped type, or the original if not Optional/Union
     """
-    origin = getattr(type_hint, "__origin__", None)
+    origin = get_origin(type_hint)
     if origin is None:
         return type_hint
 
     # Handle Union types (including Optional which is Union[X, None])
-    if origin is Union:
+    if origin in (Union, types.UnionType):
         args = getattr(type_hint, "__args__", ())
         # Filter out NoneType and return the first non-None type
         non_none_args = [a for a in args if a is not type(None)]

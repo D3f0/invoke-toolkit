@@ -13,7 +13,7 @@ import platformdirs
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.table import Table
-from typing_extensions import Annotated
+from typing import Annotated
 
 import invoke_toolkit
 from invoke_toolkit import Context, __version__, task

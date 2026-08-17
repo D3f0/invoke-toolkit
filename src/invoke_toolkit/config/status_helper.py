@@ -2,9 +2,10 @@
 Class that implements the ctx.status through the config class
 """
 
+# pylint: disable=ungrouped-imports
 from collections import deque
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator, Optional, Union
 
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -24,8 +25,8 @@ class NoOpStatus:
 
     def __init__(
         self,
-        status: Optional[RenderableType] = None,
-        console: Optional[Console] = None,
+        status: RenderableType | None = None,
+        console: Console | None = None,
     ):
         self.status = status
         self.console = console or get_console()
@@ -43,11 +44,11 @@ class NoOpStatus:
 
     def update(
         self,
-        status: Optional[RenderableType] = None,
+        status: RenderableType | None = None,
         *,
-        spinner: Optional[str] = None,
-        spinner_style: Optional[StyleType] = None,
-        speed: Optional[float] = None,
+        spinner: str | None = None,
+        spinner_style: StyleType | None = None,
+        speed: float | None = None,
     ) -> None:
         """No-op update"""
 
@@ -65,7 +66,7 @@ class VerboseStatus:  # pylint: disable=too-many-instance-attributes
         self,
         status: RenderableType,
         *,
-        console: Optional[Console] = None,
+        console: Console | None = None,
         spinner: str = "dots",
         spinner_style: StyleType = "status.spinner",
         speed: float = 1.0,
@@ -105,11 +106,11 @@ class VerboseStatus:  # pylint: disable=too-many-instance-attributes
 
     def update(
         self,
-        status: Optional[RenderableType] = None,
+        status: RenderableType | None = None,
         *,
-        spinner: Optional[str] = None,
-        spinner_style: Optional[StyleType] = None,
-        speed: Optional[float] = None,
+        spinner: str | None = None,
+        spinner_style: StyleType | None = None,
+        speed: float | None = None,
     ) -> None:
         """Update the status text or spinner parameters."""
         if status is not None:
@@ -150,7 +151,7 @@ class StatusHelper:
     it can be accessed from the task's context
     """
 
-    _current_status: Optional[Union[Status, VerboseStatus]]
+    _current_status: Status | VerboseStatus | None
     _disabled: bool
     _show_command_output: bool
 
@@ -174,7 +175,7 @@ class StatusHelper:
         spinner_style: StyleType = "status.spinner",
         speed: float = 1.0,
         refresh_per_second: float = 12.5,
-    ) -> Generator[Union[Status, VerboseStatus], None, None]:
+    ) -> Generator[Status | VerboseStatus, None, None]:
         """Context manager for status management"""
         if self._disabled:
             with NoOpStatus(status=status, console=self.console) as noop:
@@ -222,11 +223,11 @@ class StatusHelper:
 
     def status_update(
         self,
-        status: Optional[RenderableType] = None,
+        status: RenderableType | None = None,
         *,
-        spinner: Optional[str] = None,
-        spinner_style: Optional[StyleType] = None,
-        speed: Optional[float] = None,
+        spinner: str | None = None,
+        spinner_style: StyleType | None = None,
+        speed: float | None = None,
     ) -> None:
         """Wrapper on Status.update"""
         if self._disabled:
