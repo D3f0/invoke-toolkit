@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ package_name }}"
+version = "0.1.0"
+description = "{{ project_description }}"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+license = "MIT"
+authors = [
+    { name = "{{ author_name }}", email = "{{ author_email }}" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "invoke-toolkit",
+]
+
+[project.entry-points."invoke_toolkit.field_resolver"]
+{{ provider_scheme }} = "{{ package_slug }}:resolve"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ package_slug }}"]
+
+
+[dependency-groups]
+dev = [
+    "pytest",
+]

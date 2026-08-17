@@ -14,7 +14,8 @@ import subprocess
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Optional, TypeVar
+from collections.abc import Callable
 
 import platformdirs
 from invoke.util import debug
@@ -36,14 +37,14 @@ class CacheConfig:
     """Configuration for task caching."""
 
     enabled: bool = True
-    ttl: Optional[float] = None  # Time-to-live in seconds, None means no expiration
+    ttl: float | None = None  # Time-to-live in seconds, None means no expiration
     key_prefix: str = ""  # Optional prefix for cache keys
     ignore_args: list[str] = field(
         default_factory=list
     )  # Arguments to exclude from cache key
 
 
-def get_git_root() -> Optional[Path]:
+def get_git_root() -> Path | None:
     """
     Get the root directory of the current git repository.
 
@@ -92,45 +93,30 @@ def get_cache_directory() -> Path:
 
 
 def make_cache_key(
-    func_name: str, args: tuple, kwargs: dict, ignore_args: list[str]
+    func_name: str,
+    args: tuple,
+    kwargs: dict,
+    ignore_args: list[str],
+    parameter_names: tuple[str, ...] = (),
 ) -> str:
-    """
-    Create a cache key from function name and arguments.
-
-    Args:
-        func_name: Name of the function being cached.
-        args: Positional arguments (excluding context which is first arg).
-        kwargs: Keyword arguments.
-        ignore_args: List of argument names to exclude from cache key.
-
-    Returns:
-        A string cache key.
-    """
-    # Filter out ignored arguments from kwargs
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ignore_args}
-
-    # Create a deterministic string representation
+    """Create a deterministic key excluding configured parameter names."""
     key_parts = [func_name]
-
-    # Add positional args (skip first arg which is context)
-    if args:
-        for arg in args:
-            key_parts.append(repr(arg))
-
-    # Add sorted kwargs for determinism
-    for k in sorted(filtered_kwargs.keys()):
-        key_parts.append(f"{k}={filtered_kwargs[k]!r}")
-
+    for index, arg in enumerate(args):
+        if index < len(parameter_names) and parameter_names[index] in ignore_args:
+            continue
+        key_parts.append(repr(arg))
+    for key in sorted(kwargs):
+        if key not in ignore_args:
+            key_parts.append(f"{key}={kwargs[key]!r}")
     key_string = ":".join(key_parts)
+    return (
+        hashlib.sha256(key_string.encode()).hexdigest()
+        if len(key_string) > 200
+        else key_string
+    )
 
-    # Hash if too long
-    if len(key_string) > 200:
-        return hashlib.sha256(key_string.encode()).hexdigest()
 
-    return key_string
-
-
-def get_cache(cache_dir: Optional[Path] = None) -> Optional["diskcache.Cache"]:
+def get_cache(cache_dir: Path | None = None) -> Optional["diskcache.Cache"]:
     """
     Get or create the diskcache Cache instance.
 
@@ -154,24 +140,25 @@ def cached_task_wrapper(
     func: F,
     config: CacheConfig,
 ) -> F:
-    """
-    Wrap a task function with caching logic.
-
-    Args:
-        func: The original task function.
-        config: Cache configuration.
-
-    Returns:
-        Wrapped function with caching.
-    """
+    """Wrap a task function with disk-backed caching."""
     if not config.enabled:
         return func
 
     func_name = getattr(func, "__name__", repr(func))
-
     if not DISKCACHE_AVAILABLE:
         debug(f"diskcache not installed, caching disabled for {func_name}")
         return func
+    parameter_names = tuple(inspect.signature(func).parameters)[1:]
+
+    def cache_key(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
+        return make_cache_key(
+            func_name=f"{config.key_prefix}{func_name}",
+            args=args[1:] if args else (),
+            kwargs=kwargs,
+            ignore_args=config.ignore_args,
+            parameter_names=parameter_names,
+        )
+
     if inspect.iscoroutinefunction(func):
 
         @wraps(func)
@@ -180,18 +167,11 @@ def cached_task_wrapper(
             if cache is None:
                 return await func(*args, **kwargs)
             try:
-                cache_args = args[1:] if args else ()
-                key = make_cache_key(
-                    func_name=f"{config.key_prefix}{func_name}",
-                    args=cache_args,
-                    kwargs=kwargs,
-                    ignore_args=config.ignore_args,
-                )
+                key = cache_key(args, kwargs)
                 result = cache.get(key, default=None)
                 if result is not None:
                     debug(f"Cache HIT for {func_name} (key: {key[:50]}...)")
                     return result
-                debug(f"Cache MISS for {func_name} (key: {key[:50]}...)")
                 result = await func(*args, **kwargs)
                 if result is not None:
                     cache.set(key, result, expire=config.ttl)
@@ -206,29 +186,16 @@ def cached_task_wrapper(
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Get or create cache
         cache = get_cache()
         if cache is None:
             debug(f"Could not create cache for {func_name}, running without cache")
             return func(*args, **kwargs)
-
         try:
-            # Create cache key (skip first arg which is context)
-            cache_args = args[1:] if args else ()
-            key = make_cache_key(
-                func_name=f"{config.key_prefix}{func_name}",
-                args=cache_args,
-                kwargs=kwargs,
-                ignore_args=config.ignore_args,
-            )
-
-            # Try to get from cache
+            key = cache_key(args, kwargs)
             result = cache.get(key, default=None)
             if result is not None:
                 debug(f"Cache HIT for {func_name} (key: {key[:50]}...)")
                 return result
-
-            debug(f"Cache MISS for {func_name} (key: {key[:50]}...)")
             result = func(*args, **kwargs)
             if result is not None:
                 cache.set(key, result, expire=config.ttl)
@@ -243,8 +210,8 @@ def cached_task_wrapper(
 
 
 def parse_cache_config(
-    cache_param: Union[bool, dict, CacheConfig, None],
-) -> Optional[CacheConfig]:
+    cache_param: bool | dict | CacheConfig | None,
+) -> CacheConfig | None:
     """
     Parse the cache parameter into a CacheConfig.
 
@@ -278,7 +245,7 @@ def parse_cache_config(
     return None
 
 
-def clear_task_cache(task_name: Optional[str] = None) -> int:
+def clear_task_cache(task_name: str | None = None) -> int:
     """
     Clear the task cache.
 

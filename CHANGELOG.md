@@ -10,6 +10,14 @@ on version bumps.
 ---
 
 ## Unreleased
+### Added
+
+- Typed task `Field(default=...)` and `Field(default_factory=...)` values,
+  including context-aware defaults and batched URI scheme resolution through
+  the `invoke_toolkit.field_resolver` entry-point group.
+- Resolver-only package scaffolding via
+  `intk -x create.package --provider <scheme>`.
+
 
 ### Breaking Changes
 

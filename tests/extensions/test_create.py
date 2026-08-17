@@ -94,6 +94,86 @@ def test_new_package(
     )
 
 
+def test_new_provider_package_is_resolver_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Provider generation uses the prescribed resolver-only package layout."""
+    monkeypatch.chdir(tmp_path)
+    TestingToolkitProgram().run(["", "-x", "create.package", "--provider", "op"])
+
+    package_name = "invoke-toolkit-op-provider"
+    package_dir = tmp_path / package_name
+    source_dir = package_dir / "src" / "invoke_toolkit_op_provider"
+
+    assert package_dir.is_dir()
+    assert (package_dir / "pyproject.toml").is_file()
+    assert source_dir.is_dir()
+    assert (source_dir / "__init__.py").is_file()
+
+    pyproject = (package_dir / "pyproject.toml").read_text()
+    assert f'name = "{package_name}"' in pyproject
+    assert '[project.entry-points."invoke_toolkit.field_resolver"]' in pyproject
+    assert 'op = "invoke_toolkit_op_provider:resolve"' in pyproject
+    assert "invoke_toolkit.collection" not in pyproject
+
+    init = (source_dir / "__init__.py").read_text()
+    assert "def resolve" in init
+    assert "Context" in init
+    assert "Sequence[FieldResolutionRequest]" in init
+    assert "Mapping[str, str]" in init
+    assert "del ctx, requests" not in init
+    assert (package_dir / "tests" / "test_resolver.py").is_file()
+    assert (package_dir / "README.md").is_file()
+
+    generated_files = {
+        path.relative_to(package_dir).as_posix()
+        for path in package_dir.rglob("*")
+        if path.is_file()
+    }
+    assert not any(path.endswith("tasks.py") for path in generated_files)
+    assert not any(
+        "ToolkitCollection" in (package_dir / path).read_text()
+        for path in generated_files
+        if path.endswith(".py")
+    )
+    assert not any(
+        "@task" in (package_dir / path).read_text()
+        for path in generated_files
+        if path.endswith(".py")
+    )
+
+
+@pytest.mark.parametrize(
+    "option, value",
+    [("--name", "custom"), ("--ext-name", "custom"), ("--template", "custom-template")],
+)
+def test_provider_rejects_incompatible_package_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    option: str,
+    value: str,
+):
+    """Provider naming/template options cannot override provider scaffolding."""
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit):
+        TestingToolkitProgram().run(
+            ["", "-x", "create.package", "--provider", "op", option, value]
+        )
+    assert not (tmp_path / "invoke-toolkit-op-provider").exists()
+
+
+@pytest.mark.parametrize("scheme", ["op+vault", "op.vault", "op_vault", "1password"])
+def test_provider_rejects_unsafe_package_scheme(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    scheme: str,
+):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit):
+        TestingToolkitProgram().run(["", "-x", "create.package", "--provider", scheme])
+
+
 def test_new_package_structure_validation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -517,8 +597,7 @@ def test_create_package_create_venv_install_intk_and_package_and_list(
         f"invoke-toolkit -x create.package --name {package_name} --location {tmp_pkg_loc}",
         shell=True,
         check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         cwd=tmp_work_dir,
     )
     # First we add invoke-toolkit

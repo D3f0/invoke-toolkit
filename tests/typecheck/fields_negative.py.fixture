@@ -1,0 +1,18 @@
+"""This fixture must fail ty: a str factory cannot default a Path field."""
+
+from pathlib import Path
+
+from invoke_toolkit import Context, Field, task
+
+
+def wrong_factory(ctx: Context) -> str:
+    del ctx
+    return "not-a-path"
+
+
+@task
+def invalid_field(
+    ctx: Context,
+    config: Path = Field(default_factory=wrong_factory),
+) -> None:
+    del ctx, config

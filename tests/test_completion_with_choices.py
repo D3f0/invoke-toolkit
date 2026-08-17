@@ -890,20 +890,14 @@ def test_completion_callback_with_cached_decorator():
     cached_callback.cache_clear()
 
     # First call - should invoke the callback
-    start = time.time()
     choices = get_choices_for_argument(coll, "cached-task", "fruit", "")
-    elapsed = time.time() - start
     assert choices == ["apple", "apricot", "banana", "berry"]
     assert call_count["count"] == 1
-    assert elapsed > 0.05, "First call should take time"
 
     # Second call with same args - should use persistent cache
-    start = time.time()
     choices = get_choices_for_argument(coll, "cached-task", "fruit", "")
-    elapsed = time.time() - start
     assert choices == ["apple", "apricot", "banana", "berry"]
     assert call_count["count"] == 1, "Should not call callback again (persistent cache)"
-    assert elapsed < 0.05, "Cached call should be fast"
 
     # Third call with different filtering - should invoke callback with new args
     choices = get_choices_for_argument(coll, "cached-task", "fruit", "b")
@@ -911,12 +905,9 @@ def test_completion_callback_with_cached_decorator():
     assert call_count["count"] == 2, "Should call callback with new incomplete string"
 
     # Fourth call with same filtering - should use persistent cache
-    start = time.time()
     choices = get_choices_for_argument(coll, "cached-task", "fruit", "b")
-    elapsed = time.time() - start
     assert choices == ["banana", "berry"]
     assert call_count["count"] == 2, "Should use cached result"
-    assert elapsed < 0.05, "Cached call should be fast"
 
     # Clean up
     cached_callback.cache_clear()

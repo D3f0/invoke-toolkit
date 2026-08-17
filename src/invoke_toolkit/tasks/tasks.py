@@ -4,32 +4,32 @@ Type annotated tasks and and overrides over invoke
 
 # pylint: disable=too-many-statements,duplicate-code
 
+# pylint: disable=ungrouped-imports
 import inspect
 import os
-import warnings
 import subprocess
 import types
+import warnings
+from collections.abc import Callable, Iterable, Sequence
 from enum import Enum
 from functools import wraps
 from typing import (
     Annotated,
     Any,
-    Callable,
     Literal,
-    Optional,
-    Sequence,
-    Type,
     TypeVar,
     Union,
     cast,
     get_args,
     get_origin,
+    get_type_hints,
     overload,
 )
 
 import setproctitle
-from invoke import task as invoke_task
-from invoke.tasks import Call, Task
+from invoke.tasks import Call, Task, task as invoke_task
+from invoke_toolkit.parser import ToolkitArgument
+from invoke_toolkit.tasks.fields import UNSET, _DeferredField, _Field, is_field
 
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.cache import (
@@ -40,9 +40,18 @@ from invoke_toolkit.tasks.cache import (
 from invoke_toolkit.tasks.types import _FileCompletionMarker
 
 # Type alias for cache parameter
-CacheParam = Union[bool, dict, CacheConfig, None]
+CacheParam = bool | dict | CacheConfig | None
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _annotation_parts(annotation: Any) -> tuple[Any, tuple[Any, ...]]:
+    """Return an annotation's runtime base type and Annotated metadata."""
+    if get_origin(annotation) is Annotated:
+        parts = get_args(annotation)
+        if parts:
+            return parts[0], tuple(parts[1:])
+    return annotation, ()
 
 
 def _extract_annotated_help(func: Any) -> dict[str, str]:
@@ -74,12 +83,9 @@ def _extract_annotated_help(func: Any) -> dict[str, str]:
             if annotation == inspect.Parameter.empty:
                 continue
 
-            # Check if it's an Annotated type
-            if get_origin(annotation) is Annotated:
-                args = get_args(annotation)
-                # Annotated[type, doc, ...] - doc is the second argument
-                if len(args) > 1 and isinstance(args[1], str):
-                    help_dict[param_name] = args[1]
+            _, metadata = _annotation_parts(annotation)
+            if metadata and isinstance(metadata[0], str):
+                help_dict[param_name] = metadata[0]
     except (ValueError, TypeError):
         # If we can't extract, just return empty dict
         pass
@@ -115,15 +121,11 @@ def _extract_completion_callbacks(func: Any) -> dict[str, Callable]:
             if annotation == inspect.Parameter.empty:
                 continue
 
-            # Check if it's an Annotated type
-            if get_origin(annotation) is Annotated:
-                args = get_args(annotation)
-                # Look for a callable in Annotated metadata (skip the first arg which is the type)
-                for metadata in args[1:]:
-                    # Check if it's a callable but not a type/class
-                    if callable(metadata) and not isinstance(metadata, type):
-                        callbacks[param_name] = metadata
-                        break
+            _, annotation_metadata = _annotation_parts(annotation)
+            for metadata in annotation_metadata:
+                if callable(metadata) and not isinstance(metadata, type):
+                    callbacks[param_name] = metadata
+                    break
     except (ValueError, TypeError):
         # If we can't extract, just return empty dict
         pass
@@ -167,25 +169,17 @@ def _extract_file_completion_markers(
             if annotation == inspect.Parameter.empty:
                 continue
 
-            # Check if it's an Annotated type with file marker
-            if get_origin(annotation) is Annotated:
-                args = get_args(annotation)
-                # Look for file markers in Annotated metadata
-                for metadata in args[1:]:
-                    if isinstance(
-                        metadata,
-                        (_FileCompletionMarker, _FilePathMarker, _FilePatternMarker),
-                    ):
-                        markers[param_name] = metadata
-                        break
-                else:
-                    # No marker found, but check if base type is Path
-                    if args and is_path_type(args[0]):
-                        markers[param_name] = _FileCompletionMarker()
-            # Check for raw pathlib.Path type hints
-            elif is_path_type(annotation):
-                markers[param_name] = _FileCompletionMarker()
-
+            base_annotation, metadata_items = _annotation_parts(annotation)
+            for metadata in metadata_items:
+                if isinstance(
+                    metadata,
+                    (_FileCompletionMarker, _FilePathMarker, _FilePatternMarker),
+                ):
+                    markers[param_name] = metadata
+                    break
+            else:
+                if is_path_type(base_annotation):
+                    markers[param_name] = _FileCompletionMarker()
     except (ValueError, TypeError):
         pass
 
@@ -233,7 +227,7 @@ def _is_union_type(annotation: Any) -> bool:
     return origin is Union or isinstance(annotation, types.UnionType)
 
 
-def _extract_enum_from_union(annotation: Any) -> Type[Enum] | None:
+def _extract_enum_from_union(annotation: Any) -> type[Enum] | None:
     """
     Extract enum type from a Union type (e.g., Enum | None).
 
@@ -258,7 +252,7 @@ def _extract_enum_from_union(annotation: Any) -> Type[Enum] | None:
     return None
 
 
-def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
+def _extract_enum_params(func: Any) -> dict[str, type[Enum]]:
     """
     Extract enum type parameters from function signature.
 
@@ -271,7 +265,7 @@ def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
     Returns:
         Dictionary mapping parameter names to their enum classes
     """
-    enum_params: dict[str, Type[Enum]] = {}
+    enum_params: dict[str, type[Enum]] = {}
 
     try:
         sig = inspect.signature(func)
@@ -282,12 +276,7 @@ def _extract_enum_params(func: Any) -> dict[str, Type[Enum]]:
             annotation = param.annotation
             if annotation == inspect.Parameter.empty:
                 continue
-
-            # Check if it's an Annotated type and extract the actual type
-            if get_origin(annotation) is Annotated:
-                args = get_args(annotation)
-                if args:
-                    annotation = args[0]
+            annotation, _ = _annotation_parts(annotation)
 
             # Try direct enum type
             try:
@@ -330,12 +319,7 @@ def _extract_literal_params(func: Any) -> dict[str, tuple[Any, ...]]:
             annotation = param.annotation
             if annotation == inspect.Parameter.empty:
                 continue
-
-            # Check if it's an Annotated type and extract the actual type
-            if get_origin(annotation) is Annotated:
-                args = get_args(annotation)
-                if args:
-                    annotation = args[0]
+            annotation, _ = _annotation_parts(annotation)
 
             # Check for Literal or Union of Literals
             origin = get_origin(annotation)
@@ -370,11 +354,15 @@ def _extract_path_params(func: Any) -> dict[str, bool]:
 
     try:
         sig = inspect.signature(func)
+        try:
+            type_hints = get_type_hints(func, include_extras=True)
+        except (NameError, TypeError):
+            type_hints = {}
         for param_name, param in sig.parameters.items():
             if param_name.startswith("_") or param_name in ("ctx", "c"):
                 continue
 
-            annotation = param.annotation
+            annotation = type_hints.get(param_name, param.annotation)
             if annotation == inspect.Parameter.empty:
                 continue
 
@@ -388,7 +376,7 @@ def _extract_path_params(func: Any) -> dict[str, bool]:
     return path_params
 
 
-def _enum_choices_help(enum_class: Type[Enum]) -> str:
+def _enum_choices_help(enum_class: type[Enum]) -> str:
     """Generate help text with available enum choices."""
     values = ", ".join(str(member.value) for member in enum_class)
     return f"Options: {values}"
@@ -401,7 +389,7 @@ def _literal_choices_help(literal_values: tuple[Any, ...]) -> str:
 
 
 def _handle_validation_error(
-    ctx: Optional[ToolkitContext],
+    ctx: ToolkitContext | None,
     param_name: str,
     invalid_value: Any,
     valid_values: str,
@@ -437,27 +425,175 @@ def _handle_validation_error(
         raise ValueError(error_msg)
 
 
-class ToolkitTask(Task): ...
+class ToolkitTask(Task):
+    """Task subclass that understands :func:`Field` signature defaults."""
+
+    _field_definitions: dict[str, tuple[_Field, Any]]
+
+    def fill_implicit_positionals(
+        self, positional: Iterable[str] | None
+    ) -> Sequence[str]:
+        if positional is None:
+            positional = [
+                parameter.name
+                for parameter in self.argspec(self.body).parameters.values()
+                if parameter.default is inspect.Signature.empty
+                or (is_field(parameter.default) and parameter.default.required)
+            ]
+        return tuple(positional)
+
+    @staticmethod
+    def _field_kind(annotation: Any) -> Any:
+        """Derive Invoke's parser kind from a Field parameter annotation."""
+        annotation, _ = _annotation_parts(annotation)
+        if _is_union_type(annotation):
+            members = [item for item in get_args(annotation) if item is not type(None)]
+            if len(members) == 1:
+                annotation = members[0]
+        if get_origin(annotation) is Literal:
+            values = get_args(annotation)
+            return type(values[0]) if values else str
+        try:
+            if isinstance(annotation, type) and issubclass(annotation, Enum):
+                return str
+        except TypeError:
+            pass
+        from invoke_toolkit.tasks.types import is_path_type
+
+        if is_path_type(annotation):
+            return str
+        return annotation if annotation in (str, int, float, list) else str
+
+    def get_arguments(self, ignore_unknown_help: bool | None = None) -> list[Any]:
+        sig = self.argspec(self.body)
+        self._field_definitions = {}
+        try:
+            type_hints = get_type_hints(self.body, include_extras=True)
+        except (NameError, TypeError):
+            type_hints = {}
+        taken_names = set(sig.parameters.keys())
+        arguments: list[Any] = []
+        for parameter in sig.parameters.values():
+            default = parameter.default
+            field = default if is_field(default) else None
+            annotation = type_hints.get(parameter.name, parameter.annotation)
+            effective_default = (
+                inspect.Signature.empty
+                if field is not None and field.required
+                else default
+            )
+            opts = self.arg_opts(
+                parameter.name,
+                cast(Any, effective_default),
+                taken_names,
+            )
+            if field is not None:
+                kind = self._field_kind(annotation)
+                if kind is bool or parameter.name in self.incrementable:
+                    raise TypeError(
+                        f"Field defaults are not supported for boolean or "
+                        f"incrementable parameter '{parameter.name}'"
+                    )
+                if parameter.name in self.iterable:
+                    raise TypeError(
+                        f"Field defaults are not supported for iterable "
+                        f"parameter '{parameter.name}'"
+                    )
+                opts["kind"] = kind
+                self._field_definitions[parameter.name] = (field, annotation)
+                if not field.required:
+                    opts["default"] = _DeferredField(parameter.name)
+            argument = ToolkitArgument(**opts)
+            arguments.append(argument)
+            taken_names.update(argument.names)
+        if self.help and not ignore_unknown_help:
+            raise ValueError(
+                f"Help field was set for param(s) that don't exist: {list(self.help.keys())}"
+            )
+        for positional_name in reversed(list(self.positional)):
+            for index, argument in enumerate(arguments):
+                if argument.name == positional_name:
+                    arguments.insert(0, arguments.pop(index))
+                    break
+        return arguments
+
+
+def _field_context_value(context: ToolkitContext, parameter: str, field: _Field) -> Any:
+    """Return an omitted Field's environment, config, or declared default."""
+    environment_value = os.environ.get(f"INVOKE_{parameter.upper()}")
+    if environment_value is not None:
+        return environment_value
+    configured_value = context.config.get(parameter, UNSET)
+    if configured_value is not UNSET:
+        return configured_value
+    factory = field.default_factory
+    return factory(context) if callable(factory) else field.default
+
+
+def _materialize_field_arguments(
+    func: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    field_definitions: dict[str, tuple[_Field, Any]],
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Replace omitted Field markers with their final runtime values."""
+    signature = inspect.signature(func)
+    bound = signature.bind(*args, **kwargs)
+    bound.apply_defaults()
+    context = bound.arguments.get(next(iter(signature.parameters)))
+    if not isinstance(context, ToolkitContext):
+        return bound.args, bound.kwargs
+    try:
+        type_hints = get_type_hints(func, include_extras=True)
+    except (NameError, TypeError):
+        type_hints = {}
+
+    field_values: dict[str, Any] = {}
+    annotations: dict[str, Any] = {}
+    fields: dict[str, _Field] = {}
+    for name, parameter in signature.parameters.items():
+        current = bound.arguments.get(name)
+        if isinstance(current, _DeferredField):
+            field, fallback_annotation = field_definitions[current.parameter]
+        elif is_field(current):
+            field, fallback_annotation = current, parameter.annotation
+        else:
+            continue
+        resolved_field = cast(_Field, field)
+        if resolved_field.required:
+            raise TypeError(f"Missing required task argument: '{name}'")
+        field_values[name] = _field_context_value(context, name, resolved_field)
+        annotation, _ = _annotation_parts(type_hints.get(name, fallback_annotation))
+        annotations[name] = annotation
+        fields[name] = resolved_field
+
+    if field_values:
+        from invoke_toolkit.field_resolvers import resolve_field_references
+
+        bound.arguments.update(
+            resolve_field_references(context, field_values, annotations, fields)
+        )
+    return bound.args, bound.kwargs
 
 
 @overload
 def task(
     func: F,
     *,
-    name: Optional[str] = None,
-    default: Optional[bool] = False,
-    aliases: Optional[Sequence[str]] = None,
-    positional: Optional[Sequence[str]] = None,
-    optional: Optional[Sequence[str]] = None,
-    iterable: Optional[Sequence[str]] = None,
-    incrementable: Optional[Sequence[str]] = None,
+    name: str | None = None,
+    default: bool | None = False,
+    aliases: Sequence[str] | None = None,
+    positional: Sequence[str] | None = None,
+    optional: Sequence[str] | None = None,
+    iterable: Sequence[str] | None = None,
+    incrementable: Sequence[str] | None = None,
     bool_flags: tuple[str, ...] = (),
     autoprint: bool = False,
-    help: Optional[dict[str, str]] = None,
-    pre: Optional[list[Callable[..., Any]]] = None,
-    post: Optional[list[Callable[..., Any]]] = None,
-    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
-    proctitle: Optional[str] = None,
+    help: dict[str, str] | None = None,
+    pre: list[Callable[..., Any] | Call] | None = None,
+    post: list[Callable[..., Any] | Call] | None = None,
+    klass: type["ToolkitTask"] | None = ToolkitTask,
+    proctitle: str | None = None,
     cache: CacheParam = None,
 ) -> F: ...
 
@@ -466,41 +602,41 @@ def task(
 def task(
     func: None = None,
     *,
-    name: Optional[str] = None,
-    default: Optional[bool] = False,
-    aliases: Optional[Sequence[str]] = None,
-    positional: Optional[Sequence[str]] = None,
-    optional: Optional[Sequence[str]] = None,
-    iterable: Optional[Sequence[str]] = None,
-    incrementable: Optional[Sequence[str]] = None,
+    name: str | None = None,
+    default: bool | None = False,
+    aliases: Sequence[str] | None = None,
+    positional: Sequence[str] | None = None,
+    optional: Sequence[str] | None = None,
+    iterable: Sequence[str] | None = None,
+    incrementable: Sequence[str] | None = None,
     bool_flags: tuple[str, ...] = (),
     autoprint: bool = False,
-    help: Optional[dict[str, str]] = None,
-    pre: Optional[list[Callable[..., Any]]] = None,
-    post: Optional[list[Callable[..., Any]]] = None,
-    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
-    proctitle: Optional[str] = None,
+    help: dict[str, str] | None = None,
+    pre: list[Callable[..., Any] | Call] | None = None,
+    post: list[Callable[..., Any] | Call] | None = None,
+    klass: type["ToolkitTask"] | None = ToolkitTask,
+    proctitle: str | None = None,
     cache: CacheParam = None,
 ) -> Callable[[F], F]: ...
 
 
 def task(  # pylint: disable=too-many-arguments,too-many-branches
-    func: Optional[F] = None,
+    func: F | None = None,
     *,
-    name: Optional[str] = None,
-    default: Optional[bool] = False,
-    aliases: Optional[Sequence[str]] = None,
-    positional: Optional[Sequence[str]] = None,
-    optional: Optional[Sequence[str]] = None,
-    iterable: Optional[Sequence[str]] = None,
-    incrementable: Optional[Sequence[str]] = None,
+    name: str | None = None,
+    default: bool | None = False,
+    aliases: Sequence[str] | None = None,
+    positional: Sequence[str] | None = None,
+    optional: Sequence[str] | None = None,
+    iterable: Sequence[str] | None = None,
+    incrementable: Sequence[str] | None = None,
     bool_flags: tuple[str, ...] = (),
     autoprint: bool = False,
-    help: Optional[dict[str, str]] = None,  # pylint: disable=redefined-builtin
-    pre: Optional[list[Callable[..., Any]]] = None,
-    post: Optional[list[Callable[..., Any]]] = None,
-    klass: Optional[Type["ToolkitTask"]] = ToolkitTask,
-    proctitle: Optional[str] = None,
+    help: dict[str, str] | None = None,  # pylint: disable=redefined-builtin
+    pre: list[Callable[..., Any] | Call] | None = None,
+    post: list[Callable[..., Any] | Call] | None = None,
+    klass: type["ToolkitTask"] | None = ToolkitTask,
+    proctitle: str | None = None,
     cache: CacheParam = None,
 ) -> Any:
     """
@@ -688,23 +824,27 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         if inspect.iscoroutinefunction(f):
 
             @wraps(f)
-            async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 args, kwargs = prepare_call(args, kwargs)
                 previous = set_title()
                 try:
                     return await f(*args, **kwargs)
                 finally:
                     restore_title(previous)
+
+            wrapper = async_wrapper
         else:
 
             @wraps(f)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 args, kwargs = prepare_call(args, kwargs)
                 previous = set_title()
                 try:
                     return f(*args, **kwargs)
                 finally:
                     restore_title(previous)
+
+            wrapper = sync_wrapper
 
         # Preserve the type hints on the wrapper
         wrapper.__annotations__ = f.__annotations__
@@ -782,16 +922,112 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
         if default is not None:
             task_kwargs["default"] = default
 
-        # Apply caching wrapper if configured
+        # Cache receives final materialized values, not Field markers/references.
         cache_config = parse_cache_config(cache)
+        validation_wrapper = wrapper
         if cache_config is not None:
-            cached_wrapper = cached_task_wrapper(wrapper, cache_config)
+            execution_wrapper = cached_task_wrapper(validation_wrapper, cache_config)
         else:
-            cached_wrapper = wrapper
+            execution_wrapper = validation_wrapper
 
-        # Apply the Invoke @task decorator
-        task_decorated = invoke_task(cached_wrapper, klass=klass, **task_kwargs)
+        task_decorated: Any = None
 
+        def field_definitions() -> dict[str, tuple[_Field, Any]]:
+            if task_decorated is None:
+                return {}
+            return getattr(task_decorated, "_field_definitions", {})
+
+        if inspect.iscoroutinefunction(execution_wrapper):
+
+            @wraps(f)
+            async def async_field_wrapper(*args: Any, **kwargs: Any) -> Any:
+                from invoke_toolkit.field_resolvers import FieldCleanupManager
+
+                context = (
+                    args[0] if args and isinstance(args[0], ToolkitContext) else None
+                )
+                if context is None:
+                    materialized_args, materialized_kwargs = (
+                        _materialize_field_arguments(
+                            f, args, kwargs, field_definitions()
+                        )
+                    )
+                    return await execution_wrapper(
+                        *materialized_args, **materialized_kwargs
+                    )
+                owner = not hasattr(context, "_field_cleanup")
+                if owner:
+                    context._field_cleanup = FieldCleanupManager()
+                failed = False
+                try:
+                    with context._field_cleanup.task_scope():
+                        materialized_args, materialized_kwargs = (
+                            _materialize_field_arguments(
+                                f, args, kwargs, field_definitions()
+                            )
+                        )
+                        return await execution_wrapper(
+                            *materialized_args, **materialized_kwargs
+                        )
+                except BaseException:
+                    failed = True
+                    raise
+                finally:
+                    if owner:
+                        context._field_cleanup.close_pipeline(failed)
+                        del context._field_cleanup
+
+            field_wrapper = async_field_wrapper
+        else:
+
+            @wraps(f)
+            def sync_field_wrapper(*args: Any, **kwargs: Any) -> Any:
+                from invoke_toolkit.field_resolvers import FieldCleanupManager
+
+                context = (
+                    args[0] if args and isinstance(args[0], ToolkitContext) else None
+                )
+                if context is None:
+                    materialized_args, materialized_kwargs = (
+                        _materialize_field_arguments(
+                            f, args, kwargs, field_definitions()
+                        )
+                    )
+                    return execution_wrapper(*materialized_args, **materialized_kwargs)
+                owner = not hasattr(context, "_field_cleanup")
+                if owner:
+                    context._field_cleanup = FieldCleanupManager()
+                failed = False
+                try:
+                    with context._field_cleanup.task_scope():
+                        materialized_args, materialized_kwargs = (
+                            _materialize_field_arguments(
+                                f, args, kwargs, field_definitions()
+                            )
+                        )
+                        return execution_wrapper(
+                            *materialized_args, **materialized_kwargs
+                        )
+                except BaseException:
+                    failed = True
+                    raise
+                finally:
+                    if owner:
+                        context._field_cleanup.close_pipeline(failed)
+                        del context._field_cleanup
+
+            field_wrapper = sync_field_wrapper
+
+        field_wrapper.__signature__ = inspect.signature(f)  # type: ignore[attr-defined]
+        task_decorated = invoke_task(field_wrapper, klass=klass, **task_kwargs)
+
+        task_decorated._field_definitions = {}  # type: ignore[attr-defined]
+        for parameter in inspect.signature(f).parameters.values():
+            if is_field(parameter.default):
+                task_decorated._field_definitions[parameter.name] = (  # type: ignore[attr-defined]
+                    parameter.default,
+                    parameter.annotation,
+                )
         # Store reference to original function
         task_decorated.__wrapped__ = f  # type: ignore[attr-defined]
         # Store completion callbacks for use in completion system
@@ -808,14 +1044,10 @@ def task(  # pylint: disable=too-many-arguments,too-many-branches
 
 
 class ToolkitCall(Call):
-    def make_context(self, config, core_parse_result=None):
-        """Generates the Context for the task.
-
-        .. versionchanged:: invoke 3.0
-            Added the ``core_parse_result`` parameter so that
-            ``Context.remainder`` is populated from the CLI parser's remainder
-            value (text after a standalone ``--``).
-        """
+    def make_context(
+        self, config: Any, core_parse_result: Any = None
+    ) -> ToolkitContext:
+        """Generate a toolkit context with the parser remainder."""
         remainder = core_parse_result.remainder if core_parse_result is not None else ""
         return ToolkitContext(config=config, remainder=remainder)
 

@@ -4,7 +4,7 @@ in tasks.
 """
 
 import sys
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from invoke.runners import Local
 from invoke.util import debug
@@ -109,7 +109,7 @@ class NoStdoutRunner(Local):
             debug("context is missing print")
             print(self.opts["echo_format"].format(command=command), file=sys.stderr)
 
-    def _get_status_helper(self) -> "Optional[StatusHelper]":
+    def _get_status_helper(self) -> "StatusHelper | None":
         if hasattr(self.context, "_status_helper"):
             return self.context._status_helper  # pylint: disable=protected-access
         return None

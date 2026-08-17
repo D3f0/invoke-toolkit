@@ -13,7 +13,7 @@ import platformdirs
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.table import Table
-from typing_extensions import Annotated
+from typing import Annotated
 
 import invoke_toolkit
 from invoke_toolkit import Context, __version__, task
@@ -157,31 +157,42 @@ def add_shebang(
         ctx.print(f"{path} has already a shebang")
 
 
-def _get_default_template_path() -> Path:
-    """
-    Get the default template path from the invoke-toolkit package.
-
-    Returns:
-        Path to the bundled package-template directory
-    """
-    # Try to find templates relative to the invoke_toolkit module
-    # This works for both development (repo root) and installed packages
+def _get_bundled_template_path(template_name: str) -> Path:
+    """Return a bundled Copier template path for development or installation."""
+    # Try to find templates relative to the invoke_toolkit module. This works
+    # for both development checkouts and installed package data.
     invoke_toolkit_path = Path(invoke_toolkit.__file__).parent
+    template_path = invoke_toolkit_path.parent.parent / "templates" / template_name
 
-    # First try: templates in the same directory (development setup)
-    template_path = invoke_toolkit_path.parent.parent / "templates" / "package-template"
-
-    # Second try: templates in the package data directory (installed)
     if not template_path.exists():
-        template_path = invoke_toolkit_path / "templates" / "package-template"
+        template_path = invoke_toolkit_path / "templates" / template_name
 
-    # Third try: check if we're in a site-packages installation
     if not template_path.exists():
-        # Look for templates in the package root's share or data directory
         site_packages_parent = invoke_toolkit_path.parent.parent.parent
-        template_path = site_packages_parent / "templates" / "package-template"
+        template_path = site_packages_parent / "templates" / template_name
 
     return template_path
+
+
+def _get_default_template_path() -> Path:
+    """Return the bundled task-collection Copier template path."""
+    return _get_bundled_template_path("package-template")
+
+
+def _get_provider_template_path() -> Path:
+    """Return the bundled field-resolver-provider Copier template path."""
+    return _get_bundled_template_path("provider-template")
+
+
+def _normalize_provider_scheme(provider: str, ctx: Context) -> str:
+    """Validate a scheme that can safely form package and TOML identifiers."""
+    scheme = provider.lower()
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", scheme):
+        ctx.rich_exit(
+            "Provider must use lowercase letters, digits, and hyphens, "
+            "starting with a letter (for example 'op' or 'keychain')."
+        )
+    return scheme
 
 
 def _resolve_template_source(template: str | None, ctx: Context) -> str:
@@ -236,7 +247,7 @@ def _resolve_template_source(template: str | None, ctx: Context) -> str:
 @task(aliases=["p"])
 def package(
     ctx: Context,
-    name: Annotated[str, "The package name"] = "my-tasks-package",
+    name: Annotated[str, "The package name"] = "",
     location: Annotated[str, "The location to create the package"] = ".",
     ext_name: Annotated[
         str,
@@ -247,13 +258,15 @@ def package(
         "Custom copier template path or git URL. If not provided, uses git config "
         f"'{GIT_CONFIG_TEMPLATE_KEY}' or the bundled template.",
     ] = "",
+    provider: Annotated[
+        str,
+        "URI scheme for a resolver-only provider package (for example, 'op')",
+    ] = "",
 ) -> None:
-    """
-    Creates a package for tasks using the invoke-toolkit copier template.
-    When installed, the package's collections will be automatically discovered.
+    """Create either a task collection package or a field resolver provider package.
 
-    The generated package includes entry-point annotations that allow
-    invoke-toolkit to discover and load the tasks collection.
+    Provider packages contain only a field-resolver entry point and never expose
+    invoke-toolkit task collections.
     """
     if run_copy is None:
         ctx.rich_exit(
@@ -261,9 +274,15 @@ def package(
             "Install it with: uv pip install invoke-toolkit[copier]"
         )
 
+    if provider and (name or ext_name or template):
+        ctx.rich_exit(
+            "--provider cannot be combined with --name, --ext-name, or --template."
+        )
+
+    provider_scheme = _normalize_provider_scheme(provider, ctx) if provider else None
     base = Path(location)
 
-    # Check if the location is inside a git repository
+    # Check if the location is inside a git repository.
     try:
         result = subprocess.run(
             ["git", "-C", str(base), "rev-parse", "--git-dir"],
@@ -281,17 +300,17 @@ def package(
                 ).strip()
             )
     except (subprocess.TimeoutExpired, FileNotFoundError):
-        # If git is not available or times out, continue anyway
+        # If git is not available or times out, continue anyway.
         pass
 
-    # Determine the actual package name
-    if ext_name:
+    if provider_scheme:
+        actual_name = f"invoke-toolkit-{provider_scheme}-provider"
+    elif ext_name:
         actual_name = f"invoke-toolkit-{ext_name}"
     else:
-        actual_name = name
+        actual_name = name or "my-tasks-package"
 
     target_path = base / actual_name
-
     if target_path.exists():
         ctx.rich_exit(
             dedent(
@@ -302,30 +321,48 @@ def package(
             ).strip()
         )
 
-    # Resolve the template source (explicit param, git config, or default)
-    template_source = _resolve_template_source(template or None, ctx)
+    # Providers must always use the bundled no-collection template. Generic
+    # templates and git-config overrides cannot weaken that contract.
+    if provider_scheme:
+        provider_template = _get_provider_template_path()
+        if not provider_template.exists():
+            ctx.rich_exit(
+                f"Provider template directory not found at [bold]{provider_template}[/bold]. "
+                "Please ensure invoke-toolkit is properly installed."
+            )
+        template_source = str(provider_template)
+    else:
+        template_source = _resolve_template_source(template or None, ctx)
 
     ctx.print_err(
         f"[blue]Creating package[/blue] [bold]{actual_name}[/bold] [blue]from template...[/blue]"
     )
 
     try:
-        # Prepare data for template rendering
-        package_slug = actual_name.lower().replace("-", "_").replace(" ", "_")
-
-        # Determine extension short name for entry point
-        if actual_name.startswith(PLUGIN_PREFIX):
-            extension_short_name = actual_name[len(PLUGIN_PREFIX) :]
-        else:
-            extension_short_name = package_slug
-
-        template_data = {
+        package_slug = (
+            f"invoke_toolkit_{provider_scheme.replace('-', '_').replace('+', '_').replace('.', '_')}_provider"
+            if provider_scheme
+            else actual_name.lower().replace("-", "_").replace(" ", "_")
+        )
+        template_data: dict[str, Any] = {
             "package_name": actual_name,
             "package_slug": package_slug,
-            "collection_name": extension_short_name,
-            "extension_short_name": extension_short_name,
             "python_version": "3.11",
         }
+
+        if provider_scheme:
+            template_data["provider_scheme"] = provider_scheme
+        else:
+            if actual_name.startswith(PLUGIN_PREFIX):
+                extension_short_name = actual_name[len(PLUGIN_PREFIX) :]
+            else:
+                extension_short_name = package_slug
+            template_data.update(
+                {
+                    "collection_name": extension_short_name,
+                    "extension_short_name": extension_short_name,
+                }
+            )
 
         run_copy(
             src_path=template_source,
@@ -338,17 +375,31 @@ def package(
             overwrite=True,
         )
         ctx.print_err(f"[green]✓ Package created at[/green] [bold]{target_path}[/bold]")
-        ctx.print_err(
-            dedent(
-                f"""
-                [yellow]Next steps:[/yellow]
-                  cd {target_path}
-                  uv sync
-                  # Test your package
-                  uv run --directory {target_path} -m invoke-toolkit -l
-                """
-            ).strip()
-        )
+        if provider_scheme:
+            ctx.print_err(
+                dedent(
+                    f"""
+                    [yellow]Next steps:[/yellow]
+                      cd {target_path}
+                      uv sync
+                      # Implement the resolver and run its focused tests
+                      uv run pytest
+                      # Install this provider in the consumer environment
+                    """
+                ).strip()
+            )
+        else:
+            ctx.print_err(
+                dedent(
+                    f"""
+                    [yellow]Next steps:[/yellow]
+                      cd {target_path}
+                      uv sync
+                      # Test your package
+                      uv run --directory {target_path} -m invoke-toolkit -l
+                    """
+                ).strip()
+            )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         ctx.rich_exit(f"Failed to create package: {exc}")
 

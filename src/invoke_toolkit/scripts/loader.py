@@ -5,7 +5,6 @@ Run scripts with https://peps.python.org/pep-0723/
 import inspect
 import traceback
 from types import FrameType
-from typing import List, Optional
 
 from invoke.tasks import Task
 from invoke.util import debug
@@ -17,9 +16,9 @@ from invoke_toolkit.program import ToolkitProgram
 
 
 def script(
-    argv: Optional[List[str]] = None,
+    argv: list[str] | None = None,
     exit: bool = True,
-    config_prefix: Optional[str] = None,
+    config_prefix: str | None = None,
 ) -> None:
     r"""Allows to call .py files directly without invoke-toolkit/it command.
 

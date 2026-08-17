@@ -106,6 +106,74 @@ To enable caching, install with the cache extra:
 pip install invoke-toolkit[cache]
 ```
 
+## Dynamic task defaults
+
+Use `Field` when an argument default must be computed from the final task
+context or resolved from a URI. Explicit command-line values always take
+precedence.
+
+Bind a resolver once, then reuse the resulting callable for scalar and file
+defaults. A local resolver always returns one string value per request. The
+resolver receives every URI using that callback and scheme in one batch.
+
+```python
+from invoke_toolkit import Context, Field, FilePath, task
+
+
+def resolve_bw(ctx: Context, requests: list) -> dict[str, str]:
+    return {
+        request.parameter: ctx.run("bw get password ...", hide=True).stdout.strip()
+        for request in requests
+    }
+
+
+BitwardenField = Field(resolver=resolve_bw)
+ExistingFile = FilePath(exists=True, dir_okay=False)
+
+
+@task
+def deploy(
+    ctx: Context,
+    password: str = BitwardenField(default="bw://PASSWORD_ID"),
+    config: ExistingFile = BitwardenField(
+        default="bw://CONFIG_ID", cleanup="task"
+    ),
+) -> None:
+    ...
+```
+
+For `str` fields, the resolver string reaches the task unchanged. For `Path` or
+`FilePath` fields, `Field.create_temporary_file()` writes that string to a
+managed temporary file and passes its `Path` to the task. Override that method
+in a `Field` subclass to control file creation; resolvers do not return paths.
+
+For omitted arguments, lookup precedence is explicit CLI/Python/call value,
+then `INVOKE_<PARAMETER>` environment value, then the resolved `ctx.config`
+value, then the declared `Field` default or factory. URI values from config use
+the same local or entry-point resolver dispatch as declared URI defaults.
+
+`Field(default_factory=callback)` runs only if no higher-precedence value is
+available. Factories and resolvers never run during help, listing, or shell
+completion; `Path`/`FilePath` completion continues to work normally for
+explicit values.
+
+Temporary `Path` files from resolver-bound `Field` instances are owned by
+invoke-toolkit. `cleanup="pipeline"` is the default and keeps the file through
+expanded pre/main/post execution; `cleanup="task"` removes it when that task
+returns. Cleanup runs after failures and cancellation.
+
+Installed `invoke_toolkit.field_resolver` entry points remain supported for
+compatibility but issue a warning recommending a task-local resolver. Generate a
+resolver-only provider package with:
+
+```console
+intk -x create.package --provider op
+```
+
+Provider packages expose no task collection. Providers return text only; for
+`Path` fields invoke-toolkit materializes and cleans the resulting temporary
+file according to that Field's cleanup lifetime.
+
 ## Development
 
 This project utilizes the `pre-commit` framework, make sure you run:

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Type, TypeVar, overload
+from typing import Any, TypeVar, overload
+from collections.abc import Callable
 
 import attrs
 import cattrs
@@ -49,7 +50,7 @@ class ConfigSchema:
     __config_description__: str | None = None
 
     @classmethod
-    def from_dict(cls: Type[T], data: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], data: dict[str, Any]) -> T:
         """Create instance from dict using cattrs.
 
         Args:

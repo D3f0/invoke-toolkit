@@ -1,0 +1,23 @@
+"""{{ project_description }}."""
+
+from collections.abc import Mapping, Sequence
+
+from invoke_toolkit import Context, FieldResolutionRequest
+
+
+def resolve(
+    ctx: Context,
+    requests: Sequence[FieldResolutionRequest],
+) -> Mapping[str, str]:
+    """Resolve one batch of {{ provider_scheme }} URI field references.
+
+    Return exactly one string per requested parameter. Invoke-toolkit passes the
+    string through to scalar fields and materializes it into a temporary file
+    for ``Path``-annotated fields.
+    """
+    raise NotImplementedError(
+        "Implement resolve() to resolve {{ provider_scheme }} field references."
+    )
+
+
+__all__ = ["resolve"]

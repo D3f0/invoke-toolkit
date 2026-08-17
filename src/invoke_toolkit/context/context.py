@@ -8,18 +8,13 @@ from os import PathLike
 from typing import (
     TYPE_CHECKING,
     Any,
-    Awaitable,
-    Callable,
-    Generator,
-    Iterator,
     Literal,
     NoReturn,
-    Optional,
     Protocol,
     TypeVar,
-    Union,
     overload,
 )
+from collections.abc import Awaitable, Callable, Generator, Iterator
 
 import setproctitle
 from invoke.context import Context
@@ -51,9 +46,7 @@ class ConfigProtocol(Protocol):
     status_update: Callable
     print: BoundPrintProtocol
 
-    def rich_exit(
-        self, message: str = "Exited", exit_code: Optional[int] = 1
-    ) -> NoReturn:
+    def rich_exit(self, message: str = "Exited", exit_code: int | None = 1) -> NoReturn:
         """Rich exit"""
 
     def proctitle(self, title: str) -> Iterator[None]:
@@ -65,14 +58,13 @@ class ToolkitContext(Context, ConfigProtocol):
 
     _config: ToolkitConfig
     _status_helper: StatusHelper
+    _field_cleanup: Any
 
     # Override cd with proper type annotation to fix PathLike[Unknown] issue
-    cd: Callable[
-        [Union[PathLike[str], str]], _GeneratorContextManager[None, None, None]
-    ]
+    cd: Callable[[PathLike[str] | str], _GeneratorContextManager[None, None, None]]
 
     def __init__(
-        self, config: Optional[ToolkitConfig] = None, remainder: str = ""
+        self, config: ToolkitConfig | None = None, remainder: str = ""
     ) -> None:
         super().__init__(config, remainder=remainder)
         self._set("_console", get_console())
@@ -131,9 +123,7 @@ class ToolkitContext(Context, ConfigProtocol):
         """
         return self._status_helper.status_stop()
 
-    def rich_exit(
-        self, message: str = "Exited", exit_code: Optional[int] = 1
-    ) -> NoReturn:
+    def rich_exit(self, message: str = "Exited", exit_code: int | None = 1) -> NoReturn:
         """An alternative to sys.exit that has rich output"""
         get_console().log(message)
         sys.exit(exit_code)
@@ -153,7 +143,7 @@ class ToolkitContext(Context, ConfigProtocol):
         obj,
         *,
         # console: Optional["Console"] = None,
-        title: Optional[str] = None,
+        title: str | None = None,
         help_: bool = False,
         methods: bool = False,
         docs: bool = True,
@@ -184,7 +174,7 @@ class ToolkitContext(Context, ConfigProtocol):
     def redact(
         self,
         streams: str | dict[str, list[str]],
-        patterns: Optional[list[str]] = None,
+        patterns: list[str] | None = None,
     ) -> Iterator[None]:
         """
         This context manager will make the desired streams (out, err) replace
@@ -374,7 +364,7 @@ class ToolkitContext(Context, ConfigProtocol):
         path: str,
         default: Any = ...,
         exit_message: str = ...,
-        exit_code: Optional[int] = None,
+        exit_code: int | None = None,
         required: bool = False,
     ) -> Any | NoReturn: ...
 
@@ -395,8 +385,8 @@ class ToolkitContext(Context, ConfigProtocol):
         self,
         path: str,
         default: Any = ...,
-        exit_message: Optional[str] = None,
-        exit_code: Optional[int] = None,
+        exit_message: str | None = None,
+        exit_code: int | None = None,
         required: bool = True,
     ) -> Any | NoReturn: ...
 
@@ -404,8 +394,8 @@ class ToolkitContext(Context, ConfigProtocol):
         self,
         path: str,
         default: Any = ...,
-        exit_message: Optional[str] = None,
-        exit_code: Optional[int] = None,
+        exit_message: str | None = None,
+        exit_code: int | None = None,
         required: bool = False,
     ) -> Any:
         """Get a configuration value from config with dot notation support.

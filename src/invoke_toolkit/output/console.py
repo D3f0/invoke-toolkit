@@ -2,18 +2,18 @@
 Rich console instance
 """
 
+# pylint: disable=ungrouped-imports
 import os
 import re
 from fnmatch import fnmatch
-from typing import Any, List, Literal, Optional, Pattern, Union
+from re import Pattern
+from typing import Annotated, Any, Literal
 
 from invoke.util import debug
 from rich.console import Console, JustifyMethod, OverflowMethod
 from rich.style import Style
-from rich.text import Text
-from typing_extensions import Annotated
-
 from invoke_toolkit.utils.singleton import singleton
+from rich.text import Text
 
 
 class SecretRedactorConsole(Console):
@@ -22,7 +22,7 @@ class SecretRedactorConsole(Console):
     def __init__(
         self,
         *args,
-        secret_patterns: Union[List[str], None] = None,
+        secret_patterns: list[str] | None = None,
         substitution: Annotated[
             str, "The substitution can be a single character or a f-template string"
         ] = "${}",
@@ -38,7 +38,7 @@ class SecretRedactorConsole(Console):
             redact_char: Character to replace secrets with (default: "*")
         """
         super().__init__(*args, **kwargs)
-        self._compiled_patterns: List[Union[Pattern[str], str]] = []
+        self._compiled_patterns: list[Pattern[str] | str] = []
         self._secret_map: dict = {}
         self.secret_patterns = secret_patterns or []
         self.substitution = substitution
@@ -46,7 +46,7 @@ class SecretRedactorConsole(Console):
     _secret_patterns: list[str]
 
     @property
-    def secret_patterns(self) -> List[str]:
+    def secret_patterns(self) -> list[str]:
         """Getter for secret_patterns"""
         return self._secret_patterns
 
@@ -56,7 +56,7 @@ class SecretRedactorConsole(Console):
         self._secret_patterns = value
         self._initialize_secrets(self._secret_patterns)
 
-    def _initialize_secrets(self, patterns: Union[List[str], None]) -> None:
+    def _initialize_secrets(self, patterns: list[str] | None) -> None:
         """
         Initialize secret patterns and build secret map.
         The environment variable values are sampled here.
@@ -128,17 +128,17 @@ class SecretRedactorConsole(Console):
         *objects: Any,
         sep: str = " ",
         end: str = "\n",
-        style: Optional[Union[str, Style]] = None,
-        justify: Optional[JustifyMethod] = None,
-        overflow: Optional[OverflowMethod] = None,
-        no_wrap: Optional[bool] = None,
-        emoji: Optional[bool] = None,
-        markup: Optional[bool] = None,
-        highlight: Optional[bool] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        style: str | Style | None = None,
+        justify: JustifyMethod | None = None,
+        overflow: OverflowMethod | None = None,
+        no_wrap: bool | None = None,
+        emoji: bool | None = None,
+        markup: bool | None = None,
+        highlight: bool | None = None,
+        width: int | None = None,
+        height: int | None = None,
         crop: bool = True,
-        soft_wrap: Optional[bool] = None,
+        soft_wrap: bool | None = None,
         new_line_start: bool = False,
     ) -> None:
         """Override print to redact secrets before output."""
@@ -196,7 +196,7 @@ class ConsoleManager:  # pylint: disable=too-few-public-methods
 
     def get_console(
         self,
-        stream: Union[Literal["out"], Literal["err"], Literal["log"]] = "err",
+        stream: Literal["out"] | Literal["err"] | Literal["log"] = "err",
     ) -> SecretRedactorConsole:
         """
         Returns a Console object. If redact is on will return a SecretRedactorConsole

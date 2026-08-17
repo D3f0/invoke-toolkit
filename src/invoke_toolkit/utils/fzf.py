@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from shutil import which
-from typing import Any, Optional
+from typing import Any
 
 from invoke import Context
 from invoke.util import debug
@@ -95,7 +95,7 @@ def _rich_select(  # pylint: disable=too-many-return-statements
     multi: bool = False,
     select_1: bool = False,
     exit_0: bool = False,
-) -> Optional[str | list[str]]:
+) -> str | list[str] | None:
     """
     Fallback selector using rich when fzf is not available.
 
@@ -179,7 +179,7 @@ def _run_fzf(
     fzf_cmd: list[str],
     choices_content: str,
     multi: bool,
-) -> Optional[str | list[str]]:
+) -> str | list[str] | None:
     """
     Run fzf with the given command and choices content.
 
@@ -240,13 +240,13 @@ def select(  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
     choices: list[str],
     prompt: str = "Select an option",
     multi: bool = False,
-    preview: Optional[str] = None,
+    preview: str | None = None,
     preview_window: str = "right:50%",
     height: str = "40%",
     reverse: bool = True,
     use_fallback: bool = True,
     **kwargs: Any,
-) -> Optional[str | list[str]]:
+) -> str | list[str] | None:
     """
     Use fzf to interactively select from a list of choices.
 
@@ -435,13 +435,13 @@ def select_from_command(  # pylint: disable=too-many-locals,too-many-branches,to
     command: str,
     prompt: str = "Select an option",
     multi: bool = False,
-    preview: Optional[str] = None,
+    preview: str | None = None,
     preview_window: str = "right:50%",
     height: str = "40%",
     reverse: bool = True,
     use_fallback: bool = True,
     **kwargs: Any,
-) -> Optional[str | list[str]]:
+) -> str | list[str] | None:
     """
     Use fzf to select from the output of a command.
 

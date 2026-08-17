@@ -1,16 +1,19 @@
 """Tests for native async task and command support."""
 
 import asyncio
-from typing import Awaitable, cast
+from pathlib import Path
+from typing import Annotated, cast
+from collections.abc import Awaitable
 
 import pytest
 from invoke.runners import Result
 
-from invoke_toolkit import Context, task
+from invoke_toolkit import Context, Field, task
+from invoke_toolkit.collections import ToolkitCollection
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.context.async_tools import AsyncGatherScope
 from invoke_toolkit.testing import TestingToolkitProgram
-from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.tasks.types import _FileCompletionMarker
 
 
 def test_run_async_returns_invoke_result():
@@ -137,3 +140,29 @@ def test_grouped_pre_tasks_do_not_crash_async_task_detection():
     program = TestingToolkitProgram(namespace=ToolkitCollection(build))
     program.run(["", "build"], exit=False)
     assert calls == ["pre-one", "pre-two", "build"]
+
+
+def test_async_local_field_cleanup_on_completion(tmp_path):
+    def resolve_bw(ctx, requests):
+        return {request.parameter: "content" for request in requests}
+
+    field = Field(resolver=resolve_bw)
+    resolved_paths: list[Path] = []
+    seen: list[bool] = []
+
+    @task
+    async def sample(
+        ctx: Context,
+        config: Annotated[
+            Path, _FileCompletionMarker(exists=True, dir_okay=False)
+        ] = field(default="bw://config"),
+    ) -> None:
+        resolved_paths.append(config)
+        seen.append(config.exists())
+
+    program = TestingToolkitProgram(
+        namespace=ToolkitCollection("sample", sample)  # type: ignore[arg-type]
+    )
+    program.run(["", "sample"], exit=False)
+    assert seen == [True]
+    assert not resolved_paths[0].exists()

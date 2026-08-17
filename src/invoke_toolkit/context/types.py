@@ -2,13 +2,15 @@
 Type annotations for finding out what's there in ctx.attribute
 """
 
+# pylint: disable=ungrouped-imports
 import sys
-from typing import IO, Any, Awaitable, Optional, Union
+from collections.abc import Awaitable
+from typing import Annotated, IO, Any
 
 from invoke.runners import Result
 from invoke.watchers import StreamWatcher
 from rich.console import JustifyMethod, OverflowMethod, Style
-from typing_extensions import Annotated, Protocol
+from typing_extensions import Protocol
 
 
 class AsyncContextRunProtocol(Protocol):
@@ -23,17 +25,17 @@ class BoundPrintProtocol(Protocol):
         *objects: Any,
         sep: str = " ",
         end: str = "\n",
-        style: Optional[Union[str, Style]] = None,  # noqa: F821
-        justify: Optional[JustifyMethod] = None,
-        overflow: Optional[OverflowMethod] = None,
-        no_wrap: Optional[bool] = None,
-        emoji: Optional[bool] = None,
-        markup: Optional[bool] = None,
-        highlight: Optional[bool] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        style: str | Style | None = None,  # noqa: F821
+        justify: JustifyMethod | None = None,
+        overflow: OverflowMethod | None = None,
+        no_wrap: bool | None = None,
+        emoji: bool | None = None,
+        markup: bool | None = None,
+        highlight: bool | None = None,
+        width: int | None = None,
+        height: int | None = None,
         crop: bool = True,
-        soft_wrap: Optional[bool] = None,
+        soft_wrap: bool | None = None,
         new_line_start: bool = False,
     ) -> None: ...
 
@@ -94,7 +96,7 @@ class ContextRunProtocol(Protocol):
             """,
         ] = "",
         env: Annotated[
-            Optional[dict[str, str]],
+            dict[str, str] | None,
             """
             By default, subprocesses receive a copy of Invoke's own environment
             (i.e. ``os.environ``). Supply a dict here to update that child
@@ -125,7 +127,7 @@ class ContextRunProtocol(Protocol):
             """,
         ] = False,
         in_stream: Annotated[
-            Union[None, IO, bool],
+            None | IO | bool,
             """
             A file-like stream object to used as the subprocess' standard
             input. If ``None`` (the default), ``sys.stdin`` will be used.
@@ -138,7 +140,7 @@ class ContextRunProtocol(Protocol):
             """,
         ] = sys.stdin,
         out_stream: Annotated[
-            Union[None, IO],
+            None | IO,
             """
             A file-like stream object to which the subprocess' standard output
             should be written. If ``None`` (the default), ``sys.stdout`` will
@@ -172,7 +174,7 @@ class ContextRunProtocol(Protocol):
             """,
         ] = "",
         timeout: Annotated[
-            Optional[Union[int, float]],
+            int | float | None,
             """
             Cause the runner to submit an interrupt to the subprocess and raise
             `.CommandTimedOut`, if the command takes longer than ``timeout``

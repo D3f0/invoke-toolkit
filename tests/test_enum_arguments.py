@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
-from typing_extensions import Annotated
+from typing import Annotated
 
 from invoke_toolkit.context import ToolkitContext
 from invoke_toolkit.tasks.tasks import (

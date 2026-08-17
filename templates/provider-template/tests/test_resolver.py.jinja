@@ -1,0 +1,11 @@
+"""Tests for the {{ provider_scheme }} field resolver."""
+
+import pytest
+
+from {{ package_slug }} import resolve
+
+
+def test_resolve_requires_provider_implementation() -> None:
+    """Replace this scaffold when implementing the provider."""
+    with pytest.raises(NotImplementedError):
+        resolve(None, [])
