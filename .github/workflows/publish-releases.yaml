@@ -41,8 +41,17 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: main
           fetch-depth: 0
+
+      - name: Validate release tag
+        id: release
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: ./scripts/validate-release-tag.sh
+
+      - name: Check out validated release tag
+        run: git checkout --detach "$(git rev-parse 'refs/tags/${{ steps.release.outputs.tag }}^{}')"
 
       - name: Install uv
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.4.1
@@ -53,7 +62,12 @@ jobs:
           python-version: "3.13"
 
       - name: Build package
-        run: uvx --with uv-dynamic-versioning hatchling build -d ./dist/
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          package_version=$(uvx --with uv-dynamic-versioning hatchling version)
+          test "$package_version" = "$RELEASE_VERSION"
+          uvx --with uv-dynamic-versioning hatchling build -d ./dist/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
