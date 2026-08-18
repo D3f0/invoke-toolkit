@@ -1,10 +1,13 @@
 import ast
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+from typing import Any, cast
 
+from invoke_toolkit import Task, task
 from invoke_toolkit.collections import ToolkitCollection
 
 
@@ -214,6 +217,27 @@ def test_load_local_tasks_without_main_tasks(tmp_path: Path):
 
     # Verify task is in the local collection
     assert "standalone-task" in local_col.tasks
+
+
+def test_load_local_tasks_preserves_conflicting_main_task(tmp_path: Path, caplog):
+    """A main task named local takes precedence over local_tasks.py."""
+
+    def main_task(ctx):
+        pass
+
+    decorated_main_task = cast(Task[Any], task()(main_task))
+    ns = ToolkitCollection()
+    ns.add_task(decorated_main_task, aliases=("local",))
+    (tmp_path / "local_tasks.py").write_text(
+        "from invoke_toolkit import task\n\n@task()\ndef local_task(ctx):\n    pass\n"
+    )
+
+    with caplog.at_level(logging.WARNING, logger="invoke"):
+        ns.load_local_tasks(search_path=tmp_path)
+
+    assert ns.tasks["local"] is decorated_main_task
+    assert "local" not in ns.collections
+    assert "Skipping local_tasks.py" in caplog.text
 
 
 def test_load_local_tasks_from_multiple_directories_without_module_collision(
