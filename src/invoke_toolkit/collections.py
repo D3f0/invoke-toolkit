@@ -250,6 +250,13 @@ class ToolkitCollection(Collection):
         if not local_tasks_file.exists():
             debug(f"No local_tasks.py found at {local_tasks_file}")
             return
+        if "local" in self.tasks:
+            logger.warning(
+                "Skipping local_tasks.py at %s because tasks.py already defines "
+                "the 'local' task namespace",
+                local_tasks_file,
+            )
+            return
 
         debug(f"Loading local tasks from {local_tasks_file}")
 
