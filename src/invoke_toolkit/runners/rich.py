@@ -3,14 +3,23 @@ Config object used for invoke attribute resolution
 in tasks.
 """
 
+import array
+import errno
 import sys
-from typing import TYPE_CHECKING
+from typing import IO, TYPE_CHECKING
 
-from invoke.runners import Local
-from invoke.util import debug
+from invoke.runners import Local, ready_for_reading
+from invoke.util import debug, has_fileno, isatty
 from rich.syntax import Syntax
 
 from invoke_toolkit.output import get_console
+
+if sys.platform != "win32":
+    import fcntl
+    import termios
+else:
+    fcntl = None  # pylint: disable=invalid-name
+    termios = None  # pylint: disable=invalid-name
 
 if TYPE_CHECKING:
     from invoke_toolkit.config.status_helper import StatusHelper
@@ -96,9 +105,31 @@ class OutputCapturingStream:
 
 
 class NoStdoutRunner(Local):
-    """Invoke runner that prints to stderr when invoke is used with -e/--echo
-    and redacts secrets from subprocess output when redaction is enabled.
-    """
+    """Invoke runner with output handling and safe POSIX stdin probing."""
+
+    def read_our_stdin(self, input_: IO) -> str | None:
+        """Read stdin without Invoke's undersized POSIX ioctl buffer."""
+        if not ready_for_reading(input_):
+            return None
+
+        bytes_to_read = 1
+        if sys.platform != "win32" and isatty(input_) and has_fileno(input_):
+            buffer = array.array("i", [0])
+            try:
+                fcntl.ioctl(input_, termios.FIONREAD, buffer, True)
+                bytes_to_read = max(buffer[0], 1)
+            except OSError:
+                pass
+
+        try:
+            bytes_ = input_.read(bytes_to_read)
+        except OSError as e:
+            if e.errno != errno.EBADF:
+                raise
+            bytes_ = None
+        if bytes_ and isinstance(bytes_, bytes):
+            bytes_ = self.decode(bytes_)
+        return bytes_
 
     def echo(self, command):
         if hasattr(self.context, "print"):
