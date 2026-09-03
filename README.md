@@ -174,6 +174,31 @@ Provider packages expose no task collection. Providers return text only; for
 `Path` fields invoke-toolkit materializes and cleans the resulting temporary
 file according to that Field's cleanup lifetime.
 
+## uv tool plugins
+
+This plugin-management workflow is currently for persistent `uv tool` installations only. Other package-manager plugin workflows are future work.
+
+Install a plugin from Git or a local editable checkout with uv:
+
+```console
+uv tool install invoke-toolkit --with git+https://github.com/D3f0/invoke-toolkit-litellm
+uv tool install invoke-toolkit --with-editable ./invoke-toolkit-litellm
+```
+
+When `intk` is running from a detectable uv tool environment, use the internal tasks to inspect and manage the installed `invoke-toolkit-*` plugins:
+
+```console
+intk -x plugin.list
+intk -x plugin.add --package git+https://github.com/D3f0/invoke-toolkit-litellm
+intk -x plugin.add --package invoke-toolkit-litellm --editable ./invoke-toolkit-litellm
+intk -x plugin.remove invoke-toolkit-litellm
+intk -x plugin.update
+```
+
+The `version` task identifies the uv-tool context and reports plugin versions when package metadata makes them available. For `uvx`, `uv run`, project virtual environments, or other package managers, plugin management is not claimed. Re-run `uv tool install` with the complete desired set of `--with` and `--with-editable` options when changing supplemental requirements.
+
+> **Scope disclaimer:** pipx, Poetry, pip, and other package-manager plugin management options should come in a future release.
+
 ## Development
 
 This project utilizes the `pre-commit` framework, make sure you run:
