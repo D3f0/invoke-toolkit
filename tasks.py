@@ -13,6 +13,7 @@ from invoke.util import debug
 from rich.prompt import Prompt
 
 from invoke_toolkit import Context, task
+from invoke_toolkit.extensions.uv_tools import active_tool, installed_plugins
 
 try:
     _repo_root = Path(
@@ -26,17 +27,33 @@ except subprocess.SubprocessError:
 REPO_ROOT: Path = _repo_root
 
 
+def _uv_tool_summary() -> str:
+    tool = active_tool()
+    if tool is None:
+        return ""
+    plugins = installed_plugins()
+    plugin_text = (
+        ", ".join(
+            f"{plugin.name} {plugin.version or 'version unavailable'}"
+            for plugin in plugins
+        )
+        or "no invoke-toolkit plugins"
+    )
+    return f" (uv tool; plugins: {plugin_text})"
+
+
 @task(default=True, autoprint=True, aliases=["v"])
 def version(
     ctx: Context,
 ):
-    """Shows package version (git based)"""
+    """Shows package version (git based), including uv tool plugins when detectable."""
     with ctx.cd(REPO_ROOT):
         with ctx.status("Computing version from SCM"):
-            return ctx.run(
+            version_text = ctx.run(
                 "uvx --with uv-dynamic-versioning hatchling version",
                 hide=not ctx.config.run.echo,
             ).stdout.strip()
+    return version_text + _uv_tool_summary()
 
 
 @task(autoprint=True)

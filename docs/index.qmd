@@ -70,6 +70,38 @@ With `pipx`
 pipx run invoke-toolkit
 ```
 
+## Managing uv tool plugins
+
+When `invoke-toolkit` is installed as a persistent [`uv tool`](https://docs.astral.sh/uv/concepts/tools/), extensions created with `intk -x create.package` can be added to the same isolated tool environment. This section describes the `uv` workflow only; support for plugin management through other package managers is future work.
+
+Install a plugin published from Git:
+
+```console
+uv tool install invoke-toolkit --with git+https://github.com/D3f0/invoke-toolkit-litellm
+```
+
+For a local checkout, use an editable supplemental requirement:
+
+```console
+uv tool install invoke-toolkit --with-editable ./invoke-toolkit-litellm
+```
+
+If the toolkit is already installed, re-run `uv tool install` with the complete set of `--with` and `--with-editable` options. `uv` recreates the tool environment with those supplemental requirements. The internal plugin tasks provide a guided version of this workflow when `intk` can positively identify its active uv tool environment:
+
+```console
+intk -x plugin.list
+intk -x plugin.add --package git+https://github.com/D3f0/invoke-toolkit-litellm
+intk -x plugin.add --package invoke-toolkit-litellm --editable ./invoke-toolkit-litellm
+intk -x plugin.remove invoke-toolkit-litellm
+intk -x plugin.update
+```
+
+The `version` task reports `(uv tool)` and lists installed `invoke-toolkit-*` plugin distributions and their versions when that environment can be detected. Plugin versions are read from installed package metadata; editable plugins may show their source path. A task run from `uvx`, `uv run`, a project virtual environment, or another package manager will not claim uv-tool management.
+
+`plugin.update` uses `uv tool upgrade` for the base toolkit. Use `plugin.add` or `plugin.remove` when the supplemental plugin requirement set itself needs to change. The commands must be run from a persistent `uv tool install` environment; they do not mutate arbitrary project environments.
+
+> **Scope disclaimer:** This feature currently supports plugin management for `uv` tools only. Equivalent workflows for pipx, Poetry, pip, or other package managers should be added in the future.
+
 ## Simple task example
 
 ```python
