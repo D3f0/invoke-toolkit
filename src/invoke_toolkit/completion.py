@@ -13,7 +13,7 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 
-from rich.errors import StyleError
+from rich.errors import StyleSyntaxError
 from rich.style import Style
 
 from invoke.completion.complete import (
@@ -65,7 +65,7 @@ def _strip_rich_markup(description: str) -> str:
                 Style.parse(
                     style_name if not parameters else f"{style_name}={parameters}"
                 )
-            except StyleError:  # A non-style bracket expression is literal text.
+            except StyleSyntaxError:  # A non-style bracket expression is literal text.
                 output.append(match.group(0))
             else:
                 open_tags.append(Style.normalize(style_name))
