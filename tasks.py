@@ -2,6 +2,7 @@
 
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -16,7 +17,9 @@ from invoke_toolkit import Context, task
 
 try:
     _repo_root = Path(
-        subprocess.check_output("git rev-parse --show-toplevel", shell=True)
+        subprocess.check_output(
+            "git rev-parse --show-toplevel", shell=True, stderr=False
+        )
         .strip()
         .decode()
     )
@@ -341,6 +344,27 @@ def run_in_container(  # pylint: disable=too-many-locals
         f"{container_tool} run {flags} {image} "
         + f"uv tool run {uv_tool_flags} --from /repo/ {command}",
         # pty=ctx.config.run.pty,
+        pty=True,
+    )
+
+
+@task()
+def fish(ctx: Context) -> None:
+    """Build and open a Fish shell with the current source mounted."""
+    image = "invoke-toolkit-fish-test"
+    dockerfile = REPO_ROOT / "tests" / "Dockerfile.fish"
+    quoted_dockerfile = shlex.quote(str(dockerfile))
+    quoted_repo_root = shlex.quote(str(REPO_ROOT))
+    quoted_volume = shlex.quote(f"{REPO_ROOT}:/workspace")
+    ctx.run(
+        f"docker build --file {quoted_dockerfile} --tag {image} --load "
+        f"{quoted_repo_root}",
+        pty=True,
+    )
+    ctx.run(
+        f"docker run --rm --interactive --tty "
+        f"--volume {quoted_volume} "
+        f"--workdir /workspace {image} --interactive",
         pty=True,
     )
 

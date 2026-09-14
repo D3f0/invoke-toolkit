@@ -5,7 +5,7 @@ import io
 import os
 import tempfile
 import time
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from enum import Enum
 from typing import Annotated, Literal
 
@@ -44,6 +44,104 @@ def run_completion(coll: ToolkitCollection, task_name: str, flag: str) -> str:
         except (SystemExit, Exit):
             pass
     return stdout_capture.getvalue()
+
+
+def test_completion_suppresses_entrypoint_warnings(monkeypatch, tmp_path):
+    """Completion output does not leak entry-point warnings to stderr."""
+    import warnings
+
+    from invoke_toolkit.loader.entrypoint import EntryPointLoader
+
+    (tmp_path / "tasks.py").write_text(
+        "from invoke_toolkit import task\n"
+        "\n"
+        "@task\n"
+        "def build(ctx):\n"
+        '    """Build the project."""\n'
+    )
+    monkeypatch.chdir(tmp_path)
+
+    def load_entry_points_with_warning(self):
+        warnings.warn("broken completion plugin", RuntimeWarning)
+        return {}
+
+    monkeypatch.setattr(
+        EntryPointLoader, "_load_entry_points", load_entry_points_with_warning
+    )
+
+    output = io.StringIO()
+    errors = io.StringIO()
+    program = TestingToolkitProgram(binary="intk")
+    with warnings.catch_warnings(record=True) as seen:
+        warnings.simplefilter("always")
+        with redirect_stdout(output), redirect_stderr(errors):
+            try:
+                program.run(["intk", "--complete", "--", "intk"])
+            except (SystemExit, Exit):
+                pass
+
+    assert errors.getvalue() == ""
+    assert [str(item.message) for item in seen] == ["broken completion plugin"]
+
+
+def test_fish_completion_includes_task_descriptions(monkeypatch):
+    """Fish completion candidates include the first line of task help."""
+    coll = ToolkitCollection()
+
+    @task
+    def deploy(ctx: Context) -> None:
+        """Deploy the [green]application[/green] to a [bold]target[/bold]."""
+
+    @task
+    def clean(ctx: Context) -> None:
+        """Remove generated artifacts."""
+
+    nested = ToolkitCollection("nested")
+
+    @task
+    def choices(ctx: Context) -> None:
+        """Supports [json, yaml] configuration."""
+
+    nested.add_task(choices)  # type: ignore[arg-type]
+    coll.add_collection(nested)
+
+    coll.add_task(deploy)  # type: ignore[arg-type]
+    coll.add_task(clean)  # type: ignore[arg-type]
+    monkeypatch.setenv("INVOKE_COMPLETE_SHELL", "fish")
+
+    output = run_completion(coll, "", "")
+
+    assert output.splitlines() == [
+        "clean\tRemove generated artifacts.",
+        "deploy\tDeploy the application to a target.",
+        "nested.choices\tSupports [json, yaml] configuration.",
+    ]
+
+
+def test_fish_completion_preserves_literal_closing_brackets(monkeypatch):
+    coll = ToolkitCollection()
+
+    @task
+    def docs(ctx: Context) -> None:
+        """Use the literal [/path] value."""
+
+    coll.add_task(docs)  # type: ignore[arg-type]
+    monkeypatch.setenv("INVOKE_COMPLETE_SHELL", "fish")
+
+    assert run_completion(coll, "", "").splitlines() == [
+        "docs\tUse the literal [/path] value."
+    ]
+
+
+def test_fish_completion_script_exports_completion_shell():
+    """Generated Fish scripts mark their dynamic completion requests."""
+    from invoke_toolkit.program.program import _print_completion_script
+
+    output = io.StringIO()
+    with redirect_stdout(output):
+        _print_completion_script("fish", ["intk"])
+
+    assert "env INVOKE_COMPLETE_SHELL=fish intk --complete --" in output.getvalue()
 
 
 def test_completion_enum_choices():
