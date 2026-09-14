@@ -7,9 +7,11 @@ It allows three classes to be parametrized: Loader, Config and Executor
 __all__ = ["ToolkitProgram"]
 
 import ast
+import io
 import asyncio
 import inspect
 import os
+import warnings
 import re
 import sys
 from importlib import import_module, metadata
@@ -18,6 +20,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal
 from collections.abc import Iterator, Sequence
+from contextlib import redirect_stdout
 
 from rich.table import Table
 
@@ -68,6 +71,21 @@ def _task_bodies(items: Sequence[Any]) -> Iterator[Any]:
             yield item.body
 
 
+def _print_completion_script(shell: str, names: list[str]) -> None:
+    """Print Invoke's completion script with toolkit shell metadata."""
+    output = io.StringIO()
+    with redirect_stdout(output):
+        print_completion_script(shell=shell, names=names)
+    script = output.getvalue()
+    if shell == "fish":
+        marker = f"    {names[0]} --complete --"
+        script = script.replace(
+            marker,
+            f"    env INVOKE_COMPLETE_SHELL=fish {names[0]} --complete --",
+        )
+    print(script, end="")
+
+
 class ToolkitProgram(Program):
     """Invoke Toolkit program providing rich output, package versioning and other features"""
 
@@ -103,7 +121,7 @@ class ToolkitProgram(Program):
         """
         return metadata.version("invoke-toolkit")
 
-    def run(self, argv: list[str] | None = None, exit: bool = True) -> None:
+    def run(self, argv: list[str] | None = None, exit: bool = True) -> None:  # pylint: disable=too-many-branches
         """
         Execute main CLI logic, based on ``argv``.
 
@@ -134,8 +152,16 @@ class ToolkitProgram(Program):
             # self.tasks (the tasks requested for exec and their own
             # args/flags)
             self.parse_core(argv)
-            # Handle collection concerns including project config
-            self.parse_collection()
+            if self.args.complete.value:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        category=RuntimeWarning,
+                        module=r"invoke_toolkit\.loader\.entrypoint",
+                    )
+                    self.parse_collection()
+            else:
+                self.parse_collection()
             # Parse remainder of argv as task-related input
             self.parse_tasks()
             # End of parsing (typically bailout stuff like --list, --help)
@@ -266,7 +292,7 @@ class ToolkitProgram(Program):
 
         # Print (dynamic, no tasks required) completion script if requested
         if self.args["print-completion-script"].value:
-            print_completion_script(
+            _print_completion_script(
                 shell=self.args["print-completion-script"].value,
                 names=self.binary_names,
             )
