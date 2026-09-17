@@ -122,6 +122,10 @@ def script(
         ctx.print_err(
             f"You can run it with `uv run {path}`. This file contains the following code"
         )
+        ctx.print_err(
+            "For a persistent uv tool with an editable plugin, use `uv tool install "
+            "invoke-toolkit --with-editable <plugin-path>`."
+        )
         ctx.print_err(code)
 
 
