@@ -174,6 +174,47 @@ Provider packages expose no task collection. Providers return text only; for
 `Path` fields invoke-toolkit materializes and cleans the resulting temporary
 file according to that Field's cleanup lifetime.
 
+## uv tool plugins
+
+Plugin management requires a persistent `uv tool install invoke-toolkit`
+environment. Plugins are distributions that expose an
+`invoke_toolkit.collection` entry point; their package names do not need an
+`invoke-toolkit-` prefix.
+
+```console
+intk -x plugin.list
+intk -x plugin.add 'invoke-toolkit-example>=1'
+intk -x plugin.add git+https://github.com/example/invoke-toolkit-example.git
+intk -x plugin.add ./invoke-toolkit-example
+intk -x plugin.link ./invoke-toolkit-example
+intk -x plugin.update --name invoke-toolkit-example
+intk -x plugin.update
+intk -x plugin.remove invoke-toolkit-example
+```
+
+`plugin.add` uses uv's `--with` mode. A local directory is built as a static
+installation. `plugin.link` uses `--with-editable`, so source changes are live.
+A named update refreshes one non-editable plugin; an update without a name
+refreshes all non-editable plugins and reports linked plugins as skipped.
+Registry constraints and pinned Git references remain in effect. Plugin updates
+do not update invoke-toolkit itself.
+Shell completion suggests directly installed plugin names for `plugin.remove`
+and named `plugin.update` operations.
+
+
+These commands reject `uvx`, `uv run`, project environments, and installations
+managed by another tool. pipx offers a similar manual workflow:
+
+```console
+pipx inject invoke-toolkit PLUGIN
+pipx inject invoke-toolkit --editable ./PLUGIN
+pipx uninject invoke-toolkit PLUGIN
+pipx list --include-injected
+```
+
+pipx accepts registry, local, and Git sources supported by pip. invoke-toolkit
+does not detect or execute pipx lifecycle operations.
+
 ## Development
 
 This project utilizes the `pre-commit` framework, make sure you run:

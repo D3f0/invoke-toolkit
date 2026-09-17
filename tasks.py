@@ -14,12 +14,11 @@ from invoke.util import debug
 from rich.prompt import Prompt
 
 from invoke_toolkit import Context, task
+from invoke_toolkit.extensions.uv_tools import active_tool, installed_plugins
 
 try:
     _repo_root = Path(
-        subprocess.check_output(
-            "git rev-parse --show-toplevel", shell=True, stderr=False
-        )
+        subprocess.check_output("git rev-parse --show-toplevel", shell=True)
         .strip()
         .decode()
     )
@@ -29,17 +28,33 @@ except subprocess.SubprocessError:
 REPO_ROOT: Path = _repo_root
 
 
+def _uv_tool_summary() -> str:
+    tool = active_tool()
+    if tool is None:
+        return ""
+    plugins = installed_plugins()
+    plugin_text = (
+        ", ".join(
+            f"{plugin.name} {plugin.version or 'version unavailable'}"
+            for plugin in plugins
+        )
+        or "no invoke-toolkit plugins"
+    )
+    return f" (uv tool; plugins: {plugin_text})"
+
+
 @task(default=True, autoprint=True, aliases=["v"])
 def version(
     ctx: Context,
 ):
-    """Shows package version (git based)"""
+    """Shows package version (git based), including uv tool plugins when detectable."""
     with ctx.cd(REPO_ROOT):
         with ctx.status("Computing version from SCM"):
-            return ctx.run(
+            version_text = ctx.run(
                 "uvx --with uv-dynamic-versioning hatchling version",
                 hide=not ctx.config.run.echo,
             ).stdout.strip()
+    return version_text + _uv_tool_summary()
 
 
 @task(autoprint=True)
@@ -349,23 +364,18 @@ def run_in_container(  # pylint: disable=too-many-locals
 
 
 @task()
-def fish(ctx: Context) -> None:
-    """Build and open a Fish shell with the current source mounted."""
-    image = "invoke-toolkit-fish-test"
-    dockerfile = REPO_ROOT / "tests" / "Dockerfile.fish"
-    quoted_dockerfile = shlex.quote(str(dockerfile))
-    quoted_repo_root = shlex.quote(str(REPO_ROOT))
-    quoted_volume = shlex.quote(f"{REPO_ROOT}:/workspace")
+def uv_plugin_integration(
+    ctx: Context,
+    container_tool: Annotated[str, "docker, podman, nerdctl or nerdctl.lima"] = "",
+    image: Annotated[str, "Base image containing uv"] = "ghcr.io/astral-sh/uv:trixie",
+) -> None:
+    """Exercise the uv tool plugin lifecycle in an isolated container."""
+    runtime = container_tool or find_container_tool(ctx)
     ctx.run(
-        f"docker build --file {quoted_dockerfile} --tag {image} --load "
-        f"{quoted_repo_root}",
-        pty=True,
-    )
-    ctx.run(
-        f"docker run --rm --interactive --tty "
-        f"--volume {quoted_volume} "
-        f"--workdir /workspace {image} --interactive",
-        pty=True,
+        f"{shlex.quote(runtime)} run --rm "
+        f"-v {shlex.quote(f'{REPO_ROOT}:/repo:ro')} "
+        f"{shlex.quote(image)} sh /repo/tests/integration/uv_tool_plugins.sh",
+        pty=False,
     )
 
 

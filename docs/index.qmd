@@ -70,6 +70,73 @@ With `pipx`
 pipx run invoke-toolkit
 ```
 
+## Managing uv tool plugins
+
+When invoke-toolkit is installed persistently with [`uv tool
+install`](https://docs.astral.sh/uv/concepts/tools/), plugin distributions must
+be installed into that same isolated environment. A plugin is identified by an
+`invoke_toolkit.collection` entry point, not by an `invoke-toolkit-` package-name
+prefix.
+
+```console
+intk -x plugin.list
+intk -x plugin.add 'invoke-toolkit-example>=1'
+intk -x plugin.add git+https://github.com/example/invoke-toolkit-example.git
+intk -x plugin.add ./invoke-toolkit-example
+intk -x plugin.link ./invoke-toolkit-example
+intk -x plugin.update --name invoke-toolkit-example
+intk -x plugin.update
+intk -x plugin.remove invoke-toolkit-example
+```
+
+`plugin.add` maps to uv's `--with` option and accepts registry requirements,
+Git or archive URLs, and local paths. A local path is built into a static
+installation. `plugin.link` maps to `--with-editable`; edits in that checkout
+are immediately visible.
+
+`plugin.update NAME` refreshes and reinstalls one non-editable plugin. Without
+a name, it refreshes every directly installed non-editable plugin and reports
+editable plugins as skipped. Registry version constraints and pinned Git
+references are preserved. Static local plugins are rebuilt from their current
+contents. Plugin updates never update the base invoke-toolkit requirement.
+
+Shell completion suggests directly installed plugin distribution names for
+`plugin.remove` and named `plugin.update` operations.
+
+Every mutation reconstructs `uv tool install` from the active tool's receipt,
+preserving unrelated supplemental requirements. Commands fail rather than
+guess when run through `uvx`, `uv run`, a project environment, or an
+installation managed by another package manager.
+
+### pipx equivalent
+
+pipx can inject and remove packages in the invoke-toolkit environment manually:
+
+```console
+pipx inject invoke-toolkit PLUGIN
+pipx inject invoke-toolkit --editable ./PLUGIN
+pipx uninject invoke-toolkit PLUGIN
+pipx list --include-injected
+```
+
+`PLUGIN` may be a registry, local, or Git source accepted by pip. See the
+[`pipx inject` documentation](https://pipx.pypa.io/latest/how-to/inject-packages.html).
+invoke-toolkit does not detect or execute pipx lifecycle operations, and does
+not claim exact update parity with uv.
+
+### Isolated maintainer verification
+
+The lifecycle smoke test installs the current checkout and two fixture plugins
+inside `ghcr.io/astral-sh/uv:trixie`:
+
+```console
+uv run invoke uv-plugin-integration
+```
+
+It requires Docker, Podman, or another runtime recognized by
+`find-container-tool`. It is intentionally outside the default nox matrix.
+
+
 ## Simple task example
 
 ```python

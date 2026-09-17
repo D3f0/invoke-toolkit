@@ -6,15 +6,11 @@ argument values for Enum and Literal parameters.
 """
 
 import glob
-import inspect
 import os
 import re
 import shlex
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
-
-from rich.errors import StyleSyntaxError
-from rich.style import Style
 
 from invoke.completion.complete import (
     debug,
@@ -30,64 +26,6 @@ from invoke_toolkit.tasks.tasks import (
     _extract_literal_params,
 )
 from invoke_toolkit.tasks.types import _FileCompletionMarker
-
-
-def _strip_rich_markup(description: str) -> str:
-    """Remove recognized Rich style tags while preserving literal brackets."""
-    tag_pattern = re.compile(r"(?P<slashes>\\*)\[(?P<tag>[^\[\]]+)\]")
-    open_tags: list[str] = []
-    output: list[str] = []
-    position = 0
-
-    for match in tag_pattern.finditer(description):
-        output.append(description[position : match.start()])
-        slashes = match.group("slashes")
-        tag = match.group("tag")
-        recognized = False
-        if len(slashes) % 2:
-            output.append(match.group(0))
-        elif tag.startswith("/"):
-            name = tag[1:].strip()
-            if name == "":
-                if open_tags:
-                    open_tags.pop()
-                    recognized = True
-            else:
-                normalized = Style.normalize(name)
-                if normalized in open_tags:
-                    open_tags.remove(normalized)
-                    recognized = True
-            if not recognized:
-                output.append(match.group(0))
-        else:
-            style_name, _, parameters = tag.partition("=")
-            try:
-                Style.parse(
-                    style_name if not parameters else f"{style_name}={parameters}"
-                )
-            except StyleSyntaxError:  # A non-style bracket expression is literal text.
-                output.append(match.group(0))
-            else:
-                open_tags.append(Style.normalize(style_name))
-        position = match.end()
-
-    output.append(description[position:])
-    return "".join(output).replace(r"\[", "[")
-
-
-def _print_task_names_for_shell(collection) -> None:
-    """Print task names with descriptions when Fish requests completion."""
-    if os.environ.get("INVOKE_COMPLETE_SHELL") != "fish":
-        print_task_names(collection)
-        return
-
-    for name in sorted(collection.task_names):
-        task = collection[name]
-        description = " ".join((inspect.getdoc(task) or "").splitlines()).strip()
-        description = _strip_rich_markup(description)
-        print(f"{name}\t{description}" if description else name)
-        for alias in collection.task_names[name]:
-            print(alias)
 
 
 def _get_file_completions(
@@ -423,7 +361,7 @@ def _handle_flag_completion(
     if not flag.takes_value:
         # Boolean flags, print task names
         debug("Found, takes no value, printing task names")
-        _print_task_names_for_shell(collection)
+        print_task_names(collection)
         return False
 
     # Extract the argument name from the flag object's canonical name
@@ -734,6 +672,6 @@ def complete_with_choices(
 
         # Fall back to task name completion
         debug("Last token isn't flag-like, just printing task names")
-        _print_task_names_for_shell(collection)
+        print_task_names(collection)
 
     raise Exit
