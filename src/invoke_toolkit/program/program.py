@@ -12,12 +12,13 @@ import inspect
 import os
 import re
 import sys
+from collections.abc import Iterator, Sequence
+from difflib import get_close_matches
 from importlib import import_module, metadata
 from importlib.util import module_from_spec
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal
-from collections.abc import Iterator, Sequence
 
 from rich.table import Table
 
@@ -296,6 +297,43 @@ class ToolkitProgram(Program):
                 "invoke_toolkit.extensions.tasks",
                 self.collection,  # type: ignore
             )
+
+    def _suggestion_names(self) -> list[str]:
+        """Return runnable task names, aliases, and collection paths."""
+        task_names = self.collection.task_names
+        names = [
+            *task_names,
+            *(alias for aliases in task_names.values() for alias in aliases),
+        ]
+        pending = [("", self.collection)]
+        while pending:
+            prefix, collection = pending.pop()
+            for name, child in collection.collections.items():
+                qualified_name = f"{prefix}.{name}" if prefix else name
+                names.append(qualified_name)
+                pending.append((qualified_name, child))
+        return names
+
+    def _unknown_task_error(self, task_name: str) -> ParseError:
+        """Build an unknown-task error with nearby task and collection names."""
+        error = f"No idea what '{task_name}' is!"
+        suggestions = get_close_matches(
+            task_name, self._suggestion_names(), n=3, cutoff=0.6
+        )
+        if not suggestions:
+            return ParseError(error)
+        suggestion = ", ".join(f"'{name}'" for name in suggestions)
+        return ParseError(f"{error} Did you mean {suggestion}?")
+
+    def parse_tasks(self) -> None:
+        """Parse tasks and suggest close names for unknown task tokens."""
+        try:
+            super().parse_tasks()
+        except ParseError as error:
+            match = re.fullmatch(r"No idea what '([^']+)' is!", str(error))
+            if not match:
+                raise
+            raise self._unknown_task_error(match.group(1)) from error
 
     def print_columns(self, tuples, col_count: int | None = 2):
         print = get_console("out").print
@@ -689,7 +727,7 @@ class ToolkitProgram(Program):
             else:
                 # TODO: feels real dumb to factor this out of Parser, but...we
                 # should?
-                raise ParseError(f"No idea what '{halp}' is!")
+                raise self._unknown_task_error(halp)
 
         # Handle --list / --list-tasks / --list-plugins (raises Exit if triggered)
         self._handle_list_flags()
