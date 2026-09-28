@@ -19,6 +19,11 @@ on version bumps.
   `intk -x create.package --provider <scheme>`.
 
 
+### Fixed
+
+- Preserve carriage-return bytes when forwarding terminal input to interactive
+  subprocesses launched with `pty=True`, so Enter behaves like direct execution.
+
 ### Breaking Changes
 
 - **invoke 3.0.x compatibility** — minimum required invoke version bumped from

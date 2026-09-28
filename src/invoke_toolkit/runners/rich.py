@@ -6,9 +6,11 @@ in tasks.
 import array
 import errno
 import sys
+from threading import Lock
 from typing import IO, TYPE_CHECKING
 
 from invoke.runners import Local, ready_for_reading
+from invoke.terminals import stdin_is_foregrounded_tty
 from invoke.util import debug, has_fileno, isatty
 from rich.syntax import Syntax
 
@@ -23,6 +25,9 @@ else:
 
 if TYPE_CHECKING:
     from invoke_toolkit.config.status_helper import StatusHelper
+
+
+_PTY_STDIN_LOCK = Lock()
 
 
 class RedactingStream:
@@ -130,6 +135,29 @@ class NoStdoutRunner(Local):
         if bytes_ and isinstance(bytes_, bytes):
             bytes_ = self.decode(bytes_)
         return bytes_
+
+    def handle_stdin(self, input_: IO, output: IO, echo: bool = False) -> None:
+        """Forward PTY input without translating carriage returns to newlines."""
+        preserve_carriage_returns = (
+            sys.platform != "win32"
+            and self.using_pty
+            and isatty(input_)
+            and has_fileno(input_)
+            and stdin_is_foregrounded_tty(input_)
+        )
+        if not preserve_carriage_returns:
+            super().handle_stdin(input_, output, echo)
+            return
+
+        with _PTY_STDIN_LOCK:
+            original_settings = termios.tcgetattr(input_)
+            forwarding_settings = original_settings.copy()
+            forwarding_settings[0] &= ~termios.ICRNL
+            termios.tcsetattr(input_, termios.TCSANOW, forwarding_settings)
+            try:
+                super().handle_stdin(input_, output, echo)
+            finally:
+                termios.tcsetattr(input_, termios.TCSADRAIN, original_settings)
 
     def echo(self, command):
         if hasattr(self.context, "print"):

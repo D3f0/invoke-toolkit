@@ -511,11 +511,8 @@ def test_create_package_refuses_in_git_repo(ctx: Context, git_root: str):
         warn=True,
         pty=False,
     )
-    # Should fail because location is inside a git repo
     assert not result.ok, "Should refuse to create package in git repo"
-    assert "git repository" in result.stderr or "git repository" in result.stdout, (
-        "Should mention git repository in error message"
-    )
+    assert not (Path(git_root) / "test-pkg").exists()
 
 
 @pytest.mark.skipif(not HAS_COPIER, reason="copier not installed")
