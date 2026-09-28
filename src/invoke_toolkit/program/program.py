@@ -615,7 +615,12 @@ class ToolkitProgram(Program):
                         self.collection.add_collection(collection, name=name)
                         self._plugin_collection_names.add(name)
         except CollectionNotFound as e:
-            start = self.args["search-root"].value or "."
+            start = start or "."
+            # A missing tasks.py cannot provide the project location, so load
+            # configuration from the resolved search root before deciding
+            # whether completion should discover entry-point plugins.
+            self.config.set_project_location(start)
+            self.config.load_project()
             # First try entry points for packages without tasks.py. Completion
             # may explicitly skip this potentially expensive plugin discovery.
             ep_collection = (
@@ -650,9 +655,6 @@ class ToolkitProgram(Program):
                     debug("No collection found, will checking for internal")
                 else:
                     debug("No tasks.py found, but local_tasks.py exists, continuing...")
-                start = self.args["search-root"].value
-                self.config.set_project_location(start)
-                self.config.load_project()
                 self.collection = ToolkitCollection(EMPTY_COLLECTION_NAME)
                 # Try to load local tasks if they exist
                 self.collection.load_local_tasks(search_path=start)

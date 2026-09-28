@@ -43,7 +43,12 @@ def _install_completion_plugin(path: Path) -> Path:
     return sentinel
 
 
-def _complete_from(path: Path, *, disable_plugins: bool) -> subprocess.CompletedProcess:
+def _complete_from(
+    path: Path,
+    *,
+    disable_plugins: bool,
+    completion_args: list[str] | None = None,
+) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
         part for part in (str(path), env.get("PYTHONPATH", "")) if part
@@ -53,7 +58,15 @@ def _complete_from(path: Path, *, disable_plugins: bool) -> subprocess.Completed
     else:
         env.pop("INVOKE_COMPLETION_DISABLE_PLUGINS", None)
     return subprocess.run(
-        [sys.executable, "-m", "invoke_toolkit", "--complete", "--", "intk"],
+        [
+            sys.executable,
+            "-m",
+            "invoke_toolkit",
+            "--complete",
+            "--",
+            "intk",
+            *(completion_args or []),
+        ],
         cwd=path,
         env=env,
         capture_output=True,
@@ -158,6 +171,38 @@ def test_completion_can_skip_entry_point_plugins_from_project_config(tmp_path):
     assert "fixture-plugin.marker" not in result.stdout
     assert "project-marker" in result.stdout
     assert not sentinel.exists()
+
+
+def test_completion_can_skip_plugins_from_config_without_tasks_file(tmp_path):
+    sentinel = _install_completion_plugin(tmp_path)
+    (tmp_path / "invoke.yaml").write_text(
+        "completion:\n  disable_plugins: true\n",
+        encoding="utf-8",
+    )
+
+    result = _complete_from(tmp_path, disable_plugins=False)
+
+    assert result.returncode == 0, result.stderr
+    assert "fixture-plugin.marker" not in result.stdout
+    assert not sentinel.exists()
+
+
+def test_completion_search_root_keeps_local_tasks_when_plugins_disabled(tmp_path):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / "local_tasks.py").write_text(
+        "from invoke_toolkit import task\n@task\ndef local_marker(ctx):\n    pass\n",
+        encoding="utf-8",
+    )
+
+    result = _complete_from(
+        tmp_path,
+        disable_plugins=True,
+        completion_args=["--search-root", str(project_path), "local."],
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "local.local-marker" in result.stdout
 
 
 def test_plugin_completion_opt_out_does_not_affect_execution(tmp_path):
