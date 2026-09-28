@@ -8,3 +8,9 @@ def test_class_attributes_overrides():
         pass
 
     assert MyConfig.prefix == "custom"
+
+
+def test_completion_plugins_are_enabled_by_default():
+    config = ToolkitConfig()
+
+    assert config.completion.disable_plugins is False

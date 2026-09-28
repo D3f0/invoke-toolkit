@@ -677,9 +677,11 @@ class ToolkitProgram(Program):
 
     def _completion_plugins_disabled(self) -> bool:
         """Return whether this completion request excludes entry-point plugins."""
+        if not self.args.complete.value:
+            return False
         return bool(
-            self.args.complete.value
-            and env_enabled(os.getenv("INVOKE_COMPLETION_DISABLE_PLUGINS", "0"))
+            self.config.completion.disable_plugins
+            or env_enabled(os.getenv("INVOKE_COMPLETION_DISABLE_PLUGINS", "0"))
         )
 
     def _has_internal_col_flag_in_completion(self) -> bool:

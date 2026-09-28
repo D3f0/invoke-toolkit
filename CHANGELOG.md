@@ -17,8 +17,9 @@ on version bumps.
   the `invoke_toolkit.field_resolver` entry-point group.
 - Resolver-only package scaffolding via
   `intk -x create.package --provider <scheme>`.
-- `INVOKE_COMPLETION_DISABLE_PLUGINS=1` to omit installed entry-point plugins
-  from shell completion without changing normal task discovery or execution.
+- `completion.disable_plugins: true` and `INVOKE_COMPLETION_DISABLE_PLUGINS=1`
+  to omit installed entry-point plugins from shell completion without changing
+  normal task discovery or execution.
 
 
 ### Fixed

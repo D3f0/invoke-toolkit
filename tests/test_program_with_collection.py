@@ -137,6 +137,29 @@ def test_completion_can_skip_entry_point_plugins(tmp_path):
     assert not sentinel.exists()
 
 
+def test_completion_can_skip_entry_point_plugins_from_project_config(tmp_path):
+    sentinel = _install_completion_plugin(tmp_path)
+    (tmp_path / "tasks.py").write_text(
+        "from invoke_toolkit import Collection, task\n"
+        "@task\n"
+        "def project_marker(ctx):\n"
+        "    pass\n"
+        "ns = Collection(project_marker)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "invoke.yaml").write_text(
+        "completion:\n  disable_plugins: true\n",
+        encoding="utf-8",
+    )
+
+    result = _complete_from(tmp_path, disable_plugins=False)
+
+    assert result.returncode == 0, result.stderr
+    assert "fixture-plugin.marker" not in result.stdout
+    assert "project-marker" in result.stdout
+    assert not sentinel.exists()
+
+
 def test_plugin_completion_opt_out_does_not_affect_execution(tmp_path):
     sentinel = _install_completion_plugin(tmp_path)
     env = os.environ.copy()
