@@ -19,14 +19,21 @@ import invoke_toolkit
 from invoke_toolkit import Context, __version__, task
 from invoke_toolkit.loader.entrypoint import COLLECTION_ENTRY_POINT, PLUGIN_PREFIX
 
-try:
-    from copier import run_copy
-except ImportError:
-    run_copy = None  # type: ignore[assignment]
-
 
 # Git config key for custom template repository/path
 GIT_CONFIG_TEMPLATE_KEY = "invoke-toolkit.package-template"
+
+
+def _load_copier(ctx: Context):
+    """Load Copier only when package generation needs it."""
+    try:
+        from copier import run_copy  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        ctx.rich_exit(
+            "copier is required to create packages. "
+            "Install it with: uv pip install invoke-toolkit[copier]"
+        )
+    return run_copy
 
 
 def _get_git_config_value(key: str) -> str | None:
@@ -272,11 +279,7 @@ def package(
     Provider packages contain only a field-resolver entry point and never expose
     invoke-toolkit task collections.
     """
-    if run_copy is None:
-        ctx.rich_exit(
-            "copier is required to create packages. "
-            "Install it with: uv pip install invoke-toolkit[copier]"
-        )
+    run_copy = _load_copier(ctx)
 
     if provider and (name or ext_name or template):
         ctx.rich_exit(
