@@ -201,6 +201,21 @@ do not update invoke-toolkit itself.
 Shell completion suggests directly installed plugin names for `plugin.remove`
 and named `plugin.update` operations.
 
+To reduce shell-completion latency in environments with expensive collection
+plugins, set `completion.disable_plugins: true` in `invoke.yaml`:
+
+```yaml
+completion:
+  disable_plugins: true
+```
+
+`INVOKE_COMPLETION_DISABLE_PLUGINS=1` enables the same behavior without changing
+the configuration file. Completion then skips installed
+`invoke_toolkit.collection` entry points while retaining project, local, and
+built-in `-x` task suggestions. These settings affect completion only; normal
+task execution and listing still load plugins.
+
+
 
 These commands reject `uvx`, `uv run`, project environments, and installations
 managed by another tool. pipx offers a similar manual workflow:

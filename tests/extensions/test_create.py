@@ -1,4 +1,5 @@
 import re
+import builtins
 import subprocess
 import typing
 from pathlib import Path
@@ -11,11 +12,26 @@ from invoke_toolkit.context.context import ToolkitContext
 from invoke_toolkit.extensions.tasks.create import (
     GIT_CONFIG_TEMPLATE_KEY,
     _get_git_config_value,
+    _load_copier,
 )
 from invoke_toolkit.testing import TestingToolkitProgram
 
 if typing.TYPE_CHECKING:
     from tests.conftest import ShellRunTmp, TempVenv
+
+
+def test_load_copier_exits_when_optional_dependency_is_missing(monkeypatch, ctx):
+    real_import = builtins.__import__
+
+    def import_without_copier(name, *args, **kwargs):
+        if name == "copier":
+            raise ImportError("copier unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_copier)
+
+    with pytest.raises(SystemExit):
+        _load_copier(ctx)
 
 
 def test_new_script_has_hello_world_task(

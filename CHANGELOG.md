@@ -17,12 +17,17 @@ on version bumps.
   the `invoke_toolkit.field_resolver` entry-point group.
 - Resolver-only package scaffolding via
   `intk -x create.package --provider <scheme>`.
+- `completion.disable_plugins: true` and `INVOKE_COMPLETION_DISABLE_PLUGINS=1`
+  to omit installed entry-point plugins from shell completion without changing
+  normal task discovery or execution.
 
 
 ### Fixed
 
 - Preserve carriage-return bytes when forwarding terminal input to interactive
   subprocesses launched with `pty=True`, so Enter behaves like direct execution.
+- Avoid importing Copier and its dependency tree while completing built-in
+  `-x` tasks; Copier now loads only when `create.package` executes.
 
 ### Breaking Changes
 

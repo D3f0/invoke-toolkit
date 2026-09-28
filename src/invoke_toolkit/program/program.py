@@ -605,17 +605,29 @@ class ToolkitProgram(Program):
             )
             # Load local tasks if they exist
             self.collection.load_local_tasks(search_path=parent)
-            # Also try to load entry points (merge with tasks.py)
-            ep_collection = self._load_entry_points_collection(parent)
-            if ep_collection is not None:
-                debug("Merging entry point collections with tasks.py")
-                for name, collection in ep_collection.collections.items():
-                    self.collection.add_collection(collection, name=name)
-                    self._plugin_collection_names.add(name)
+            # Also try to load entry points (merge with tasks.py), unless the
+            # user opted out of plugin discovery for latency-sensitive completion.
+            if not self._completion_plugins_disabled():
+                ep_collection = self._load_entry_points_collection(parent)
+                if ep_collection is not None:
+                    debug("Merging entry point collections with tasks.py")
+                    for name, collection in ep_collection.collections.items():
+                        self.collection.add_collection(collection, name=name)
+                        self._plugin_collection_names.add(name)
         except CollectionNotFound as e:
-            start = self.args["search-root"].value or "."
-            # First try to load entry points (for packages without tasks.py)
-            ep_collection = self._load_entry_points_collection(start)
+            start = start or "."
+            # A missing tasks.py cannot provide the project location, so load
+            # configuration from the resolved search root before deciding
+            # whether completion should discover entry-point plugins.
+            self.config.set_project_location(start)
+            self.config.load_project()
+            # First try entry points for packages without tasks.py. Completion
+            # may explicitly skip this potentially expensive plugin discovery.
+            ep_collection = (
+                None
+                if self._completion_plugins_disabled()
+                else self._load_entry_points_collection(start)
+            )
             if ep_collection is not None:
                 debug("Loading collections from entry points")
                 self.collection = ep_collection
@@ -643,9 +655,6 @@ class ToolkitProgram(Program):
                     debug("No collection found, will checking for internal")
                 else:
                     debug("No tasks.py found, but local_tasks.py exists, continuing...")
-                start = self.args["search-root"].value
-                self.config.set_project_location(start)
-                self.config.load_project()
                 self.collection = ToolkitCollection(EMPTY_COLLECTION_NAME)
                 # Try to load local tasks if they exist
                 self.collection.load_local_tasks(search_path=start)
@@ -667,6 +676,15 @@ class ToolkitProgram(Program):
     def flat_args(self) -> dict[str, bool | int | str | list[str]]:
         """Flat arguments"""
         return {name: arg.value for name, arg in self.args.items()}
+
+    def _completion_plugins_disabled(self) -> bool:
+        """Return whether this completion request excludes entry-point plugins."""
+        if not self.args.complete.value:
+            return False
+        return bool(
+            self.config.completion.disable_plugins
+            or env_enabled(os.getenv("INVOKE_COMPLETION_DISABLE_PLUGINS", "0"))
+        )
 
     def _has_internal_col_flag_in_completion(self) -> bool:
         """

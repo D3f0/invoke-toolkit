@@ -1,7 +1,9 @@
 import json
+import os
 import pkgutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 from invoke_toolkit import Context, task
@@ -13,6 +15,64 @@ from invoke_toolkit.testing import TestingToolkitProgram
 def get_extension_collection_names() -> set[str]:
     """Dynamically discover all extension collection names."""
     return {module.name for module in pkgutil.iter_modules(extensions_tasks.__path__)}
+
+
+def _install_completion_plugin(path: Path) -> Path:
+    """Create importable plugin metadata and return its import sentinel path."""
+    sentinel = path / "plugin-imported"
+    (path / "fixture_plugin.py").write_text(
+        "from pathlib import Path\n"
+        "from invoke_toolkit import Collection, task\n"
+        f"Path({str(sentinel)!r}).touch()\n"
+        "@task\n"
+        "def marker(ctx):\n"
+        "    pass\n"
+        "collection = Collection(marker)\n",
+        encoding="utf-8",
+    )
+    metadata = path / "fixture_plugin-1.0.dist-info"
+    metadata.mkdir()
+    (metadata / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: fixture-plugin\nVersion: 1.0\n",
+        encoding="utf-8",
+    )
+    (metadata / "entry_points.txt").write_text(
+        "[invoke_toolkit.collection]\nfixture-plugin = fixture_plugin:collection\n",
+        encoding="utf-8",
+    )
+    return sentinel
+
+
+def _complete_from(
+    path: Path,
+    *,
+    disable_plugins: bool,
+    completion_args: list[str] | None = None,
+) -> subprocess.CompletedProcess:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        part for part in (str(path), env.get("PYTHONPATH", "")) if part
+    )
+    if disable_plugins:
+        env["INVOKE_COMPLETION_DISABLE_PLUGINS"] = "1"
+    else:
+        env.pop("INVOKE_COMPLETION_DISABLE_PLUGINS", None)
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "invoke_toolkit",
+            "--complete",
+            "--",
+            "intk",
+            *(completion_args or []),
+        ],
+        cwd=path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 @task()
@@ -59,6 +119,161 @@ def test_completion_with_x_flag(suppress_stderr_logging):
     # Check that internal collections are in the completion output
     assert "config" in output, "config collection should be in completion with -x"
     assert "create" in output, "create collection should be in completion with -x"
+
+
+def test_completion_loads_entry_point_plugins_by_default(tmp_path):
+    sentinel = _install_completion_plugin(tmp_path)
+
+    result = _complete_from(tmp_path, disable_plugins=False)
+
+    assert result.returncode == 0, result.stderr
+    assert "fixture-plugin.marker" in result.stdout
+    assert sentinel.exists()
+
+
+def test_completion_can_skip_entry_point_plugins(tmp_path):
+    sentinel = _install_completion_plugin(tmp_path)
+    (tmp_path / "tasks.py").write_text(
+        "from invoke_toolkit import Collection, task\n"
+        "@task\n"
+        "def project_marker(ctx):\n"
+        "    pass\n"
+        "ns = Collection(project_marker)\n",
+        encoding="utf-8",
+    )
+
+    result = _complete_from(tmp_path, disable_plugins=True)
+
+    assert result.returncode == 0, result.stderr
+    assert "fixture-plugin.marker" not in result.stdout
+    assert "project-marker" in result.stdout
+    assert not sentinel.exists()
+
+
+def test_completion_can_skip_entry_point_plugins_from_project_config(tmp_path):
+    sentinel = _install_completion_plugin(tmp_path)
+    (tmp_path / "tasks.py").write_text(
+        "from invoke_toolkit import Collection, task\n"
+        "@task\n"
+        "def project_marker(ctx):\n"
+        "    pass\n"
+        "ns = Collection(project_marker)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "invoke.yaml").write_text(
+        "completion:\n  disable_plugins: true\n",
+        encoding="utf-8",
+    )
+
+    result = _complete_from(tmp_path, disable_plugins=False)
+
+    assert result.returncode == 0, result.stderr
+    assert "fixture-plugin.marker" not in result.stdout
+    assert "project-marker" in result.stdout
+    assert not sentinel.exists()
+
+
+def test_completion_can_skip_plugins_from_config_without_tasks_file(tmp_path):
+    sentinel = _install_completion_plugin(tmp_path)
+    (tmp_path / "invoke.yaml").write_text(
+        "completion:\n  disable_plugins: true\n",
+        encoding="utf-8",
+    )
+
+    result = _complete_from(tmp_path, disable_plugins=False)
+
+    assert result.returncode == 0, result.stderr
+    assert "fixture-plugin.marker" not in result.stdout
+    assert not sentinel.exists()
+
+
+def test_completion_search_root_keeps_local_tasks_when_plugins_disabled(tmp_path):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / "local_tasks.py").write_text(
+        "from invoke_toolkit import task\n@task\ndef local_marker(ctx):\n    pass\n",
+        encoding="utf-8",
+    )
+
+    result = _complete_from(
+        tmp_path,
+        disable_plugins=True,
+        completion_args=["--search-root", str(project_path), "local."],
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "local.local-marker" in result.stdout
+
+
+def test_plugin_completion_opt_out_does_not_affect_execution(tmp_path):
+    sentinel = _install_completion_plugin(tmp_path)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        part for part in (str(tmp_path), env.get("PYTHONPATH", "")) if part
+    )
+    env["INVOKE_COMPLETION_DISABLE_PLUGINS"] = "1"
+
+    result = subprocess.run(
+        [sys.executable, "-m", "invoke_toolkit", "--list"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "fixture-plugin.marker" in result.stdout
+    assert sentinel.exists()
+
+
+def test_plugin_completion_opt_out_keeps_internal_collections(tmp_path):
+    env = os.environ.copy()
+    env["INVOKE_COMPLETION_DISABLE_PLUGINS"] = "1"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "invoke_toolkit",
+            "--complete",
+            "--",
+            "intk",
+            "-x",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "config" in result.stdout
+    assert "create" in result.stdout
+
+
+def test_internal_completion_does_not_import_copier():
+    """Completing built-in task names must not load the optional Copier stack."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "from invoke_toolkit.testing import TestingToolkitProgram; "
+                "TestingToolkitProgram().run("
+                "['intk', '--complete', '--', 'intk', '-x'], exit=False); "
+                "assert 'copier' not in sys.modules, "
+                "'copier imported during completion'"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_completion_without_x_flag(suppress_stderr_logging):

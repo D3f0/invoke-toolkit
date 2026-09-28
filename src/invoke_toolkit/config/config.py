@@ -101,6 +101,7 @@ class ToolkitConfig(Config):
         ret["init_shell"] = False
         ret["completion"] = {
             "callback_timeout": 10.0,  # Timeout in seconds for completion callbacks
+            "disable_plugins": False,  # Skip entry-point plugins during completion
         }
         ret["fuzzy_finder"] = {
             "show_warnings": True,  # Show warning when fzf is not available
