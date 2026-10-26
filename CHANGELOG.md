@@ -20,6 +20,9 @@ on version bumps.
 - `completion.disable_plugins: true` and `INVOKE_COMPLETION_DISABLE_PLUGINS=1`
   to omit installed entry-point plugins from shell completion without changing
   normal task discovery or execution.
+- `--list-changed` to list new or updated task definitions compared with Git
+  `HEAD`, including PEP 723 scripts; Rich highlights changes in normal flat and
+  nested listings while keeping JSON output machine-readable.
 
 
 ### Fixed

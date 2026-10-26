@@ -4,6 +4,7 @@ Run scripts with https://peps.python.org/pep-0723/
 
 import inspect
 import traceback
+from pathlib import Path
 from types import FrameType
 
 from invoke.tasks import Task
@@ -98,4 +99,5 @@ def script(
         p = ToolkitProgram(namespace=c, config_class=CustomConfig)
     else:
         p = ToolkitProgram(namespace=c)
+    p._task_source = Path(frame.f_code.co_filename)  # pylint: disable=protected-access
     return p.run(argv=argv, exit=exit)
