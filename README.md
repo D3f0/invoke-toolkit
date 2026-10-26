@@ -69,6 +69,37 @@ intk local.my-task
 
 Local tasks are automatically discovered and added to the `local` namespace, allowing you to keep project-specific tasks separate from your main task collection.
 
+### Listing changed tasks
+
+For a Git-managed PEP 723 script that calls `invoke_toolkit.script()`:
+
+```console
+uv run tasks.py --list-changed
+uv run tasks.py --list-changed --list-format json
+uv run tasks.py --list
+```
+
+`--list-changed` lists only new or updated task definitions compared with Git
+`HEAD`, including staged and unstaged edits. Normal flat and nested listings
+also highlight new tasks in green and updated tasks in yellow. Color follows
+Rich's terminal detection and `NO_COLOR`; JSON retains Invoke's existing schema.
+The flag also works with `intk --list-changed` for a loaded task file, and can
+combine with `--list <namespace>`, `--list-tasks`, or `--list-plugins` to narrow
+the listing further.
+
+Comparison includes task bodies, signatures, decorators, and docstrings, but
+ignores comments, formatting, and line-number shifts. Imported tasks and
+indirect changes through helpers or globals are not included. Historical source
+is parsed, never executed. In a Git repository, every task in a file absent
+from `HEAD` (including a new repository without commits) counts as new.
+Adding a task decorator to a helper counts as new; changing the decorator's
+explicit task name counts as an update to that existing definition.
+
+With no changes, the flag exits successfully with an empty JSON task list or a
+message for human-readable formats. Outside a Git repository, or without Git,
+`--list-changed` reports an error; normal listing still works without highlights.
+
+
 ### Using Task Caching
 
 Cache expensive task results with the `cache` parameter:

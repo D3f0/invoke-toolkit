@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from rich.table import Table
+from rich.markup import escape
 
 from invoke_toolkit.log.logger import setup_rich_logging, setup_traceback_handler
 from invoke_toolkit.output import get_console
@@ -56,6 +57,7 @@ from invoke_toolkit.config import ToolkitConfig
 from invoke_toolkit.executor import ToolkitExecutor
 from invoke_toolkit.loader.entrypoint import EntryPointLoader
 from invoke_toolkit.parser import ToolkitArgument
+from invoke_toolkit.program.task_changes import Change, filter_changed, task_changes
 
 EMPTY_COLLECTION_NAME = "_empty"
 
@@ -69,7 +71,7 @@ def _task_bodies(items: Sequence[Any]) -> Iterator[Any]:
             yield item.body
 
 
-class ToolkitProgram(Program):
+class ToolkitProgram(Program):  # pylint: disable=too-many-instance-attributes
     """Invoke Toolkit program providing rich output, package versioning and other features"""
 
     def __init__(
@@ -96,6 +98,8 @@ class ToolkitProgram(Program):
         # Names of sub-collections that were loaded from entry-point plugins.
         # Populated in load_collection(); used by --list-tasks / --list-plugins.
         self._plugin_collection_names: set[str] = set()
+        self._task_source: Path | None = None
+        self._task_changes: dict[str, Change] = {}
 
     def get_version(self) -> str:
         """Compute version
@@ -456,19 +460,26 @@ class ToolkitProgram(Program):
                 default=False,
                 help="List only the plugin-provided task collections (excludes main tasks)",
             ),
+            ToolkitArgument(
+                names=("list-changed",),
+                kind=bool,
+                default=False,
+                help="List only tasks created or updated in the task file since Git HEAD",
+            ),
         ]
         args.extend(toolkit_program_arguments)
         return args
 
     def _handle_list_flags(self) -> None:
         """
-        Handle --list, --list-tasks, and --list-plugins flags.
+        Handle --list, --list-tasks, --list-plugins and --list-changed flags.
 
         Sets ``list_format`` / ``list_depth`` / ``scoped_collection`` as needed
         and raises `Exit` when any listing flag is active.
         """
         self.list_format = self.args["list-format"].value
         self.list_depth = self.args["list-depth"].value
+        self._task_changes = {}
 
         # --list [root]: standard task listing (optionally scoped to a sub-collection)
         list_root = self.args.list.value  # True or a string namespace
@@ -499,6 +510,48 @@ class ToolkitProgram(Program):
             self.scoped_collection = self._make_filtered_collection("plugins")
             self.list_tasks()
             raise Exit
+
+        if self.args["list-changed"].value:
+            self.list_tasks()
+            raise Exit
+
+    def list_tasks(self) -> None:
+        """Highlight source changes and optionally restrict the listing to them."""
+        only_changed = self.args["list-changed"].value
+        source = self._task_source
+        if source is None:
+            if only_changed:
+                raise Exit("--list-changed requires a task source file.", code=1)
+        elif only_changed or self.list_format != "json":
+            try:
+                self._task_changes = task_changes(self.scoped_collection, source)
+            except Exit:
+                if only_changed:
+                    raise
+        if only_changed:
+            self.scoped_collection = filter_changed(
+                self.scoped_collection, self._task_changes
+            )
+            if not self.scoped_collection:
+                if self.list_format == "json":
+                    self.list_json()
+                else:
+                    get_console("out").print("No new or updated tasks since Git HEAD.")
+                return
+        super().list_tasks()
+
+    def _make_pairs(self, coll, ancestors=None):
+        """Style task rows while leaving Invoke's namespace formatting intact."""
+        pairs = super()._make_pairs(coll, ancestors)
+        prefix = ".".join(ancestors or [])
+        for index, name in enumerate(sorted(coll.tasks)):
+            qualified = f"{prefix}.{name}" if prefix else name
+            change = self._task_changes.get(qualified)
+            if change:
+                label, description = pairs[index]
+                style = "bold green" if change == "new" else "bold yellow"
+                pairs[index] = (f"[{style}]{escape(label)}[/{style}]", description)
+        return pairs
 
     def _make_filtered_collection(
         self, mode: "Literal['tasks', 'plugins']"
@@ -580,6 +633,7 @@ class ToolkitProgram(Program):
 
         Ensures that the type is ToolkitCollection for correctness.
         """
+        self._task_source = None
         # NOTE: start, coll_name both fall back to configuration values within
         # Loader (which may, however, get them from our config.)
         start = self.args["search-root"].value
@@ -592,6 +646,8 @@ class ToolkitProgram(Program):
         coll_name = self.args.collection.value
         try:
             module, parent = loader.load(coll_name)
+            if getattr(module, "__file__", None):
+                self._task_source = Path(module.__file__)
             # This is the earliest we can load project config, so we should -
             # allows project config to affect the task parsing step!
             # TODO: is it worth merging these set- and load- methods? May
@@ -789,6 +845,10 @@ class ToolkitProgram(Program):
         print = get_console("out").print
         root = self.list_root
         print(f"{self.task_list_opener(extra=extra)}:\n")
+        if self._task_changes:
+            print(
+                "[bold green]new[/bold green] / [bold yellow]updated[/bold yellow] since Git HEAD\n"
+            )
         self.print_columns(pairs)
         # TODO: worth stripping this out for nested? since it's signified with
         # asterisk there? ugggh
