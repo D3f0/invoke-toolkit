@@ -39,6 +39,8 @@ on version bumps.
   keys, file-backed entries and tampered payloads; preserve Python-object
   results and recompute cache misses. Disable caching if key storage is unsafe.
   This mitigates DiskCache's unpatched GHSA-w8v5-vhqr-4h9v in toolkit cache readers.
+- Include the cache authentication backend in source control and built packages;
+  prevent the scratch-file ignore rule from omitting it in fresh checkouts.
 - Require AnyIO >=4.14.2 for runtime TLS fixes. Update locked Black, FileLock,
   urllib3, uv and virtualenv to patched releases, with security version floors.
   Development and CI groups now require Python >=3.11 for patched FileLock;
