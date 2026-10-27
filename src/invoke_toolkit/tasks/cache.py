@@ -25,10 +25,13 @@ F = TypeVar("F", bound=Callable[..., Any])
 # Check if diskcache is available
 try:
     import diskcache
+    from ._cache_security import AuthenticatedCache, load_cache_key
 
     DISKCACHE_AVAILABLE = True
 except ImportError:
     diskcache = None  # type: ignore[assignment]
+    AuthenticatedCache = None  # type: ignore[assignment,misc]
+    load_cache_key = None  # type: ignore[assignment]
     DISKCACHE_AVAILABLE = False
 
 
@@ -116,7 +119,9 @@ def make_cache_key(
     )
 
 
-def get_cache(cache_dir: Path | None = None) -> Optional["diskcache.Cache"]:
+def get_cache(
+    cache_dir: Path | None = None, *, size_limit: int | None = None
+) -> Optional["diskcache.Cache"]:
     """
     Get or create the diskcache Cache instance.
 
@@ -132,8 +137,15 @@ def get_cache(cache_dir: Path | None = None) -> Optional["diskcache.Cache"]:
     if cache_dir is None:
         cache_dir = get_cache_directory()
 
+    state_dir = Path(platformdirs.user_data_dir("invoke-toolkit")) / "cache-signing"
+    try:
+        secret = load_cache_key(state_dir)
+    except OSError as exc:
+        debug(f"Cannot safely load cache signing key; caching disabled: {exc}")
+        return None
     cache_dir.mkdir(parents=True, exist_ok=True)
-    return diskcache.Cache(str(cache_dir))
+    settings = {} if size_limit is None else {"size_limit": size_limit}
+    return AuthenticatedCache(str(cache_dir), secret, **settings)
 
 
 def cached_task_wrapper(

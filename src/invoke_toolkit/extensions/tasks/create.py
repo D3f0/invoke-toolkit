@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 from pathlib import Path
 from shutil import which
@@ -541,17 +542,29 @@ def script_env(
     if not which("uv"):
         ctx.rich_exit("uv is not installed. Please install uv first.")
 
-    # Create or update the virtual environment
+    # Create or update the virtual environment.
     with ctx.status(f"Creating/updating virtual environment at {env_path}"):
         if not env_path.exists():
-            ctx.run(f"uv venv {env_path}", hide=not ctx.config.run.echo)
+            ctx.run(
+                shlex.join(["uv", "venv", str(env_path)]),
+                hide=not ctx.config.run.echo,
+            )
 
-        # Install/update dependencies if any
+        # Install/update dependencies if any.
         if dependencies:
             deps_str = " ".join(dependencies)
             with ctx.status(f"Installing dependencies: {deps_str}"):
                 ctx.run(
-                    f"uv pip install --python {env_path}/bin/python {deps_str}",
+                    shlex.join(
+                        [
+                            "uv",
+                            "pip",
+                            "install",
+                            "--python",
+                            str(env_path / "bin" / "python"),
+                            *dependencies,
+                        ]
+                    ),
                     hide=not ctx.config.run.echo,
                 )
 

@@ -137,6 +137,17 @@ To enable caching, install with the cache extra:
 pip install invoke-toolkit[cache]
 ```
 
+Task and completion caches authenticate serialized values with HMAC-SHA256
+before deserialization. The owner-only signing key lives under
+`platformdirs.user_data_dir("invoke-toolkit")/cache-signing/cache.key`, outside
+the cache directory. Unsigned legacy entries and tampered entries are cache
+misses and are recomputed. Losing the key invalidates existing entries; if its
+permissions or ownership are unsafe, caching is disabled rather than reading
+unsigned data.
+New entries are stored inline in SQLite. Legacy DiskCache spill files are not
+read or deleted automatically, because their filenames are unauthenticated.
+
+
 ## Dynamic task defaults
 
 Use `Field` when an argument default must be computed from the final task
