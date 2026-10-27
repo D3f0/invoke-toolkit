@@ -15,7 +15,7 @@ from invoke.util import debug
 
 # Check if diskcache is available
 try:
-    import diskcache
+    import diskcache  # pylint: disable=unused-import
 
     DISKCACHE_AVAILABLE = True
 except ImportError:
@@ -23,7 +23,7 @@ except ImportError:
     DISKCACHE_AVAILABLE = False
 
 # Import cache directory helper from cache module
-from .cache import get_cache_directory
+from .cache import get_cache, get_cache_directory
 
 # Type variable for the callback function
 F = TypeVar("F", bound=Callable[[Context, str], list[str]])
@@ -161,12 +161,7 @@ def cached(  # pylint: disable=too-many-statements
         if DISKCACHE_AVAILABLE:
             try:
                 cache_dir = get_cache_directory() / "completions"
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                # Create cache with size limit if specified
-                if maxsize is not None:
-                    disk_cache = diskcache.Cache(str(cache_dir), size_limit=maxsize)
-                else:
-                    disk_cache = diskcache.Cache(str(cache_dir))
+                disk_cache = get_cache(cache_dir, size_limit=maxsize)
                 debug(f"Using diskcache for completion callback: {func_name}")
             except Exception as e:  # pylint: disable=broad-exception-caught
                 debug(f"Failed to initialize diskcache for {func_name}: {e}")

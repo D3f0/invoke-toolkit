@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from invoke_toolkit import Context
 from invoke_toolkit.context.context import ToolkitContext
 from invoke_toolkit.extensions.tasks.create import (
     GIT_CONFIG_TEMPLATE_KEY,
@@ -54,6 +55,37 @@ def test_new_script_has_hello_world_task(
         f"uv run --isolated --with {git_root} tasks.py hello-world", cwd=tmp_path
     )
     assert "hello world" in script_execution.stdout.strip()
+
+
+def test_script_env_quotes_dependency_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Dependency metadata stays data when passed to the package installer."""
+    marker = tmp_path / "injected"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        f"#!/bin/sh\nprintf '<%s>\\n' \"$@\" >> {str(tmp_path / 'uv-args')!r}\n"
+    )
+    fake_uv.chmod(0o700)
+    dependency = f"demo @ https://example.invalid/demo.whl;touch {marker}"
+    script_path = tmp_path / "script.py"
+    script_path.write_text(f"# /// script\n# dependencies = [{dependency!r}]\n# ///\n")
+    monkeypatch.setenv("PATH", f"{fake_bin}:{__import__('os').environ['PATH']}")
+    monkeypatch.setattr(
+        "invoke_toolkit.extensions.tasks.create.platformdirs.user_cache_dir",
+        lambda _name: str(tmp_path / "cache"),
+    )
+
+    context = Context()
+    context.config.run.in_stream = False
+    from invoke_toolkit.extensions.tasks.create import script_env
+
+    script_env.body(context, str(script_path))
+
+    assert not marker.exists()
+    assert f"<{dependency}>" in (tmp_path / "uv-args").read_text()
 
 
 def test_new_package(

@@ -32,6 +32,18 @@ on version bumps.
 - Avoid importing Copier and its dependency tree while completing built-in
   `-x` tasks; Copier now loads only when `create.package` executes.
 
+### Security
+
+- Authenticate task and completion cache values with a private, machine-local
+  HMAC-SHA256 key before unpickling. Reject unsigned legacy values, serialized
+  keys, file-backed entries and tampered payloads; preserve Python-object
+  results and recompute cache misses. Disable caching if key storage is unsafe.
+  This mitigates DiskCache's unpatched GHSA-w8v5-vhqr-4h9v in toolkit cache readers.
+- Require AnyIO >=4.14.2 for runtime TLS fixes. Update locked Black, FileLock,
+  urllib3, uv and virtualenv to patched releases, with security version floors.
+  Development and CI groups now require Python >=3.11 for patched FileLock;
+  Python 3.10 remains supported for runtime installation.
+
 ### Breaking Changes
 
 - **invoke 3.0.x compatibility** — minimum required invoke version bumped from
