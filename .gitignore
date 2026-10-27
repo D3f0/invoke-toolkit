@@ -13,6 +13,7 @@ _scratchpad.py
 
 # Test files
 _[a-z]*.py
+!src/invoke_toolkit/tasks/_cache_security.py
 _test/*
 invoke.yaml
 # Makrdowns
