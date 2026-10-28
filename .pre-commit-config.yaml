@@ -48,7 +48,7 @@ repos:
         exclude_types:
           - svg
           - markdown
-        exclude: 'linux-native/.*|.*\.qmd'
+        exclude: 'linux-native/.*'
       - id: check-yaml
       - id: debug-statements
     # TODO: Fix this

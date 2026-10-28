@@ -23,6 +23,19 @@ on version bumps.
 - `--list-changed` to list new or updated task definitions compared with Git
   `HEAD`, including PEP 723 scripts; Rich highlights changes in normal flat and
   nested listings while keeping JSON output machine-readable.
+- A Zensical documentation site for humans and AI agents, with a central PEP 723
+  workflow, source-aligned library guides, CLI/API reference, and a complete
+  merged-PR improvement index. GitHub Actions validates pull requests and
+  deploys successful main builds to GitHub Pages after repository enablement.
+- A prominent human autocompletion workflow and terminal-demo recording guide,
+  recommending asciinema/browser playback with agg and VHS alternatives.
+
+### Changed
+
+- Replace the obsolete documentation generator and watcher tasks with
+  `docs-build` and `docs-preview`; refresh README highlights and contributor
+  instructions. Documentation tooling requires Python 3.11+, independently of
+  the library's unchanged Python 3.10+ support.
 
 
 ### Fixed

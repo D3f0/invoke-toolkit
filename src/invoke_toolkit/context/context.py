@@ -14,7 +14,7 @@ from typing import (
     TypeVar,
     overload,
 )
-from collections.abc import Awaitable, Callable, Generator, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 
 import setproctitle
 from invoke.context import Context
@@ -37,28 +37,13 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class ConfigProtocol(Protocol):
-    """Type annotated override"""
-
-    status: Generator["Status", None, None]
-    console: "Console"
-    status_stop: Callable
-    status_update: Callable
-    print: BoundPrintProtocol
-
-    def rich_exit(self, message: str = "Exited", exit_code: int | None = 1) -> NoReturn:
-        """Rich exit"""
-
-    def proctitle(self, title: str) -> Iterator[None]:
-        """Context manager to set the process title"""
-
-
-class ToolkitContext(Context, ConfigProtocol):
+class ToolkitContext(Context):
     """Type annotated override with async task support."""
 
     _config: ToolkitConfig
     _status_helper: StatusHelper
     _field_cleanup: Any
+    _console: "Console"
 
     # Override cd with proper type annotation to fix PathLike[Unknown] issue
     cd: Callable[[PathLike[str] | str], _GeneratorContextManager[None, None, None]]
@@ -129,12 +114,12 @@ class ToolkitContext(Context, ConfigProtocol):
         sys.exit(exit_code)
 
     @property
-    def print(self):
+    def print(self) -> BoundPrintProtocol:
         """Rich print, use square bracketed markup for color/highlights"""
         return get_console("out").print
 
     @property
-    def print_err(self):
+    def print_err(self) -> BoundPrintProtocol:
         """Rich print, use square bracketed markup for color/highlights"""
         return self._console.print
 

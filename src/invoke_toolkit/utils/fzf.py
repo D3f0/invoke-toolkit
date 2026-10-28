@@ -19,6 +19,8 @@ from shutil import which
 from typing import Any
 
 from invoke import Context
+
+from invoke_toolkit.context import ToolkitContext
 from invoke.util import debug
 from rich.console import Console
 from rich.prompt import Prompt
@@ -41,7 +43,7 @@ def is_fzf_available() -> bool:
     return available
 
 
-def _show_fzf_warning(ctx: Context, force_fallback: bool = False) -> None:
+def _show_fzf_warning(ctx: ToolkitContext, force_fallback: bool = False) -> None:
     """
     Show a warning message when fzf is not available or disabled.
 
@@ -236,7 +238,7 @@ def _run_fzf(
 
 
 def select(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-    ctx: Context,
+    ctx: ToolkitContext,
     choices: list[str],
     prompt: str = "Select an option",
     multi: bool = False,
@@ -431,7 +433,7 @@ def select(  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
 
 
 def select_from_command(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-return-statements
-    ctx: Context,
+    ctx: ToolkitContext,
     command: str,
     prompt: str = "Select an option",
     multi: bool = False,
