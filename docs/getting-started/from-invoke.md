@@ -45,6 +45,10 @@ uv run intk welcome
 
 `Context` is Toolkit's context and `Collection` is Toolkit's collection. `@task` creates Toolkit tasks. The pre-task chain is inherited from Invoke; styled `ctx.print()` is a Toolkit output helper. Plain Invoke task objects can still be discovered by the Toolkit program, but Toolkit-specific decorator behavior requires the Toolkit decorator.
 
+Extended implementation classes use `Toolkit`-prefixed names, such as
+`ToolkitContext` and `ToolkitCollection`. The public imports preserve the familiar
+`Context`, `Collection` and `task` names for Invoke-style task code.
+
 ## Improvements over the basic Invoke interface
 
 | Adopt when you need | Toolkit improvement | Guide and origin |

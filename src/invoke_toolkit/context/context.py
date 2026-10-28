@@ -10,7 +10,6 @@ from typing import (
     Any,
     Literal,
     NoReturn,
-    Protocol,
     TypeVar,
     overload,
 )
@@ -31,7 +30,6 @@ from .async_tools import AsyncGatherScope, in_async_task_context, run_async_comm
 
 if TYPE_CHECKING:
     from rich.console import Console
-    from rich.status import Status
     # from rich.console import RenderableType, StyleType
 
 T = TypeVar("T")

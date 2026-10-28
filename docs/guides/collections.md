@@ -2,6 +2,21 @@
 
 Invoke's `Collection` groups tasks, aliases, defaults and configuration. Toolkit adds package discovery and `local_tasks.py` loading. Installed entry-point collections are a separate [plugin mechanism](plugins.md).
 
+## Built-in collections
+
+Enable Toolkit's built-in collections with `-x` and list their tasks with `-l`:
+
+```bash
+uv run intk -xl
+```
+
+These include `config.show`, `config.get`, `config.set` and `config.unset`;
+`create.add-shebang`, `create.package` and `create.script`; plugin lifecycle tasks;
+and shell completion installers. Use [configuration](configuration.md),
+[package generation](packages.md), [plugins](plugins.md) and
+[completion](../humans/completion.md) for their arguments and boundaries.
+
+
 ## Explicit composition
 
 For a small project, explicit imports and `add_collection()` are the most predictable choice. Save this complete example as `tasks.py` after [installation](../getting-started/installation.md):
