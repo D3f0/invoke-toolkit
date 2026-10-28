@@ -766,10 +766,6 @@ ci = ">=3.11"
 dev = ">=3.11,>=3.11"
 test = ">=3.11"
 
-[package.group-requires-python]
-ci = ">=3.11"
-dev = ">=3.11"
-
 [package.metadata]
 requires-dist = [
     { name = "anyio", specifier = ">=4.14.2" },
