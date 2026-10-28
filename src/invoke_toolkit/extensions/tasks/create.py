@@ -103,7 +103,7 @@ def script(
     runnable=False,
 ) -> None:
     """
-    Creates a new script
+    Creates a new tasks.py inline Python script.
 
     ```bash
     ```

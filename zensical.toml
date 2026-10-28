@@ -1,0 +1,83 @@
+[project]
+site_name = "Invoke Toolkit"
+site_description = "Composable Python tasks for humans and AI agents, built on Invoke."
+site_url = "https://d3f0.github.io/invoke-toolkit/"
+repo_url = "https://github.com/D3f0/invoke-toolkit"
+repo_name = "D3f0/invoke-toolkit"
+edit_uri = "edit/main/docs/"
+docs_dir = "docs"
+site_dir = "site"
+nav = [
+  { "Home" = "index.md" },
+  { "Get started" = [
+    { "Installation" = "getting-started/installation.md" },
+    { "Your first task" = "getting-started/quickstart.md" },
+    { "Coming from Invoke" = "getting-started/from-invoke.md" },
+  ] },
+  { "For humans" = [
+    { "Overview" = "humans/index.md" },
+    { "Rich output" = "humans/rich-output.md" },
+    { "Autocompletion" = "humans/completion.md" },
+    { "Interactive selection" = "humans/interactive-selection.md" },
+  ] },
+  { "PEP 723" = "pep723/index.md" },
+  { "For AI agents" = "agents/index.md" },
+  { "Library guides" = [
+    { "Typed arguments" = "guides/typed-arguments.md" },
+    { "Collections and local tasks" = "guides/collections.md" },
+    { "Plugins" = "guides/plugins.md" },
+    { "Configuration and schemas" = "guides/configuration.md" },
+    { "Dynamic Fields" = "guides/fields.md" },
+    { "Task-result caching" = "guides/caching.md" },
+    { "Async tasks" = "guides/async.md" },
+    { "Execution, redaction and process titles" = "guides/execution.md" },
+    { "Package templates" = "guides/packages.md" },
+  ] },
+  { "Reference" = [
+    { "CLI" = "reference/cli.md" },
+    { "Python API" = "reference/api.md" },
+    { "Troubleshooting" = "reference/troubleshooting.md" },
+    { "Improvements and merged PRs" = "reference/improvements.md" },
+  ] },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.footer",
+  "content.code.copy",
+  "content.tabs.link",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "teal"
+accent = "teal"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "teal"
+accent = "teal"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.details = {}
+pymdownx.superfences = {}
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.tabbed.alternate_style = true

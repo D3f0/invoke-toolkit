@@ -40,6 +40,12 @@ class BoundPrintProtocol(Protocol):
     ) -> None: ...
 
 
+class PrintErrContextProtocol(Protocol):
+    """Context capabilities required by output helpers."""
+
+    print_err: BoundPrintProtocol
+
+
 class ContextRunProtocol(Protocol):
     """This is a protocol describing the invoke.runners.Local.run arguments.
     The description have been shortened.

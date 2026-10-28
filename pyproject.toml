@@ -97,7 +97,7 @@ invoke-toolkit = "invoke_toolkit.program.main:program.run"
 
 
 [project.urls]
-Documentation = "https://github.com/D3f0/invoke-toolkit#readme"
+Documentation = "https://d3f0.github.io/invoke-toolkit/"
 Issues = "https://github.com/D3f0/invoke-toolkit/issues"
 Source = "https://github.com/D3f0/invoke-toolkit"
 
@@ -189,10 +189,11 @@ dev = [
     "ty>=0.0.1a25",
 ]
 doc = [
-    "quartodoc>=0.11.1",
+    "zensical==0.0.73",
 ]
 
 [tool.uv.dependency-groups]
+doc = { requires-python = ">=3.11" }
 dev = { requires-python = ">=3.11" }
 ci = { requires-python = ">=3.11" }
 test = { requires-python = ">=3.11" }

@@ -2,6 +2,38 @@
 
 This document provides guidelines and information about our development workflow.
 
+## Documentation
+
+The documentation is Markdown in `docs/`, built with Zensical. Keep examples
+runnable and link canonical guides rather than duplicating feature manuals.
+Runtime support remains Python 3.10+; documentation tooling needs Python 3.11+.
+
+```console
+uv sync --python 3.13 --group doc
+uv run --group doc intk docs-build
+uv run --group doc intk docs-preview
+```
+
+The build uses strict internal-link and anchor validation. Preview serves the
+site locally with live reload. Edit `zensical.toml` when adding navigation pages;
+keep PEP 723 between the human and AI-agent entrypoints. Update the
+[improvement index](docs/reference/improvements.md) when documenting merged
+features. The checked-in `uv.lock` pins the generator and dependencies.
+
+### GitHub Pages
+
+`.github/workflows/docs.yaml` builds every pull request and push to `main`.
+Only successful `main` builds, including manual runs on `main`, upload and deploy
+a Pages artifact. Pull requests never receive deployment permissions.
+
+Before the first deployment, a repository administrator must select
+**Settings → Pages → Build and deployment → Source → GitHub Actions** and enable
+the site. Keep the `github-pages` environment's deployment policy restricted to
+`main`. The expected project URL is
+<https://d3f0.github.io/invoke-toolkit/>; there is no generated source branch to
+maintain. The workflow does not enable Pages automatically or require a personal
+access token.
+
 ## Release Workflow
 
 Our project uses an automated release process triggered by specific keywords in commit messages and pull request titles.
