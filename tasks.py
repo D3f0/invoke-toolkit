@@ -228,68 +228,18 @@ def release(ctx: Context, skip_sync: bool = False) -> None:
     )
 
 
-@task(aliases=["b"])
-def docs_api_build(
-    ctx: Context,
-    config: str = "",
-    filter_: str = "",
-    dry_run: bool = False,
-    watch: bool = False,
-    verbose: bool = False,
-    timeout: int = 0,
-):
-    """
-    Runs uv run quartodoc build with the provided arguments.
-    """
-    # uv run quartodc build --help
-    #   --config TEXT  Change the path to the configuration file.  The default is
-    #                  `./_quarto.yml`
-    #   --filter TEXT  Specify the filter to select specific files. The default is
-    #                  '*' which selects all files.
-    #   --dry-run      If set, prevents new documents from being generated.
-    #   --watch        If set, the command will keep running and watch for changes
-    #                  in the package directory.
-    #   --verbose      Enable verbose logging.
-    #   --help         Show this message and exit.
-    args = ""
-    if config:
-        args = f"{args} --config {config}"
-    if filter_:
-        args = f"{args} --filter {filter_}"
-    if dry_run:
-        args = f"{args} --dry_run"
-    if watch:
-        args = f"{args} --watch"
-    if verbose:
-        args = f"{args} --verbose"
-
-    with ctx.cd(REPO_ROOT / "docs"):
-        ctx.run(
-            f"uv run quartodoc build {args}", timeout=timeout if timeout > 0 else None
-        )
+@task()
+def docs_build(ctx: Context) -> None:
+    """Build the Zensical documentation with strict link validation."""
+    with ctx.cd(REPO_ROOT):
+        ctx.run("uv run --locked --group doc zensical build --clean --strict")
 
 
 @task()
-def docs_api_watch_entr(ctx: Context, timeout: int = 5):
-    """Uses entr to rebuild, when --watch doesn't detect changes. Requires entr CLI"""
+def docs_preview(ctx: Context) -> None:
+    """Serve the Zensical documentation locally with live reload."""
     with ctx.cd(REPO_ROOT):
-        if not which("entr"):
-            ctx.rich_exit("[bold]entr[/bold] not found in [green]$PATH[/green]")
-        ctx.run(
-            f"""
-            git ls-files **/*.py | entr -n {sys.argv[0]} -T {timeout} -e docs-api-build
-            """,
-            echo=True,
-        )
-
-
-@task(aliases=["p"])
-def docs_preview(ctx: Context):
-    """
-    Runs [green]quarto preview[/green] to visualize the documentation.
-    """
-    with ctx.cd(REPO_ROOT / "docs"):
-        ctx.run("quarto preview")
+        ctx.run("uv run --locked --group doc zensical serve")
 
 
 @task(autoprint=True)

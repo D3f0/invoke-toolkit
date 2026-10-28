@@ -1,141 +1,116 @@
-# invoke-toolkit
-
-A set of extensions for rich output, more options in collection/config discovery through `entry-points`.
-
-This extends the Collection from Invoke so it can create automatically collections.
+# Invoke Toolkit
 
 [![PyPI - Version](https://img.shields.io/pypi/v/invoke-toolkit.svg)](https://pypi.org/project/invoke-toolkit)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/invoke-toolkit.svg)](https://pypi.org/project/invoke-toolkit)
 
------
+**Python tasks for humans and AI agents, built on [Invoke](https://www.pyinvoke.org/).**
 
-## Table of Contents
+Invoke Toolkit keeps Invoke's task functions, contexts, namespaces and task chaining, and adds typed arguments, Rich terminal output, shell completion, reusable plugins and portable PEP 723 scripts. Use it as a library to build project automation, then expose the same tasks to a person at a terminal or an agent invoking explicit commands.
 
-- [invoke-toolkit](#invoke-toolkit)
-  - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-  - [Do I need this package](#do-i-need-this-package)
-  - [Installation](#installation)
-  - [Development](#development)
-  - [License](#license)
+[Documentation](https://d3f0.github.io/invoke-toolkit/) · [Quickstart](https://d3f0.github.io/invoke-toolkit/getting-started/quickstart/) · [Migrating from Invoke](https://d3f0.github.io/invoke-toolkit/getting-started/from-invoke/) · [Improvement history](https://d3f0.github.io/invoke-toolkit/reference/improvements/)
 
-## Features
+## Install and run your first task
 
-- Task discovery by namespace for extendable/composable CLIs
-- Discovery to *plain old* tasks.py (or any other name)
-- Local tasks discovery from `local_tasks.py` in the current directory
-- Integration with stand alone binaries for specific tasks
-- **Task result caching** with TTL support via `diskcache` (optional)
-- **Future** Download binaries
+Requires **Python 3.10+**; the library depends on **Invoke 3.0.3+** and **Rich 13+** ([compatibility change #114](https://github.com/D3f0/invoke-toolkit/pull/114)). With [uv](https://docs.astral.sh/uv/), install into a project:
 
-## Do I need this package
-
-If you have...
-
-- Used `invoke` for a while and...
-- Have a large `tasks.py` that needs to be modularized
-- Have a lot of copy/pasted code in multiple `tasks.py` across multiple repos.
-- Have exceeded the approach of a repository cloned as `~/tasks/` with more .py files that you want to manage.
-- Or you want to combine various tasks defined in multiple directories
-- You want to create a zipped (shiv) redistribute script for container environments
-  like Kubernetes based CI environments with only requiring the Python interpreter.
-
-## Installation
-
-```console
-pip install invoke-toolkit
+```sh
+uv add invoke-toolkit
 ```
 
-## Quick Start
-
-### Using Local Tasks
-
-Create a `local_tasks.py` file in your project directory with your tasks:
+Save this as `tasks.py`:
 
 ```python
-from invoke_toolkit import task
+from invoke_toolkit import Context, task
 
-@task()
-def my_task(ctx):
-    """Do something useful"""
-    print("Hello from local tasks!")
+
+@task
+def hello(ctx: Context, name: str = "toolkit") -> None:
+    """Greet a person or an automation client."""
+    print(f"Hello, {name}!")
 ```
 
-Then run it with:
+Discover, inspect and execute it:
 
-```console
-intk local.my-task
+```sh
+uv run intk --list
+uv run intk --help hello
+uv run intk hello --name toolkit
 ```
 
-Local tasks are automatically discovered and added to the `local` namespace, allowing you to keep project-specific tasks separate from your main task collection.
+## For humans: a helpful terminal interface
 
-### Listing changed tasks
+- [Rich output and status](https://d3f0.github.io/invoke-toolkit/humans/rich-output/): styled messages, spinners, and a transient live panel showing the last three lines of subprocess output with `--show-command-output` ([#105](https://github.com/D3f0/invoke-toolkit/pull/105)). Disable animation when debugging ([#19](https://github.com/D3f0/invoke-toolkit/pull/19), [#25](https://github.com/D3f0/invoke-toolkit/pull/25)).
+- [Completion](https://d3f0.github.io/invoke-toolkit/humans/completion/): install bash, zsh or fish support; complete typed choices, paths and configuration-aware callbacks ([#38](https://github.com/D3f0/invoke-toolkit/pull/38), [#41](https://github.com/D3f0/invoke-toolkit/pull/41), [#64](https://github.com/D3f0/invoke-toolkit/pull/64), [#101](https://github.com/D3f0/invoke-toolkit/pull/101), [#139](https://github.com/D3f0/invoke-toolkit/pull/139)).
+- [Interactive selection](https://d3f0.github.io/invoke-toolkit/humans/interactive-selection/): fzf integration, with a simpler Rich numbered selector when fzf is unavailable ([#80](https://github.com/D3f0/invoke-toolkit/pull/80)).
+- Close task names, aliases and namespaces are suggested after a typo; suggestions never execute a replacement command ([#140](https://github.com/D3f0/invoke-toolkit/pull/140)).
 
-For a Git-managed PEP 723 script that calls `invoke_toolkit.script()`:
+[Start with the human workflow](https://d3f0.github.io/invoke-toolkit/humans/).
 
-```console
-uv run tasks.py --list-changed
-uv run tasks.py --list-changed --list-format json
-uv run tasks.py --list
-```
+## PEP 723: one portable task file
 
-`--list-changed` lists only new or updated task definitions compared with Git
-`HEAD`, including staged and unstaged edits. Normal flat and nested listings
-also highlight new tasks in green and updated tasks in yellow. Color follows
-Rich's terminal detection and `NO_COLOR`; JSON retains Invoke's existing schema.
-The flag also works with `intk --list-changed` for a loaded task file, and can
-combine with `--list <namespace>`, `--list-tasks`, or `--list-plugins` to narrow
-the listing further.
+Put dependency metadata and tasks in the same Python file. uv provides the environment; Toolkit's `script()` turns the file into an Invoke-style command interface. This is the bridge between an operator's local workflow and an agent's repeatable invocation.
 
-Comparison includes task bodies, signatures, decorators, and docstrings, but
-ignores comments, formatting, and line-number shifts. Imported tasks and
-indirect changes through helpers or globals are not included. Historical source
-is parsed, never executed. In a Git repository, every task in a file absent
-from `HEAD` (including a new repository without commits) counts as new.
-Adding a task decorator to a helper counts as new; changing the decorator's
-explicit task name counts as an update to that existing definition.
-
-With no changes, the flag exits successfully with an empty JSON task list or a
-message for human-readable formats. Outside a Git repository, or without Git,
-`--list-changed` reports an error; normal listing still works without highlights.
-
-
-### Using Task Caching
-
-Cache expensive task results with the `cache` parameter:
+Save as `portable_tasks.py`:
 
 ```python
-from invoke_toolkit import task
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["invoke-toolkit"]
+# ///
+from invoke_toolkit import Context, script, task
 
-# Simple caching (no expiration)
-@task(cache=True)
-def expensive_task(ctx, param: str) -> str:
-    """Results are cached across invocations."""
-    return do_expensive_computation(param)
 
-# Caching with TTL (1 hour)
-@task(cache={"ttl": 3600})
-def cached_task(ctx, name: str) -> dict:
-    """Results cached for 1 hour."""
-    return fetch_data(name)
+@task
+def hello(ctx: Context, name: str = "toolkit") -> None:
+    """Greet from a standalone task file."""
+    print(f"Hello, {name}!")
 
-# Caching with ignored arguments
-@task(cache={"ttl": 600, "ignore_args": ["verbose"]})
-def cached_with_options(ctx, query: str, verbose: bool = False) -> list:
-    """Cache key ignores verbose flag."""
-    return search(query, verbose=verbose)
+
+if __name__ == "__main__":
+    script()
 ```
 
-Cache features:
-- Cache location is computed from git repository root + platformdirs
-- Debug logging (`-d` flag) shows cache hits/misses
-- Graceful degradation when `diskcache` is not installed
-
-To enable caching, install with the cache extra:
-
-```console
-pip install invoke-toolkit[cache]
+```sh
+uv run --script portable_tasks.py hello --name PEP723
+uv run --script portable_tasks.py --list --list-format json
 ```
+
+With inline metadata, **uv ignores the surrounding project's dependencies**: declare everything the script imports. Toolkit still loads project configuration from the **current working directory**, not necessarily the script's directory ([#104](https://github.com/D3f0/invoke-toolkit/pull/104)); use `script(config_prefix="myapp")` for a custom configuration prefix ([#11](https://github.com/D3f0/invoke-toolkit/pull/11)).
+
+For a Git-managed task file, `--list-changed` compares the current task definitions with `HEAD`, including staged and unstaged edits. New repositories without commits count all tasks as new. Imported tasks and indirect helper/global changes are excluded; this is not a dependency-impact analysis ([#146](https://github.com/D3f0/invoke-toolkit/pull/146)).
+
+[Read the complete PEP 723 guide](https://d3f0.github.io/invoke-toolkit/pep723/) for configuration, dependency locking, import behavior and changed-task discovery.
+
+## For AI agents: discover, inspect, execute
+
+```sh
+uv run intk --list --list-format json
+uv run intk --help hello
+uv run intk --disable-status hello --name agent
+```
+
+JSON is a **listing format**, not a universal output mode. Task authors own task results: emit explicit JSON to stdout and diagnostics to stderr when you need a machine-readable contract. Listing and help import Python modules and execute top-level code; Toolkit is **not a sandbox**.
+
+[Agent workflow and output contracts](https://d3f0.github.io/invoke-toolkit/agents/) · [Task-authoring skill](https://github.com/D3f0/invoke-toolkit/blob/main/skills/invoke-toolkit-tasks/SKILL.md) ([#110](https://github.com/D3f0/invoke-toolkit/pull/110))
+
+## Build reusable automation
+
+Use the canonical library guides for the full APIs and boundaries:
+
+| Need | Guide |
+| --- | --- |
+| Enum, Literal, Annotated and path arguments | [Typed arguments](https://d3f0.github.io/invoke-toolkit/guides/typed-arguments/) |
+| Project, `local_tasks.py` and reusable namespaces | [Collections](https://d3f0.github.io/invoke-toolkit/guides/collections/) |
+| Entry-point discovery and persistent `uv tool` plugin management | [Plugins](https://d3f0.github.io/invoke-toolkit/guides/plugins/) |
+| Config files, CLI editing and typed schemas | [Configuration](https://d3f0.github.io/invoke-toolkit/guides/configuration/) |
+| Dynamic defaults, URI resolvers and managed temporary files | [Fields](https://d3f0.github.io/invoke-toolkit/guides/fields/) |
+| Optional task-result and completion caches | [Caching](https://d3f0.github.io/invoke-toolkit/guides/caching/) |
+| Awaited commands and explicit concurrency | [Async tasks](https://d3f0.github.io/invoke-toolkit/guides/async/) |
+| Subprocesses, redaction and process titles | [Execution](https://d3f0.github.io/invoke-toolkit/guides/execution/) |
+| Reusable package templates | [Packages](https://d3f0.github.io/invoke-toolkit/guides/packages/) |
+
+Optional packages are available as extras: `invoke-toolkit[cache]` for diskcache, `invoke-toolkit[copier]` or `invoke-toolkit[templating]` for package creation. Async task graphs remain sequential unless task code explicitly requests concurrency; the native async subprocess path is buffered and noninteractive, without PTY, watchers or sudo support.
 
 Task and completion caches authenticate serialized values with HMAC-SHA256
 before deserialization. The owner-only signing key lives under
@@ -143,145 +118,21 @@ before deserialization. The owner-only signing key lives under
 the cache directory. Unsigned legacy entries and tampered entries are cache
 misses and are recomputed. Losing the key invalidates existing entries; if its
 permissions or ownership are unsafe, caching is disabled rather than reading
-unsigned data.
-New entries are stored inline in SQLite. Legacy DiskCache spill files are not
-read or deleted automatically, because their filenames are unauthenticated.
+unsigned data. New entries are stored inline in SQLite. Legacy DiskCache spill
+files are not read or deleted automatically, because their filenames are
+unauthenticated. See the [caching guide](https://d3f0.github.io/invoke-toolkit/guides/caching/).
 
-
-## Dynamic task defaults
-
-Use `Field` when an argument default must be computed from the final task
-context or resolved from a URI. Explicit command-line values always take
-precedence.
-
-Bind a resolver once, then reuse the resulting callable for scalar and file
-defaults. A local resolver always returns one string value per request. The
-resolver receives every URI using that callback and scheme in one batch.
-
-```python
-from invoke_toolkit import Context, Field, FilePath, task
-
-
-def resolve_bw(ctx: Context, requests: list) -> dict[str, str]:
-    return {
-        request.parameter: ctx.run("bw get password ...", hide=True).stdout.strip()
-        for request in requests
-    }
-
-
-BitwardenField = Field(resolver=resolve_bw)
-ExistingFile = FilePath(exists=True, dir_okay=False)
-
-
-@task
-def deploy(
-    ctx: Context,
-    password: str = BitwardenField(default="bw://PASSWORD_ID"),
-    config: ExistingFile = BitwardenField(
-        default="bw://CONFIG_ID", cleanup="task"
-    ),
-) -> None:
-    ...
-```
-
-For `str` fields, the resolver string reaches the task unchanged. For `Path` or
-`FilePath` fields, `Field.create_temporary_file()` writes that string to a
-managed temporary file and passes its `Path` to the task. Override that method
-in a `Field` subclass to control file creation; resolvers do not return paths.
-
-For omitted arguments, lookup precedence is explicit CLI/Python/call value,
-then `INVOKE_<PARAMETER>` environment value, then the resolved `ctx.config`
-value, then the declared `Field` default or factory. URI values from config use
-the same local or entry-point resolver dispatch as declared URI defaults.
-
-`Field(default_factory=callback)` runs only if no higher-precedence value is
-available. Factories and resolvers never run during help, listing, or shell
-completion; `Path`/`FilePath` completion continues to work normally for
-explicit values.
-
-Temporary `Path` files from resolver-bound `Field` instances are owned by
-invoke-toolkit. `cleanup="pipeline"` is the default and keeps the file through
-expanded pre/main/post execution; `cleanup="task"` removes it when that task
-returns. Cleanup runs after failures and cancellation.
-
-Installed `invoke_toolkit.field_resolver` entry points remain supported for
-compatibility but issue a warning recommending a task-local resolver. Generate a
-resolver-only provider package with:
-
-```console
-intk -x create.package --provider op
-```
-
-Provider packages expose no task collection. Providers return text only; for
-`Path` fields invoke-toolkit materializes and cleans the resulting temporary
-file according to that Field's cleanup lifetime.
-
-## uv tool plugins
-
-Plugin management requires a persistent `uv tool install invoke-toolkit`
-environment. Plugins are distributions that expose an
-`invoke_toolkit.collection` entry point; their package names do not need an
-`invoke-toolkit-` prefix.
-
-```console
-intk -x plugin.list
-intk -x plugin.add 'invoke-toolkit-example>=1'
-intk -x plugin.add git+https://github.com/example/invoke-toolkit-example.git
-intk -x plugin.add ./invoke-toolkit-example
-intk -x plugin.link ./invoke-toolkit-example
-intk -x plugin.update --name invoke-toolkit-example
-intk -x plugin.update
-intk -x plugin.remove invoke-toolkit-example
-```
-
-`plugin.add` uses uv's `--with` mode. A local directory is built as a static
-installation. `plugin.link` uses `--with-editable`, so source changes are live.
-A named update refreshes one non-editable plugin; an update without a name
-refreshes all non-editable plugins and reports linked plugins as skipped.
-Registry constraints and pinned Git references remain in effect. Plugin updates
-do not update invoke-toolkit itself.
-Shell completion suggests directly installed plugin names for `plugin.remove`
-and named `plugin.update` operations.
-
-To reduce shell-completion latency in environments with expensive collection
-plugins, set `completion.disable_plugins: true` in `invoke.yaml`:
-
-```yaml
-completion:
-  disable_plugins: true
-```
-
-`INVOKE_COMPLETION_DISABLE_PLUGINS=1` enables the same behavior without changing
-the configuration file. Completion then skips installed
-`invoke_toolkit.collection` entry points while retaining project, local, and
-built-in `-x` task suggestions. These settings affect completion only; normal
-task execution and listing still load plugins.
-
-
-
-These commands reject `uvx`, `uv run`, project environments, and installations
-managed by another tool. pipx offers a similar manual workflow:
-
-```console
-pipx inject invoke-toolkit PLUGIN
-pipx inject invoke-toolkit --editable ./PLUGIN
-pipx uninject invoke-toolkit PLUGIN
-pipx list --include-injected
-```
-
-pipx accepts registry, local, and Git sources supported by pip. invoke-toolkit
-does not detect or execute pipx lifecycle operations.
+These docs describe current `main`. A previously installed PyPI release may not include every recently merged improvement; see [installation options](https://d3f0.github.io/invoke-toolkit/getting-started/installation/) and the [complete PR map](https://d3f0.github.io/invoke-toolkit/reference/improvements/).
 
 ## Development
 
-This project utilizes the `pre-commit` framework, make sure you run:
+See [CONTRIBUTING.md](https://github.com/D3f0/invoke-toolkit/blob/main/CONTRIBUTING.md) for the uv environment, checks and Zensical documentation workflow. Runtime Python support remains 3.10+; the documentation toolchain requires Python 3.11+.
 
-`pre-commit install`
-
-With `uvx`:
-
-`uvx --with pre-commit-uv pre-commit install`
+```sh
+uv sync --group dev
+uvx --with pre-commit-uv pre-commit install
+```
 
 ## License
 
-`invoke-toolkit` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+`invoke-toolkit` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license. See [LICENSE.txt](https://github.com/D3f0/invoke-toolkit/blob/main/LICENSE.txt).
