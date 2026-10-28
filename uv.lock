@@ -751,10 +751,20 @@ dev = [
 doc = [
     { name = "quartodoc" },
 ]
+test = [
+    { name = "copier", marker = "python_full_version >= '3.11'" },
+    { name = "diskcache", marker = "python_full_version >= '3.11'" },
+    { name = "pexpect", marker = "python_full_version >= '3.11'" },
+    { name = "pytest", marker = "python_full_version >= '3.11'" },
+    { name = "pytest-cov", marker = "python_full_version >= '3.11'" },
+    { name = "pytest-html", marker = "python_full_version >= '3.11'" },
+    { name = "pytest-xdist", marker = "python_full_version >= '3.11'" },
+]
 
 [package.group-requires-python]
 ci = ">=3.11"
-dev = ">=3.11"
+dev = ">=3.11,>=3.11"
+test = ">=3.11"
 
 [package.metadata]
 requires-dist = [
@@ -804,6 +814,15 @@ dev = [
     { name = "ty", marker = "python_full_version >= '3.11'", specifier = ">=0.0.1a25" },
 ]
 doc = [{ name = "quartodoc", specifier = ">=0.11.1" }]
+test = [
+    { name = "copier", marker = "python_full_version >= '3.11'", specifier = ">=9.16.0" },
+    { name = "diskcache", marker = "python_full_version >= '3.11'", specifier = ">=5.6.0" },
+    { name = "pexpect", marker = "python_full_version >= '3.11'", specifier = ">=4.9.0" },
+    { name = "pytest", marker = "python_full_version >= '3.11'", specifier = ">=9.1.1" },
+    { name = "pytest-cov", marker = "python_full_version >= '3.11'", specifier = ">=5.0.0" },
+    { name = "pytest-html", marker = "python_full_version >= '3.11'", specifier = ">=4.1.1" },
+    { name = "pytest-xdist", marker = "python_full_version >= '3.11'", specifier = ">=3.8.0" },
+]
 
 [[package]]
 name = "isort"

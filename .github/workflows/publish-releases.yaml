@@ -25,11 +25,11 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: uv sync --all-groups --all-extras
+      - name: Install CI runner dependencies
+        run: uv sync --locked --only-group ci
 
       - name: Run tests with nox
-        run: uv run nox
+        run: uv run --locked --only-group ci nox
 
   publish:
     runs-on: ubuntu-latest

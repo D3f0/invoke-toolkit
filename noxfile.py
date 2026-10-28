@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import nox  # type: ignore[import-untyped]  # pylint: disable=import-error
 
@@ -11,7 +11,18 @@ python_versions = ["3.11", "3.12", "3.13", "3.14"]
 @nox.session(python=python_versions, venv_backend="uv")
 def tests(session: "Session"):
     """Run the full suite in an isolated uv environment."""
-    session.run_install("uv", "sync", "--active", "--group", "dev", external=True)
+    session.run_install(
+        "uv",
+        "sync",
+        "--locked",
+        "--active",
+        "--python",
+        cast(str, session.python),
+        "--no-default-groups",
+        "--group",
+        "test",
+        external=True,
+    )
     session.run(
         "pytest",
         "tests/",
