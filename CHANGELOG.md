@@ -30,16 +30,13 @@ on version bumps.
 - A prominent human autocompletion workflow and terminal-demo recording guide,
   recommending asciinema/browser playback with agg and VHS alternatives.
 
+
 ### Changed
 
 - Replace the obsolete documentation generator and watcher tasks with
   `docs-build` and `docs-preview`; refresh README highlights and contributor
   instructions. Documentation tooling requires Python 3.11+, independently of
   the library's unchanged Python 3.10+ support.
-
-
-### Changed
-
 - Separate CI runner and test dependencies from developer and documentation
   tooling; GitHub Actions installs only Nox, and each Python session installs
   the dedicated test group using the committed lockfile.

@@ -21,12 +21,13 @@ Invoke Toolkit retains Invoke's Python task functions, contexts, pre/post tasks,
 
 ## Complete merged-PR coverage
 
-This index covers **all 65 merged pull requests through #149**, at source baseline [`b60d09a`](https://github.com/D3f0/invoke-toolkit/tree/b60d09a). Each row links the originating PR and its current guide. Related fixes are sections within the same guide rather than duplicate manuals. Guide examples follow current source, not stale historical PR snippets.
+This index covers **all 66 merged pull requests through #152**, at source baseline [`69f099a`](https://github.com/D3f0/invoke-toolkit/tree/69f099a). Each row links the originating PR and its current guide. Related fixes are sections within the same guide rather than duplicate manuals. Guide examples follow current source, not stale historical PR snippets.
 
 CI, dependency and release-maintenance changes are retained as maintenance, not claimed as new library APIs. #22 is an autoprint regression test; #44 adds a dependency, not an HTTP client abstraction. The generated package's Python requirement is separate from the library's Python >=3.10 requirement. Invoke 3 compatibility (#114) exposes upstream functionality; it does not mean Toolkit invented wrapper tasks.
 
 | Merged PR | Current improvement or maintenance scope | Documentation |
 | --- | --- | --- |
+| [#152: ci: separate test dependencies from developer tooling](https://github.com/D3f0/invoke-toolkit/pull/152) | Maintenance: isolated Nox runner and locked test environments | [Maintainer notes](#maintainer-notes) |
 | [#149: fix: update certifi past compromised CA range](https://github.com/D3f0/invoke-toolkit/pull/149) | Maintenance: certifi security update | [Maintainer notes](#maintainer-notes) |
 | [#148: fix: include cache authentication backend in fresh checkouts](https://github.com/D3f0/invoke-toolkit/pull/148) | Authenticated cache backend distributed in fresh checkouts | [Guide](../guides/caching.md#authenticated-cache-storage) |
 | [#147: security: authenticate cache values with HMAC-SHA256 before unpickling](https://github.com/D3f0/invoke-toolkit/pull/147) | Cache authentication, safe dependency quoting and security dependency floors | [Guide](../guides/caching.md#authenticated-cache-storage) |
