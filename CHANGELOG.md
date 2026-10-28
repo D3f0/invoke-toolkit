@@ -25,6 +25,12 @@ on version bumps.
   nested listings while keeping JSON output machine-readable.
 
 
+### Changed
+
+- Separate CI runner and test dependencies from developer and documentation
+  tooling; GitHub Actions installs only Nox, and each Python session installs
+  the dedicated test group using the committed lockfile.
+
 ### Fixed
 
 - Preserve carriage-return bytes when forwarding terminal input to interactive
