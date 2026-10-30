@@ -1,12 +1,22 @@
+import io
+import logging
+import shlex
+import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 import pytest
 from invoke.util import debug
+from rich.console import Console
 
 from invoke_toolkit import Context, task
 from invoke_toolkit.collections import ToolkitCollection
+from invoke_toolkit.config import ToolkitConfig
+from invoke_toolkit.config.status_helper import StatusHelper
 from invoke_toolkit.output import SecretRedactorConsole, get_console
 from invoke_toolkit.testing import TestingToolkitProgram
+from invoke_toolkit.runners.rich import RedactingStream
 
 
 def test_console_object(monkeypatch):
@@ -217,6 +227,225 @@ def test_context_redact_stderr(
     _out, err = capsys.readouterr()
     assert "error_hidden" not in err
     assert "$ERROR_SECRET" in err
+
+
+@pytest.mark.parametrize("split", range(1, len("synthetic-secret")))
+def test_redacting_stream_keeps_secret_prefix_across_flushes(monkeypatch, split):
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    console = SecretRedactorConsole(secret_patterns=["^STREAM_SECRET$"])
+    output = io.StringIO()
+    stream = RedactingStream(console, output)
+
+    stream.write("prompt> ")
+    stream.flush()
+    assert output.getvalue() == "prompt> "
+    assert stream.write("synthetic-secret"[:split]) == split
+    stream.flush()
+    assert output.getvalue() == "prompt> "
+    stream.write("synthetic-secret"[split:] + "!\n")
+    stream.flush()
+    assert output.getvalue() == "prompt> $STREAM_SECRET!\n"
+
+
+@pytest.mark.parametrize(
+    "substitution, expected", [("${}", "$LONG!"), ("*", "******!")]
+)
+def test_redacting_stream_preserves_longest_secret_precedence(
+    monkeypatch, substitution, expected
+):
+    monkeypatch.setenv("SHORT", "abc")
+    monkeypatch.setenv("LONG", "abcdef")
+    console = SecretRedactorConsole(
+        secret_patterns=["^(SHORT|LONG)$"], substitution=substitution
+    )
+    output = io.StringIO()
+    stream = RedactingStream(console, output)
+    stream.write("abc")
+    stream.flush()
+    assert output.getvalue() == ""
+    stream.write("def!")
+    stream.flush()
+    assert output.getvalue() == expected
+
+
+def test_secret_initialization_never_logs_values(monkeypatch, caplog):
+    monkeypatch.setenv("LOG_SECRET", "synthetic-log-secret")
+    with caplog.at_level(logging.DEBUG, logger="invoke"):
+        console = SecretRedactorConsole(secret_patterns=["^LOG_SECRET$"])
+        console.secret_patterns = ["^LOG_SECRET$"]
+    assert "synthetic-log-secret" not in caplog.text
+
+
+@pytest.fixture
+def redacting_ctx():
+    return Context(ToolkitConfig(overrides={"run": {"in_stream": False}}))
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("stream_name", ["out", "err"])
+def test_redacting_runner_drains_nonsecret_prefix_at_eof(
+    redacting_ctx, monkeypatch, asynchronous, stream_name
+):
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    get_console(stream_name).secret_patterns = ["^STREAM_SECRET$"]
+    output = io.StringIO()
+    child = f"import sys; sys.std{stream_name}.write('synthetic-')"
+    result = redacting_ctx.run(
+        shlex.join([sys.executable, "-c", child]),
+        asynchronous=asynchronous,
+        **{f"{stream_name}_stream": output},
+    )
+    if asynchronous:
+        result = result.join()
+    assert result.exited == 0
+    assert output.getvalue() == "synthetic-"
+
+
+def test_redacting_stream_uses_global_longest_first_replacements(monkeypatch):
+    monkeypatch.setenv("SHORT", "abc")
+    monkeypatch.setenv("LONG", "bcdef")
+    console = SecretRedactorConsole(secret_patterns=["^(SHORT|LONG)$"])
+    output = io.StringIO()
+    stream = RedactingStream(console, output)
+    for character in "abcdef!":
+        stream.write(character)
+        stream.flush()
+    assert output.getvalue() == "a$LONG!"
+
+
+@pytest.mark.parametrize("stream_name", ["out", "err"])
+def test_verbose_status_renders_redacted_output(
+    redacting_ctx, monkeypatch, stream_name
+):
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    get_console(stream_name).secret_patterns = ["^STREAM_SECRET$"]
+    output = io.StringIO()
+    helper = StatusHelper(
+        Console(file=output, force_terminal=True, width=100), show_command_output=True
+    )
+    redacting_ctx._set("_status_helper", helper)
+    with redacting_ctx.status("working") as status:
+        redacting_ctx.run(
+            shlex.join(
+                [
+                    sys.executable,
+                    "-c",
+                    f"import sys; sys.std{stream_name}.write('synthetic-secret')",
+                ]
+            )
+        )
+    Console(file=output).print(status._build_renderable())
+    assert "synthetic-secret" not in output.getvalue()
+    assert "$STREAM_SECRET" in output.getvalue()
+
+
+def test_redacting_stream_drains_mismatched_prefix_and_repeated_unicode_secrets(
+    monkeypatch,
+):
+    monkeypatch.setenv("UNICODE_SECRET", "é秘密")
+    console = SecretRedactorConsole(secret_patterns=["^UNICODE_SECRET$"])
+    output = io.StringIO()
+    stream = RedactingStream(console, output)
+    for chunk in ("é", "X ", "é", "秘", "密é秘", "密\né"):
+        stream.write(chunk)
+        stream.flush()
+    assert output.getvalue() == "éX $UNICODE_SECRET$UNICODE_SECRET\n"
+    stream.finish()
+    assert output.getvalue() == "éX $UNICODE_SECRET$UNICODE_SECRET\né"
+
+
+def test_redacting_runner_finishes_output_before_command_failure(
+    redacting_ctx, monkeypatch
+):
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    get_console("out").secret_patterns = ["^STREAM_SECRET$"]
+    output = io.StringIO()
+    from invoke import UnexpectedExit
+
+    with pytest.raises(UnexpectedExit):
+        redacting_ctx.run(
+            shlex.join(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; sys.stdout.write('synthetic-'); sys.exit(1)",
+                ]
+            ),
+            out_stream=output,
+        )
+    assert output.getvalue() == "synthetic-"
+
+
+def test_redacting_stream_serializes_writes_and_emission(monkeypatch):
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    console = SecretRedactorConsole(secret_patterns=["^STREAM_SECRET$"])
+    entered = Event()
+    release = Event()
+
+    class PausingOutput(io.StringIO):
+        def write(self, text):
+            if text == "first!":
+                entered.set()
+                assert release.wait(5)
+            return super().write(text)
+
+    output = PausingOutput()
+    stream = RedactingStream(console, output)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(stream.write, "first!")
+        assert entered.wait(5)
+        second_started = Event()
+
+        def second_write():
+            second_started.set()
+            stream.write("second!")
+
+        second = executor.submit(second_write)
+        assert second_started.wait(5)
+        try:
+            assert not second.done()
+        finally:
+            release.set()
+        first.result(timeout=5)
+        second.result(timeout=5)
+    stream.finish()
+    assert output.getvalue() == "first!second!"
+
+
+def test_redacting_runner_keeps_prefix_until_stdin_echo_finishes(monkeypatch):
+    from invoke_toolkit.runners.rich import NoStdoutRunner
+
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    get_console("out").secret_patterns = ["^STREAM_SECRET$"]
+    stdout_ended = Event()
+
+    class EOFSignalingRunner(NoStdoutRunner):
+        def handle_stdout(self, buffer_, hide, output):
+            try:
+                super().handle_stdout(buffer_, hide, output)
+            finally:
+                stdout_ended.set()
+
+    class DelayedInput(io.StringIO):
+        def read(self, size=-1):
+            assert stdout_ended.wait(5)
+            return super().read(size)
+
+    ctx = Context(ToolkitConfig(overrides={"runners": {"local": EOFSignalingRunner}}))
+    output = io.StringIO()
+    ctx.run(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                "import os,sys; os.write(1, b'synthetic-'); os.close(1); sys.stdin.read(6)",
+            ]
+        ),
+        in_stream=DelayedInput("secret"),
+        echo_stdin=True,
+        out_stream=output,
+    )
+    assert output.getvalue() == "$STREAM_SECRET"
 
 
 # Fix test isolation issues by simplifying stderr-checking tests

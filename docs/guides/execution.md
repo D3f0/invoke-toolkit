@@ -83,13 +83,13 @@ def demonstrate_redaction(ctx: Context) -> None:
 intk demonstrate-redaction
 ```
 
-The value is sampled from the environment when the console's patterns are configured. The synchronous default runner wraps terminal output; switching runners can bypass that filtering. Important limitations:
+The value is sampled from the environment when the console's patterns are configured. Each default-runner invocation snapshots those values and substitutions. Its stdout/stderr filters retain possible secret prefixes across writes and flushes. Writes and redaction state are serialized when stdout and stdin echo share an output stream; pending nonsecret text drains only after all writers finish. This also protects verbose status capture and Invoke's `ctx.run(..., asynchronous=True)` path. Ordinary prompts are emitted immediately unless their suffix might be part of a secret; such a suffix waits for more output or final drainage. Switching runners can bypass filtering. Important limitations:
 
 - Raw captured `Result.stdout`/`.stderr`, arbitrary `print`, files, logging frameworks, custom Rich renderables, command echo and process arguments are not generally protected by the redaction contract.
-- Async subprocess output bypasses the synchronous redacting runner. Use `hide=True` and avoid rendering secrets, rather than assuming async parity.
-- Replacement works on displayed string values/chunks; it is not structured secret tracking. A value split between output writes, transformed or encoded can escape matching.
+- Native async subprocess output (`ctx.run_async()` or `ctx.run()` inside an async task) bypasses the redacting runner. Use `hide=True` and avoid rendering secrets, rather than assuming async parity.
+- Replacement matches literal displayed values, not structured secrets. Transformed or encoded values, secrets split across different streams, and separate `ctx.print()` calls can escape matching.
 - Environment secrets still exist in the process/environment and may be visible to other processes. Managed [Field files](fields.md#scalar-text-versus-managed-path-files) are also real local files.
-- Do not enable debug with secrets present: current console initialization debug logging can expose the sampled secret map.
+- Redaction initialization no longer logs secret values, but debug output can still disclose other sensitive configuration or command data. Do not enable debug with secrets present.
 - Console state is shared across contexts in a process. The current redaction context manager does not reliably restore/clear patterns on first use or exceptional exit; do not depend on it as task-local secret cleanup or isolation.
 
 The safest policy is not to print a secret at all. Use redaction as a best-effort presentation safeguard, never as a reason to send credentials on a command line or approve untrusted task modules.
