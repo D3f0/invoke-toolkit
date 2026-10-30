@@ -50,6 +50,10 @@ on version bumps.
 
 ### Security
 
+- Redact environment secrets across subprocess output chunk boundaries and
+  flushes, including verbose status capture and Invoke background runs. Drain
+  pending nonsecret output at EOF and remove plaintext secret-map debug logging
+  ([#154](https://github.com/D3f0/invoke-toolkit/issues/154)).
 - Authenticate task and completion cache values with a private, machine-local
   HMAC-SHA256 key before unpickling. Reject unsigned legacy values, serialized
   keys, file-backed entries and tampered payloads; preserve Python-object

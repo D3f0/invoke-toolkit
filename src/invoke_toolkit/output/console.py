@@ -75,7 +75,6 @@ class SecretRedactorConsole(Console):
 
         # Build secret map: key -> value
         self._build_secret_map()
-        debug(f"{self._secret_map=}")
 
     def _build_secret_map(self) -> None:
         """Build mapping of secret keys to their values."""
@@ -98,25 +97,24 @@ class SecretRedactorConsole(Console):
                     return True
         return False
 
+    def _redaction_replacements(self):
+        """Yield nonempty secrets and replacements in longest-first order."""
+        for key, value in sorted(
+            self._secret_map.items(), key=lambda item: len(item[1]), reverse=True
+        ):
+            if value:
+                replacement = (
+                    self.substitution * len(value)
+                    if len(self.substitution) == 1
+                    else self.substitution.format(key)
+                )
+                yield value, replacement
+
     def _redact_text(self, text: str) -> str:
         """Replace secret values with redacted version."""
-        redacted = text
-
-        # Sort by length (longest first) to avoid partial replacements
-        sorted_secrets = sorted(
-            self._secret_map.items(), key=lambda x: len(x[1]), reverse=True
-        )
-
-        for key, value in sorted_secrets:
-            if value:  # Skip empty values
-                # Create redacted replacement (same length as secret)
-                if len(self.substitution) == 1:
-                    redacted_value = self.substitution * len(value)
-                else:
-                    redacted_value = self.substitution.format(key)
-                redacted = redacted.replace(value, redacted_value)
-
-        return redacted
+        for value, replacement in self._redaction_replacements():
+            text = text.replace(value, replacement)
+        return text
 
     def redact(self, text: str) -> str:
         """Public method to redact text using configured secret patterns."""

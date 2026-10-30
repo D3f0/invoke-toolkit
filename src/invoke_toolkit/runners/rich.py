@@ -44,17 +44,50 @@ class RedactingStream:
         self.console = console
         self.original_stream = original_stream
         self.encoding = getattr(original_stream, "encoding", "utf-8") or "utf-8"
+        self._replacements = tuple(console._redaction_replacements())
+        self._pending = [""] * len(self._replacements)
+
+    def _redact(self, text: str, final: bool = False) -> str:
+        """Stream each longest-first replacement without exposing partial matches."""
+        for index, (value, replacement) in enumerate(self._replacements):
+            text = self._pending[index] + text
+            parts = []
+            start = 0
+            while (position := text.find(value, start)) != -1:
+                parts.extend((text[start:position], replacement))
+                start = position + len(value)
+
+            tail = text[start:]
+            pending_length = 0
+            if not final:
+                for length in range(min(len(tail), len(value) - 1), 0, -1):
+                    if value.startswith(tail[-length:]):
+                        pending_length = length
+                        break
+            boundary = len(tail) - pending_length
+            self._pending[index] = tail[boundary:]
+            parts.append(tail[:boundary])
+            text = "".join(parts)
+        return text
 
     def write(self, text: str) -> int:
-        """Write text after redacting secrets."""
+        """Accept text, retaining only suffixes that might complete a secret."""
         if not text:
             return 0
+        redacted_text = self._redact(text)
+        if redacted_text:
+            self.original_stream.write(redacted_text)
+        return len(text)
 
-        redacted_text = self.console.redact(text)
-        return self.original_stream.write(redacted_text)
+    def finish(self) -> None:
+        """Drain pending output at EOF without closing the caller's stream."""
+        text = self._redact("", final=True)
+        if text:
+            self.original_stream.write(text)
+        self.flush()
 
     def flush(self) -> None:
-        """Flush the underlying stream."""
+        """Flush emitted output, keeping possible secret prefixes until EOF."""
         if hasattr(self.original_stream, "flush"):
             self.original_stream.flush()
 
@@ -173,8 +206,25 @@ class NoStdoutRunner(Local):
             return self.context._status_helper  # pylint: disable=protected-access
         return None
 
+    def _handle_output(self, buffer_, hide, output, reader):
+        """Finish redaction when a process stream ends, including async runs."""
+        try:
+            super()._handle_output(buffer_, hide, output, reader)
+        finally:
+            if isinstance(output, RedactingStream):
+                output.finish()
+
     def run(self, command, **kwargs):
         """Execute command with redacting streams and optional output capture."""
+        # Capture first so redaction also protects verbose status output.
+        status_helper = self._get_status_helper()
+        if status_helper and status_helper.is_verbose:
+            out_stream = kwargs.get("out_stream") or sys.stdout
+            err_stream = kwargs.get("err_stream") or sys.stderr
+            kwargs["out_stream"] = OutputCapturingStream(status_helper, out_stream)
+            kwargs["err_stream"] = OutputCapturingStream(status_helper, err_stream)
+            kwargs["hide"] = False
+
         # Get the configured console objects
         out_console = get_console("out")
         err_console = get_console("err")
@@ -199,16 +249,5 @@ class NoStdoutRunner(Local):
             debug(
                 f"Running with redacting streams: {has_out_redaction=}, {has_err_redaction=}"
             )
-
-        # If we're inside a verbose status, capture output for the panel
-        status_helper = self._get_status_helper()
-        if status_helper and status_helper.is_verbose:
-            out_stream = kwargs.get("out_stream") or sys.stdout
-            err_stream = kwargs.get("err_stream") or sys.stderr
-            kwargs["out_stream"] = OutputCapturingStream(status_helper, out_stream)
-            kwargs["err_stream"] = OutputCapturingStream(status_helper, err_stream)
-            # Disable hide so output flows through our capturing stream
-            # (the stream feeds the Live panel instead of printing to terminal)
-            kwargs["hide"] = False
 
         return super().run(command, **kwargs)
