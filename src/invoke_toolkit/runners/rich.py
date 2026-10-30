@@ -41,7 +41,6 @@ class RedactingStream:
             console: The SecretRedactorConsole to use for redaction
             original_stream: The original stream to write to
         """
-        self.console = console
         self.original_stream = original_stream
         self.encoding = getattr(original_stream, "encoding", "utf-8") or "utf-8"
         self._replacements = tuple(console._redaction_replacements())
