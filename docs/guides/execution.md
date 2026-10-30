@@ -83,7 +83,7 @@ def demonstrate_redaction(ctx: Context) -> None:
 intk demonstrate-redaction
 ```
 
-The value is sampled from the environment when the console's patterns are configured. Each default-runner invocation snapshots those values and substitutions. Its stdout/stderr filters retain possible secret prefixes across writes and flushes, then drain remaining nonsecret text at EOF. This also protects verbose status capture and Invoke's `ctx.run(..., asynchronous=True)` path. Ordinary prompts are emitted immediately unless their suffix might be part of a secret; such a suffix waits for more output or EOF. Switching runners can bypass filtering. Important limitations:
+The value is sampled from the environment when the console's patterns are configured. Each default-runner invocation snapshots those values and substitutions. Its stdout/stderr filters retain possible secret prefixes across writes and flushes. Writes and redaction state are serialized when stdout and stdin echo share an output stream; pending nonsecret text drains only after all writers finish. This also protects verbose status capture and Invoke's `ctx.run(..., asynchronous=True)` path. Ordinary prompts are emitted immediately unless their suffix might be part of a secret; such a suffix waits for more output or final drainage. Switching runners can bypass filtering. Important limitations:
 
 - Raw captured `Result.stdout`/`.stderr`, arbitrary `print`, files, logging frameworks, custom Rich renderables, command echo and process arguments are not generally protected by the redaction contract.
 - Native async subprocess output (`ctx.run_async()` or `ctx.run()` inside an async task) bypasses the redacting runner. Use `hide=True` and avoid rendering secrets, rather than assuming async parity.

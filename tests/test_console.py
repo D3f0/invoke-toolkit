@@ -3,6 +3,8 @@ import logging
 import shlex
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 import pytest
 from invoke.util import debug
@@ -372,6 +374,78 @@ def test_redacting_runner_finishes_output_before_command_failure(
             out_stream=output,
         )
     assert output.getvalue() == "synthetic-"
+
+
+def test_redacting_stream_serializes_writes_and_emission(monkeypatch):
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    console = SecretRedactorConsole(secret_patterns=["^STREAM_SECRET$"])
+    entered = Event()
+    release = Event()
+
+    class PausingOutput(io.StringIO):
+        def write(self, text):
+            if text == "first!":
+                entered.set()
+                assert release.wait(5)
+            return super().write(text)
+
+    output = PausingOutput()
+    stream = RedactingStream(console, output)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(stream.write, "first!")
+        assert entered.wait(5)
+        second_started = Event()
+
+        def second_write():
+            second_started.set()
+            stream.write("second!")
+
+        second = executor.submit(second_write)
+        assert second_started.wait(5)
+        try:
+            assert not second.done()
+        finally:
+            release.set()
+        first.result(timeout=5)
+        second.result(timeout=5)
+    stream.finish()
+    assert output.getvalue() == "first!second!"
+
+
+def test_redacting_runner_keeps_prefix_until_stdin_echo_finishes(monkeypatch):
+    from invoke_toolkit.runners.rich import NoStdoutRunner
+
+    monkeypatch.setenv("STREAM_SECRET", "synthetic-secret")
+    get_console("out").secret_patterns = ["^STREAM_SECRET$"]
+    stdout_ended = Event()
+
+    class EOFSignalingRunner(NoStdoutRunner):
+        def handle_stdout(self, buffer_, hide, output):
+            try:
+                super().handle_stdout(buffer_, hide, output)
+            finally:
+                stdout_ended.set()
+
+    class DelayedInput(io.StringIO):
+        def read(self, size=-1):
+            assert stdout_ended.wait(5)
+            return super().read(size)
+
+    ctx = Context(ToolkitConfig(overrides={"runners": {"local": EOFSignalingRunner}}))
+    output = io.StringIO()
+    ctx.run(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                "import os,sys; os.write(1, b'synthetic-'); os.close(1); sys.stdin.read(6)",
+            ]
+        ),
+        in_stream=DelayedInput("secret"),
+        echo_stdin=True,
+        out_stream=output,
+    )
+    assert output.getvalue() == "$STREAM_SECRET"
 
 
 # Fix test isolation issues by simplifying stderr-checking tests
