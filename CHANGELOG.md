@@ -43,6 +43,11 @@ on version bumps.
 
 ### Fixed
 
+- Declare the complete package-root public API in `__all__`, so Pyright and
+  basedpyright accept documented imports such as `task`, `Context` and
+  `Collection`. Preserve intentional Invoke re-exports and exclude incidental
+  dependencies from wildcard imports; check consumer typing in CI
+  ([#157](https://github.com/D3f0/invoke-toolkit/issues/157)).
 - Preserve carriage-return bytes when forwarding terminal input to interactive
   subprocesses launched with `pty=True`, so Enter behaves like direct execution.
 - Avoid importing Copier and its dependency tree while completing built-in
