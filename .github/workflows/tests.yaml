@@ -33,3 +33,6 @@ jobs:
 
       - name: Run tests with nox
         run: uv run --locked --only-group ci nox
+
+      - name: Check public API consumer typing
+        run: uv run --locked --no-default-groups --group typing pyright --project tests/typecheck/public_api.json

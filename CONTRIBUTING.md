@@ -82,7 +82,8 @@ uv run pytest -k test_name
 ```
 
 Dependency groups separate the CI runner (`ci`), suite dependencies (`test`),
-developer tooling (`dev`, which includes `test`), and documentation (`doc`).
+public-API typing checks (`typing`), developer tooling (`dev`, which includes
+`test` and `typing`), and documentation (`doc`).
 GitHub Actions installs only the Nox runner; each Nox session synchronizes the
 package and `test` group for its declared Python version, without developer or
 documentation tooling:
@@ -93,6 +94,12 @@ uv run --locked --only-group ci nox
 For a single test environment without developer tooling:
 ```bash
 uv run --locked --no-default-groups --group test pytest
+```
+
+GitHub Actions also checks package-root imports with Pyright, using the separate
+`typing` group rather than installing the full developer environment:
+```bash
+uv run --locked --no-default-groups --group typing pyright --project tests/typecheck/public_api.json
 ```
 
 ### Development Setup

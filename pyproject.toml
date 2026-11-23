@@ -166,6 +166,9 @@ full = [
 ci = [
     "nox>=2025.10.16",
 ]
+typing = [
+    "pyright>=1.1.404",
+]
 test = [
     "copier>=9.16.0",
     "diskcache>=5.6.0",
@@ -177,13 +180,13 @@ test = [
 ]
 dev = [
     { include-group = "test" },
+    { include-group = "typing" },
     "hunter>=3.7.0",
     "pdbpp>=0.11.7",
     "pre-commit>=4.3.0",
     "pre-commit-uv>=4.2.0",
     "pylint>=3.2.7",
     "pylint-per-file-ignores>=1.0.0",
-    "pyright>=1.1.404",
     "pytest-picked>=0.5.1",
     "pytest-sugar>=1.1.1",
     "ty>=0.0.1a25",
@@ -197,6 +200,7 @@ doc = { requires-python = ">=3.11" }
 dev = { requires-python = ">=3.11" }
 ci = { requires-python = ">=3.11" }
 test = { requires-python = ">=3.11" }
+typing = { requires-python = ">=3.11" }
 
 [tool.uv]
 constraint-dependencies = [

@@ -595,12 +595,16 @@ test = [
     { name = "pytest-html", marker = "python_full_version >= '3.11'" },
     { name = "pytest-xdist", marker = "python_full_version >= '3.11'" },
 ]
+typing = [
+    { name = "pyright", marker = "python_full_version >= '3.11'" },
+]
 
 [package.group-requires-python]
 ci = ">=3.11"
-dev = ">=3.11,>=3.11"
+dev = ">=3.11,>=3.11,>=3.11"
 doc = ">=3.11"
 test = ">=3.11"
+typing = ">=3.11"
 
 [package.metadata]
 requires-dist = [
@@ -659,6 +663,7 @@ test = [
     { name = "pytest-html", marker = "python_full_version >= '3.11'", specifier = ">=4.1.1" },
     { name = "pytest-xdist", marker = "python_full_version >= '3.11'", specifier = ">=3.8.0" },
 ]
+typing = [{ name = "pyright", marker = "python_full_version >= '3.11'", specifier = ">=1.1.404" }]
 
 [[package]]
 name = "isort"

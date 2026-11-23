@@ -18,6 +18,13 @@ This maintained reference summarizes the Toolkit-specific public surface. It is 
 
 Root exports also include `Field`, `FieldResolutionRequest`, `FieldResolver`, `CacheConfig`, `cached`, `cache_stats`, `clear_task_cache`, all six path factories, `script`, `global_context`, `run` and `sudo`. `ConfigSchema`/`config_schema` and schema registry helpers are imported from `invoke_toolkit.config`, not the root. Inherited Invoke classes/exceptions re-exported at the root retain upstream semantics.
 
+The package root declares these supported exports in `__all__`, including the
+inherited Invoke API. Pyright and basedpyright accept package-root imports such
+as `from invoke_toolkit import task, Context, Collection`; importing private
+implementation modules or disabling `reportPrivateImportUsage` is unnecessary.
+Wildcard imports include the supported API and `__version__`, not incidental
+dependencies such as `sys`, `metadata` or `Any`.
+
 ## Tasks and calls
 
 ### task
