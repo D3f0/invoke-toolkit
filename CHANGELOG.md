@@ -48,6 +48,12 @@ on version bumps.
   `Collection`. Preserve intentional Invoke re-exports and exclude incidental
   dependencies from wildcard imports; check consumer typing in CI
   ([#157](https://github.com/D3f0/invoke-toolkit/issues/157)).
+- Make `intk -x plugin.link PATH` replace an existing static or editable
+  requirement for the same local checkout instead of appending a second one;
+  previously `plugin.add PATH` followed by `plugin.link PATH` left both in the
+  uv receipt and broke `uv tool upgrade invoke-toolkit` with "conflicting
+  URLs". Re-linking also repairs receipts already in that state
+  ([#159](https://github.com/D3f0/invoke-toolkit/issues/159)).
 - Preserve carriage-return bytes when forwarding terminal input to interactive
   subprocesses launched with `pty=True`, so Enter behaves like direct execution.
 - Avoid importing Copier and its dependency tree while completing built-in

@@ -277,6 +277,66 @@ def test_add_and_link_preserve_existing_requirements(tmp_path: Path):
         link_args(receipt, tmp_path / "missing")
 
 
+def _local_receipt(tmp_path: Path, plugin_path: Path, source: str) -> ToolReceipt:
+    (tmp_path / "uv-receipt.toml").write_text(
+        f"""[tool]
+requirements = [
+  {{ name = "invoke-toolkit", extras = ["full"], specifier = ">=1" }},
+  {{ name = "other-plugin", editable = "/plugins/other" }},
+  {{ name = "demo-plugin", {source} = "{plugin_path}" }},
+]
+""",
+        encoding="utf-8",
+    )
+    return load_receipt(UvTool("invoke-toolkit", "1", tmp_path))
+
+
+@pytest.mark.parametrize("source", ["directory", "editable"])
+def test_link_replaces_existing_requirement_for_same_checkout(
+    tmp_path: Path, source: str
+):
+    plugin_path = tmp_path / "demo"
+    plugin_path.mkdir()
+    receipt = _local_receipt(tmp_path, plugin_path, source)
+
+    linked = link_args(receipt, tmp_path / "." / "demo")
+
+    assert linked == [
+        "uv",
+        "tool",
+        "install",
+        "--force",
+        "--with-editable",
+        "/plugins/other",
+        "--with-editable",
+        str(plugin_path.resolve()),
+        "invoke-toolkit[full]>=1",
+    ]
+
+
+def test_link_keeps_extras_of_replaced_static_checkout(tmp_path: Path):
+    plugin_path = tmp_path / "demo"
+    plugin_path.mkdir()
+    (tmp_path / "uv-receipt.toml").write_text(
+        f"""[tool]
+requirements = [
+  {{ name = "invoke-toolkit" }},
+  {{ name = "demo-plugin", extras = ["dev"], directory = "{plugin_path}" }},
+]
+""",
+        encoding="utf-8",
+    )
+    receipt = load_receipt(UvTool("invoke-toolkit", "1", tmp_path))
+
+    linked = link_args(receipt, plugin_path)
+
+    assert linked[4:] == [
+        "--with-editable",
+        f"demo-plugin[dev] @ {plugin_path.as_uri()}",
+        "invoke-toolkit",
+    ]
+
+
 def test_remove_and_update_preserve_unrelated_requirements(tmp_path: Path):
     receipt = _receipt(tmp_path)
     static = Plugin("static-plugin", "1", ("static",), receipt.supplemental[3])

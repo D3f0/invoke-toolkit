@@ -62,6 +62,7 @@ class ReceiptRequirement:
     value: str
     source: RequirementSource
     editable: bool = False
+    checkout: Path | None = None
 
     @property
     def install_option(self) -> str:
@@ -208,11 +209,15 @@ def _requirement_from_mapping(raw: dict[str, Any]) -> ReceiptRequirement:
             direct_reference(value, local=True),
             RequirementSource.EDITABLE,
             editable=True,
+            checkout=Path(value),
         )
     if raw.get("directory"):
         value = str(raw["directory"])
         return ReceiptRequirement(
-            name, direct_reference(value, local=True), RequirementSource.DIRECTORY
+            name,
+            direct_reference(value, local=True),
+            RequirementSource.DIRECTORY,
+            checkout=Path(value),
         )
     if raw.get("git"):
         value = str(raw["git"])
@@ -367,16 +372,35 @@ def add_args(receipt: ToolReceipt, source: str) -> list[str]:
 
 
 def link_args(receipt: ToolReceipt, path: Path) -> list[str]:
-    """Append one editable local supplemental requirement."""
+    """Link one local checkout as editable, replacing any prior source for it.
+
+    A checkout previously added as a static directory (or already linked) is
+    replaced rather than duplicated: uv records both sources and later refuses
+    to replay a receipt holding static and editable URLs for one package.
+    """
     resolved = path.expanduser().resolve()
     if not resolved.is_dir():
         raise ValueError(f"Editable plugin path must be an existing directory: {path}")
+    supplemental: list[ReceiptRequirement] = []
     requirement = ReceiptRequirement(
-        resolved.name, str(resolved), RequirementSource.EDITABLE, editable=True
+        resolved.name,
+        str(resolved),
+        RequirementSource.EDITABLE,
+        editable=True,
+        checkout=resolved,
     )
-    return install_args(
-        replace(receipt, supplemental=(*receipt.supplemental, requirement))
-    )
+    for existing in receipt.supplemental:
+        if existing.checkout is not None and _same_path(existing.checkout, resolved):
+            # Reuse the recorded reference so extras such as ``name[dev] @ file://``
+            # survive the switch to editable.
+            requirement = replace(
+                existing,
+                source=RequirementSource.EDITABLE,
+                editable=True,
+            )
+        else:
+            supplemental.append(existing)
+    return install_args(replace(receipt, supplemental=(*supplemental, requirement)))
 
 
 def _require_direct(plugin: Plugin) -> ReceiptRequirement:
